@@ -17,6 +17,8 @@ All notable changes are recorded here. The firmware version lives in
 - JSON Schemas and examples for observations, commands, acknowledgements and OTA.
 - Architecture, protocol, hardware, build, operations and ADR documentation.
 - CI for firmware tests/build, server tests/lint, docs and Docker.
+- Project handoff, current slice plan and agent instructions in `AGENTS.md` and
+  `docs/development/handoff.md`.
 
 ### Known gaps
 

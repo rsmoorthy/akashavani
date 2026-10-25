@@ -61,6 +61,7 @@ nav:
   - Development:
       - Contributing: development/contributing.md
       - Roadmap: development/roadmap.md
+      - Handoff: development/handoff.md
   - Reference:
       - Configuration: reference/configuration.md
   - Decisions:

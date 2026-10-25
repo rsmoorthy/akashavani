@@ -72,8 +72,13 @@ Start at [`docs/index.md`](docs/index.md), or build the docs site with
 - [Testing](docs/build/testing.md)
 - [Provisioning](docs/operations/provisioning.md)
 - [OTA](docs/operations/ota.md)
+- [Current handoff and next slice](docs/development/handoff.md)
 
 ## Ground rules for porting the prototype
+
+Before changing firmware, read [`AGENTS.md`](AGENTS.md) and the
+[development handoff](docs/development/handoff.md). The project is built one
+vertical slice at a time using the owner's specs and validated RF reference code.
 
 1. Hardware access belongs in a library under `firmware/libraries/`; a sketch
    only wires components together.
