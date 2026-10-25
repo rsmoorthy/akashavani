@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    image: akashvani-server:dev
+    ports:
+      - "8000:8000"
+    environment:
+      AKASHVANI_ENVIRONMENT: development
+      AKASHVANI_DATABASE_URL: sqlite:////data/akashvani.db
+      AKASHVANI_DATA_DIR: /data
+      AKASHVANI_FIRMWARE_DIR: /data/firmware
+      AKASHVANI_DEVICE_SEEDS: ${AKASHVANI_DEVICE_SEEDS:-sim-001:dev-sim-token:Simulator}
+      AKASHVANI_ADMIN_TOKEN: ${AKASHVANI_ADMIN_TOKEN:-dev-admin-token}
+      AKASHVANI_LOG_LEVEL: ${AKASHVANI_LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

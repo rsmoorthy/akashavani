@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware-native:
+    name: Firmware native tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CMake
+        run: python -m pip install --upgrade pip cmake ninja
+      - name: Run native tests
+        run: ./tools/fw-test-native.sh
+
+  firmware-build:
+    name: Firmware build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Arduino toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: arduino-${{ runner.os }}-esp32-3.0.2-aj7.1.0-rtc2.1.4
+      - name: Install arduino-cli
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/.local/bin" sh -s 1.0.1
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install core and libraries
+        run: ./tools/fw-setup.sh
+      - name: Build receiver and simulator
+        run: |
+          ./tools/fw-build.sh receiver
+          ./tools/fw-build.sh transmitter_sim
+          ./tools/fw-build.sh bringup
+
+  server:
+    name: Server tests and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e "server[dev]"
+      - name: Ruff format
+        run: ruff format --check server
+      - name: Ruff lint
+        run: ruff check server
+      - name: Mypy
+        working-directory: server
+        run: mypy src
+      - name: Pytest
+        working-directory: server
+        run: pytest
+
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install docs dependencies
+        run: python -m pip install -e "server[dev]"
+      - name: Build with strict links
+        run: mkdocs build --strict
+
+  docker:
+    name: Server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t akashvani-server:ci ./server

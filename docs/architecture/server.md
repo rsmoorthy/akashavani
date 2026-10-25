@@ -1,0 +1,126 @@
+# Server architecture
+
+## Layers
+
+```text
+server/
+├── src/akashvani_server/
+│   ├── main.py          app factory, lifespan, router wiring
+│   ├── config.py        pydantic-settings (AKASHVANI_*)
+│   ├── db.py            engine/session, Base
+│   ├── models.py        SQLAlchemy tables
+│   ├── schemas.py       Pydantic request/response contracts
+│   ├── security.py      token hashing, device/admin auth, seed devices
+│   ├── api/             health, observations, commands, firmware, admin
+│   └── services/        reserved for domain logic as it grows
+├── migrations/          Alembic
+├── tests/               pytest + TestClient + schema validation
+├── Dockerfile
+└── docker-compose.yml
+```
+
+Routers stay thin; domain logic moves into `services/` when it no longer fits in
+a single transaction.
+
+## Data model
+
+```mermaid
+erDiagram
+  DEVICES ||--o{ OBSERVATIONS : has
+  DEVICES ||--o{ COMMANDS : receives
+  DEVICES {
+    string id PK
+    string token_hash UK
+    string firmware_version
+    datetime last_seen_at
+  }
+  OBSERVATIONS {
+    int id PK
+    string device_id FK
+    string message_id
+    datetime observed_at
+    json data
+  }
+  COMMANDS {
+    string id PK
+    string device_id FK
+    string type
+    string status
+    json payload
+    datetime expires_at
+  }
+  FIRMWARE_RELEASES {
+    string version PK
+    string channel
+    string sha256
+    int size_bytes
+  }
+```
+
+The unique constraint `(device_id, message_id)` is the idempotency mechanism.
+A retry returns `200` with `duplicate: true`; a new record returns `202`.
+
+## Request flow: ingest
+
+1. Authenticate `X-Device-Token` by SHA-256 hash lookup.
+2. Read the raw body with a configured size limit.
+3. Decode JSON or CBOR and validate against the observation schema in
+   `schemas.py`.
+4. Reject a `device_id` that does not match the authenticated device.
+5. Reject timestamps too far in the future.
+6. Insert, handling a concurrent duplicate as success.
+7. Update `last_seen_at` and the reported firmware version.
+
+CBOR is decoded only after reading the raw body, so FastAPI cannot parse the
+payload first. This is deliberate: one code path enforces size, content type and
+schema errors consistently.
+
+## Request flow: commands
+
+- Admin enqueues a command with a TTL.
+- Device leases up to `limit` pending, unexpired commands. Leasing marks them
+  `delivered` in the same transaction.
+- Device acknowledges with `ok` or `error`; the endpoint is idempotent.
+- Postgres uses `FOR UPDATE SKIP LOCKED` for concurrent leases. SQLite ignores
+  the clause and is intended for a single worker in development.
+
+## Request flow: OTA
+
+1. Device checks `/api/v1/firmware/check` with its current version and channel.
+2. Server selects the newest release in that channel and compares with
+   `packaging.version.Version`.
+3. Device downloads the image with its token.
+4. Response headers carry the SHA-256 and version.
+
+The device does **not** yet verify the SHA-256 while writing. That is a release
+blocker; see [OTA](../operations/ota.md).
+
+## Auth model
+
+| Principal | Credential | Storage |
+| --- | --- | --- |
+| Device | `X-Device-Token` bearer | SHA-256 hash in `devices.token_hash` |
+| Admin | `Authorization: Bearer ...` | `AKASHVANI_ADMIN_TOKEN` environment variable |
+
+Seed devices are created from `AKASHVANI_DEVICE_SEEDS` on startup only if
+missing. Restarting never rotates a token. Use the admin API to rotate
+explicitly.
+
+## Database
+
+- Development default: SQLite at `data/akashvani.db`, one worker.
+- Production: PostgreSQL via `AKASHVANI_DATABASE_URL`, run multiple workers only
+  after validating command leasing against Postgres.
+- Alembic is the schema mechanism. The application creates tables automatically
+  only when `environment=test`.
+- The Docker entrypoint runs `alembic upgrade head` before Uvicorn.
+
+## Scaling notes
+
+- Observations are append-only and can be partitioned by device/time later.
+- Command leasing is the first contention point; use Postgres row locks and
+  short transactions.
+- Firmware images are files on disk in this scaffold. Move to object storage
+  behind the same API when the fleet grows.
+- The admin surface is intentionally small; put it behind the same reverse proxy
+  and network policy as the API.

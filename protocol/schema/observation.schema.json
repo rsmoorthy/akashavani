@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akashvani.local/schema/observation.schema.json",
+  "title": "Observation envelope",
+  "description": "One weather observation sent by a receiver to POST /api/v1/observations. CBOR uses the same map keys and structure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "type", "device_id", "message_id", "observed_at", "data"],
+  "properties": {
+    "v": {
+      "const": 1,
+      "description": "Protocol version."
+    },
+    "type": {
+      "const": "observation"
+    },
+    "device_id": {
+      "$ref": "#/$defs/deviceId"
+    },
+    "message_id": {
+      "$ref": "#/$defs/messageId"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC receive time assigned by the receiver, ISO-8601 with Z."
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic per-device counter, when the source provides one."
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "data": {
+      "$ref": "#/$defs/data"
+    }
+  },
+  "$defs": {
+    "deviceId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,31}$",
+      "description": "Lowercase device ID derived from the MAC or assigned during provisioning."
+    },
+    "messageId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Idempotency key. Retries must reuse the same value."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol": {
+          "const": "davis"
+        },
+        "channel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "transmitter_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "rssi_dbm": {
+          "type": "integer",
+          "minimum": -200,
+          "maximum": 0
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": true,
+      "description": "Canonical SI-unit measurements. Unknown keys are stored for forward compatibility.",
+      "properties": {
+        "temperature_c": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 70
+        },
+        "humidity_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "pressure_hpa": {
+          "type": "number",
+          "minimum": 800,
+          "maximum": 1100
+        },
+        "wind_speed_ms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "wind_direction_deg": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        },
+        "wind_gust_ms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "rain_rate_mm_h": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rain_day_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "uv_index": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "solar_radiation_wm2": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1500
+        },
+        "battery_voltage_v": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30
+        }
+      }
+    }
+  }
+}

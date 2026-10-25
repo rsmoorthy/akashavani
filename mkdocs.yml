@@ -1,0 +1,74 @@
+site_name: Akashvani
+site_description: ESP32-S3 Davis weather receiver, bench simulator and cloud API
+site_author: Akashvani Project
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Firmware: architecture/firmware.md
+      - Server: architecture/server.md
+  - Hardware:
+      - Overview: hardware/README.md
+      - Pin map: hardware/pinmap.md
+  - Protocol: protocol/README.md
+  - Build and test:
+      - Firmware: build/firmware.md
+      - Server: build/server.md
+      - Testing: build/testing.md
+  - Operations:
+      - Provisioning: operations/provisioning.md
+      - OTA: operations/ota.md
+      - SD archive: operations/archive.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Roadmap: development/roadmap.md
+  - Reference:
+      - Configuration: reference/configuration.md
+  - Decisions:
+      - ADR index: adr/README.md
+      - Monorepo: adr/0001-monorepo.md
+      - Arduino CLI layout: adr/0002-arduino-cli.md
+      - Host-testable cores: adr/0003-host-testable-cores.md
+      - HTTP JSON and CBOR: adr/0004-http-json-cbor.md
+      - SD JSON Lines: adr/0005-sd-jsonl.md
+      - Two OTA paths: adr/0006-ota.md
+      - SQLite to Postgres: adr/0007-database.md

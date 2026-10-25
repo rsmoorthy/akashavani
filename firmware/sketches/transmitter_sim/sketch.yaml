@@ -1,0 +1,4 @@
+default_fqbn: esp32:esp32:esp32s3:FlashSize=4M,PSRAM=disabled,PartitionScheme=min_spiffs,CDCOnBoot=cdc
+default_protocol: serial
+default_port_config:
+  baudrate: 115200

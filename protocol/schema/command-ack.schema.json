@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akashvani.local/schema/command-ack.schema.json",
+  "title": "Command acknowledgement",
+  "description": "Body sent by a device to POST /api/v1/devices/me/commands/{id}/ack.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": {
+      "enum": ["ok", "error"]
+    },
+    "result": {
+      "type": "object",
+      "description": "Optional structured result, e.g. self-test readings."
+    },
+    "error": {
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": ["error"]
+      }
+    }
+  ]
+}

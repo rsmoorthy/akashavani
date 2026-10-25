@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akashvani.local/schema/firmware-check.schema.json",
+  "title": "Firmware check response",
+  "description": "Response from GET /api/v1/firmware/check.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["update_available", "version"],
+  "properties": {
+    "update_available": {
+      "type": "boolean"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 32
+    },
+    "download_url": {
+      "type": ["string", "null"],
+      "description": "Path or absolute URL; the device prefixes its configured base URL when it starts with '/'."
+    },
+    "sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "size_bytes": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "mandatory": {
+      "type": "boolean"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akashvani.local/schema/command.schema.json",
+  "title": "Leased command",
+  "description": "A command resource returned by POST /api/v1/devices/me/commands/lease.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "payload", "status", "created_at"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "enum": [
+        "reboot",
+        "sync_time",
+        "set_config",
+        "check_for_update",
+        "upload_logs",
+        "self_test"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "status": {
+      "enum": ["pending", "delivered", "acked", "failed"]
+    },
+    "result": {
+      "type": ["object", "null"]
+    },
+    "error": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "delivered_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "acked_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  }
+}

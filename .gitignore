@@ -1,0 +1,41 @@
+# Arduino CLI build output
+firmware/build/
+firmware/.cache/
+firmware/**/build/
+*.ino.bin
+*.ino.elf
+*.ino.map
+*.merged.bin
+*.partitions.bin
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+/dist/
+/build/
+
+# Server runtime data
+server/data/*
+!server/data/.gitkeep
+server/.env
+.env
+
+# Native build
+firmware/tests/native/build/
+
+# Docs
+site/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
