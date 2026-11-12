@@ -11,18 +11,21 @@ the rest are work items.
 | --- | --- |
 | 0. Remove `station_id` | **done** |
 | 1. 30 s health, `last_radio_at`, always-on 5-minute radio packet | **done** |
-| 2. Server per-device status data | **done** (online, last radio, latest bucket/frames/RSSI in `/admin`; uptime/queue/reset reason still not reported by the device) |
+| 2. Server per-device status data | **done** (online, last radio, latest bucket/frames/RSSI, uptime, queue depth, heap, reset reason, Wi-Fi RSSI) |
 | 3. Admin console (no login, 50 commands) | unchanged by decision; extra status data added |
 | 4. Command set | unchanged plus `get_pending_commands`, `get_data_again` |
 | 5. `last_sent` + SD catch-up + 3-year retention + AP page | **done** (firmware sends JSON batches; server also accepts CBOR) |
-| 6. Troubleshooting commands | `get_data_again` and server-side `download_data` CSV **done**; `download_raw_data` **pending** |
+| 6. Troubleshooting commands | **done** (`get_data_again`, server `download_data` CSV, `download_raw_data` + raw CSV) |
 | 7. Raw 8-byte weekday log | **done** (weekly truncate, 5-minute flush) |
 | 8. One command in flight, async ack, timeout/probe/3 retries | **done** |
 
 Implemented deviations to be aware of:
 
-- Bulk uploads from the firmware use JSON arrays; the batch endpoint also accepts
-  CBOR (`application/cbor`) for a future firmware encoder.
+- Bulk archive uploads use **MessagePack** (`application/msgpack`, encoded by
+  ArduinoJson); the batch endpoint also accepts JSON and CBOR.
+- `download_raw_data` uploads raw frames in JSON batches (100 per request) and is
+  capped at 20 000 frames per command; the ack reports `truncated` when the cap
+  is hit. The admin downloads the accumulated CSV.
 - `get_data_again` runs synchronously inside the command handler and acks when
   the replay finishes (bounded to one week and 4 minutes). It blocks RF receive
   while it runs, which is acceptable for a manual troubleshooting command.
@@ -130,7 +133,7 @@ token), and it is the source of the ambiguous identity fallback.
 - Heartbeat failures (server unreachable) should be logged/counted on the
   device and surfaced on the board status page.
 
-## 2. Server-side per-device status view (add data, no new login) — **DONE for the table**
+## 2. Server-side per-device status view (add data, no new login) — **DONE**
 
 Owner decision: show **all available data**; do not trim or limit what the page
 displays.
@@ -216,7 +219,7 @@ Accepted by the server but **not implemented on the device** (acks
    backlog is ~5 MB.
 
 
-## 6. Troubleshooting commands (data re-fetch / export) — **PARTIAL**
+## 6. Troubleshooting commands (data re-fetch / export) — **DONE**
 
 These are operator tools for repairing or inspecting data; they are not part of
 the normal upload path.
@@ -225,7 +228,7 @@ the normal upload path.
 | --- | --- | --- |
 | `get_data_again` | `start`, `end` (date/time) | Device re-sends the SD archive records in the range. Server **upserts rows with the same `message_id`** (and `(device_id, date_time)`), never duplicates, never a wholesale DB replace. Batched (up to 20 records), rate-limited, asynchronous: the command ack arrives after the replay completes. |
 | `download_data` | `start`, `end` | Produce a CSV of the stored archive rows for the range in a temp location on the server for the operator to download. |
-| `download_raw_data` | `start`, `end` | **Pending.** Device returns the raw 8-byte frames with receive timestamps for the range; server writes a CSV for download. The device currently acks `not implemented`. |
+| `download_raw_data` | `start`, `end` | Device uploads the raw 8-byte frames with receive timestamps for the range (max one week, 20k frames); the server writes a CSV that the admin downloads. |
 
 Open design points to settle before implementing:
 

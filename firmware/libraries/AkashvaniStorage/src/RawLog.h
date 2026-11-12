@@ -30,6 +30,20 @@ class RawLog {
   Status flush();
   uint32_t written() const { return written_; }
 
+  struct Record {
+    int64_t epoch = 0;
+    uint8_t frame[8] = {};
+    uint8_t length = 0;
+    int16_t rssi = 0;
+    uint8_t channel = 0;
+  };
+
+  // Sequential read of the rolling weekday files for a time range. Records are
+  // returned file by file (weekday order); the server sorts the CSV.
+  Status beginReplayRange(int64_t startEpoch, int64_t endEpoch);
+  bool nextReplayRecord(Record& record);
+  void endReplay();
+
  private:
   struct Entry {
     int64_t epoch = 0;
@@ -51,6 +65,13 @@ class RawLog {
   int currentWeekday_ = -1;
   File file_;
   bool ready_ = false;
+
+  bool replay_ = false;
+  int64_t replayStart_ = 0;
+  int64_t replayEnd_ = 0;
+  int replayWeekday_ = 0;
+  File replayFile_;
+  char replayLine_[256] = {};
 };
 
 }  // namespace akashvani

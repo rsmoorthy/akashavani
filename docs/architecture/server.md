@@ -113,8 +113,9 @@ release blockers. See [OTA](../operations/ota.md).
 | Admin | `Authorization: Bearer ...` | `AKASHVANI_ADMIN_TOKEN` environment variable |
 
 Authenticated device requests also carry `X-Device-Mac`,
-`X-Firmware-Version` and `X-Last-Radio-At`. The server records them (and
-`last_seen_at`) on the device row for admin display. A device is shown as
+`X-Firmware-Version`, `X-Last-Radio-At` and health headers (`X-Uptime-Seconds`,
+`X-Queue-Depth`, `X-Free-Heap`, `X-Wifi-Rssi`, `X-Reset-Reason`). The server
+records them (and `last_seen_at`) on the device row for admin display. A device is shown as
 *online* when `last_seen_at` is within 90 s (three 30 s poll intervals);
 `last_radio_at` is independent and stays old when RF is lost.
 

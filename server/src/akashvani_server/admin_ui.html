@@ -41,7 +41,7 @@
 <section>
   <h2>Devices</h2>
   <table>
-    <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
+    <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
     <tbody id="devices"></tbody>
   </table>
 </section>
@@ -55,6 +55,17 @@
     <button type="submit">Download CSV</button>
   </form>
   <p class="muted">Stored archive buckets, IST timestamps, maximum one week per download.</p>
+</section>
+
+<section>
+  <h2>Download raw CSV</h2>
+  <form id="rawForm">
+    <label>Device <select id="rawDevice" required></select></label>
+    <label>Start <input id="rawStart" type="datetime-local" required></label>
+    <label>End <input id="rawEnd" type="datetime-local" required></label>
+    <button type="submit">Download raw CSV</button>
+  </form>
+  <p class="muted">Raw frames collected by <code>download_raw_data</code>; same device/range as the command.</p>
 </section>
 
 <section>
@@ -87,6 +98,7 @@
         <option value="sync_time">sync_time</option>
         <option value="self_test">self_test</option>
         <option value="get_data_again">get_data_again</option>
+        <option value="download_raw_data">download_raw_data</option>
         <option value="get_pending_commands">get_pending_commands</option>
       </select>
     </label>
@@ -146,7 +158,13 @@ async function loadDevices() {
     <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
     <td>${d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'}</td>
     <td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
-    <td>${escapeHtml(d.firmware_version ?? '')}</td><td>${escapeHtml(d.last_seen_at ?? '')}</td>
+    <td>${escapeHtml(d.firmware_version ?? '')}</td>
+    <td>${d.uptime_seconds === null || d.uptime_seconds === undefined ? '' : Math.round(d.uptime_seconds / 60) + ' min'}</td>
+    <td>${d.queue_depth ?? ''}</td>
+    <td>${d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'}</td>
+    <td>${escapeHtml(d.reset_reason ?? '')}</td>
+    <td>${d.wifi_rssi === null || d.wifi_rssi === undefined ? '' : d.wifi_rssi + ' dBm'}</td>
+    <td>${escapeHtml(d.last_seen_at ?? '')}</td>
     <td>${escapeHtml(d.last_radio_at ?? '')}</td>
     <td>${escapeHtml(d.latest_archive_at ?? '')}</td>
     <td>${d.frames_valid === null || d.frames_valid === undefined ? '' : `${d.frames_valid}/${d.frames_expected}`}</td>
@@ -159,6 +177,10 @@ async function loadDevices() {
   $('csvDevice').innerHTML = devices.map((d) =>
     `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
   if (csvCurrent) $('csvDevice').value = csvCurrent;
+  const rawCurrent = $('rawDevice').value;
+  $('rawDevice').innerHTML = devices.map((d) =>
+    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
+  if (rawCurrent) $('rawDevice').value = rawCurrent;
   return devices;
 }
 
@@ -188,7 +210,7 @@ async function loadCommands() {
 function updateCommandPayload() {
   const type = $('commandType').value;
   $('versionField').style.display = (type === 'download_new_fw' || type === 'boot_with_new_fw') ? '' : 'none';
-  const isRange = type === 'get_data_again';
+  const isRange = type === 'get_data_again' || type === 'download_raw_data';
   $('rangeField').style.display = isRange ? '' : 'none';
   $('rangeEndField').style.display = isRange ? '' : 'none';
 }
@@ -237,6 +259,24 @@ $('csvForm').addEventListener('submit', async (event) => {
   setStatus('Downloaded archive CSV for ' + device, 'ok');
 });
 
+$('rawForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const device = $('rawDevice').value;
+  const start = Math.floor(new Date($('rawStart').value).getTime() / 1000);
+  const end = Math.floor(new Date($('rawEnd').value).getTime() / 1000);
+  const response = await fetch(`/api/v1/admin/raw.csv?device_id=${encodeURIComponent(device)}&start=${start}&end=${end}`, {
+    headers: { Authorization: 'Bearer ' + token() }
+  });
+  if (!response.ok) { setStatus('Raw CSV download failed: HTTP ' + response.status, 'error'); return; }
+  const blob = await response.blob();
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = device + '-raw.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+  setStatus('Downloaded raw CSV for ' + device, 'ok');
+});
+
 $('commandForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const type = $('commandType').value;
@@ -244,7 +284,7 @@ $('commandForm').addEventListener('submit', async (event) => {
   if (type === 'download_new_fw' || type === 'boot_with_new_fw') {
     payload.version = $('commandVersion').value;
   }
-  if (type === 'get_data_again') {
+  if (type === 'get_data_again' || type === 'download_raw_data') {
     payload.start_epoch = Math.floor(new Date($('commandStart').value).getTime() / 1000);
     payload.end_epoch = Math.floor(new Date($('commandEnd').value).getTime() / 1000);
   }

@@ -58,6 +58,10 @@ All notable changes are recorded here. The firmware version lives in
 - Command lifecycle: one command in flight per device, attempt counter, ACK
   timeout with `get_pending_commands` probe and up to three retries.
 - `get_data_again` command (bounded SD replay, upsert by `message_id`).
+- `download_raw_data` command and raw CSV export; archive CSV export.
+- Device health headers and admin columns (uptime, queue depth, free heap, reset
+  reason, Wi-Fi RSSI).
+- Archive catch-up batches use MessagePack (server also accepts JSON and CBOR).
 
 ### Changed
 

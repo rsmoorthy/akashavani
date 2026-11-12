@@ -297,6 +297,11 @@ class DeviceOut(BaseModel):
     created_at: UtcDateTime
     last_seen_at: UtcDateTime | None
     last_radio_at: UtcDateTime | None = None
+    uptime_seconds: int | None = None
+    queue_depth: int | None = None
+    free_heap: int | None = None
+    reset_reason: str | None = None
+    wifi_rssi: int | None = None
 
 
 class DeviceAdminOut(DeviceOut):

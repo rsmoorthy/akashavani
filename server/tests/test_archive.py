@@ -202,3 +202,17 @@ def test_archive_csv_rejects_long_range(client):
         headers=admin_headers(),
     )
     assert response.status_code == 422
+
+
+def test_batch_accepts_msgpack(client):
+    import msgpack
+
+    first = archive_payload()
+    payloads = [first, archive_payload(bucket_end_epoch=first["bucket_end_epoch"] - 300)]
+    response = client.post(
+        "/api/v1/archive/batch",
+        content=msgpack.packb(payloads),
+        headers={**api_headers(), "Content-Type": "application/msgpack"},
+    )
+    assert response.status_code == 202, response.text
+    assert response.json()["accepted"] == 2

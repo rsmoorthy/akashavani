@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import cbor2
+import msgpack  # type: ignore[import-untyped]
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -267,14 +268,16 @@ async def ingest_archive_batch(
     try:
         if content_type == "application/cbor":
             items = cbor2.loads(raw)
+        elif content_type == "application/msgpack":
+            items = msgpack.unpackb(raw, raw=False)
         elif content_type in ("application/json", ""):
             items = json.loads(raw)
         else:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="expected application/json or application/cbor",
+                detail="expected application/json, application/cbor or application/msgpack",
             )
-    except (cbor2.CBORDecodeError, ValueError) as exc:
+    except (cbor2.CBORDecodeError, msgpack.exceptions.ExtraData, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"invalid body: {exc}"
         ) from exc

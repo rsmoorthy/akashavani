@@ -39,6 +39,7 @@ from ..schemas import (
     ObservationOut,
 )
 from ..security import hash_token, require_admin
+from .raw import raw_csv_path
 
 # A device counts as online when seen within three 30-second poll intervals.
 ONLINE_WINDOW_SECONDS = 90
@@ -101,6 +102,11 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
                 created_at=device.created_at,
                 last_seen_at=device.last_seen_at,
                 last_radio_at=device.last_radio_at,
+                uptime_seconds=device.uptime_seconds,
+                queue_depth=device.queue_depth,
+                free_heap=device.free_heap,
+                reset_reason=device.reset_reason,
+                wifi_rssi=device.wifi_rssi,
                 online=online,
                 latest_archive_at=latest.date_time if latest else None,
                 frames_valid=latest.frames_valid if latest else None,
@@ -259,6 +265,31 @@ def download_archive_csv(
         buffer.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{device_id}-archive.csv"'},
+    )
+
+
+@router.get("/raw.csv", response_class=PlainTextResponse)
+def download_raw_csv(
+    device_id: str,
+    start: int,
+    end: int,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> PlainTextResponse:
+    """Download a raw-frame CSV produced by the download_raw_data command."""
+    if db.get(Device, device_id) is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    path = raw_csv_path(request.app.state.settings.data_dir, device_id, start, end)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="no raw data for that range")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        raise HTTPException(status_code=404, detail="raw file is empty")
+    body = "\n".join([lines[0], *sorted(lines[1:])]) + "\n"
+    return PlainTextResponse(
+        body,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{device_id}-raw.csv"'},
     )
 
 

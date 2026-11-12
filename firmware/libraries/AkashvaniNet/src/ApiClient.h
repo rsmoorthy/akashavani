@@ -41,6 +41,14 @@ struct FirmwareInfo {
   bool mandatory = false;
 };
 
+struct DeviceHealth {
+  uint32_t uptimeSeconds = 0;
+  uint16_t queueDepth = 0;
+  uint32_t freeHeap = 0;
+  int16_t wifiRssi = 0;
+  const char* resetReason = "unknown";
+};
+
 struct ArchiveBatchResult {
   Status status = Status::NotReady;
   int accepted = 0;
@@ -57,7 +65,8 @@ struct CommandMessage {
 
 class ApiClient {
  public:
-  explicit ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch = 0);
+  explicit ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch = 0,
+                     const DeviceHealth& health = DeviceHealth{});
 
   ObservationUpload postObservation(const DavisObservation& observation,
                                     const char* messageId, int64_t observedAtEpoch,
@@ -69,7 +78,10 @@ class ApiClient {
 
   // Uploads a JSON array of archive records (catch-up batches). The server
   // returns one outcome per record.
-  ArchiveBatchResult postArchiveBatch(const char* jsonArray);
+  ArchiveBatchResult postArchiveBatch(const uint8_t* body, size_t length);
+
+  // Uploads a batch of raw frames for the download_raw_data command.
+  Status postRawBatch(const char* jsonBody);
 
   Status checkForUpdate(const char* currentVersion, const char* channel,
                         FirmwareInfo& info);
@@ -86,6 +98,7 @@ class ApiClient {
 
   const DeviceSettings& settings_;
   int64_t lastRadioEpoch_ = 0;
+  DeviceHealth health_;
   WiFiClient plainClient_;
   WiFiClientSecure secureClient_;
 };

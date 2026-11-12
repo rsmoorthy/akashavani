@@ -35,11 +35,17 @@ X-Device-Token: <per-device token>
 X-Firmware-Version: 0.3.0
 X-Device-Mac: 08:b6:1f:b8:38:50
 X-Last-Radio-At: 1794400000
+X-Uptime-Seconds: 3600
+X-Queue-Depth: 0
+X-Free-Heap: 140000
+X-Wifi-Rssi: -51
+X-Reset-Reason: poweron
 Content-Type: application/json
 ```
 
 `X-Last-Radio-At` is the epoch of the last CRC-valid Davis frame (0 when none
-has been seen). The server stores it as `devices.last_radio_at`.
+has been seen). The other headers are device health (uptime, pending uploads,
+free heap, Wi-Fi RSSI and the reset reason) and are stored on the device row.
 
 Commands and admin calls use `Authorization: Bearer <AKASHVANI_ADMIN_TOKEN>` on
 the administrative endpoints. Device tokens are stored as SHA-256 hashes.
@@ -133,7 +139,8 @@ configured on the hotspot page (default `secret`) and in the server's
 
 Command types are `reboot`, `sync_time`, `set_config`, `check_for_update`,
 `upload_logs`, `self_test`, `get_fw_version`, `download_new_fw`,
-`boot_with_new_fw`, `get_pending_commands` and `get_data_again`. Only one
+`boot_with_new_fw`, `get_pending_commands`, `get_data_again` and
+`download_raw_data`. Only one
 command is in flight per device; the next is delivered after the previous one is
 acknowledged. Delivered commands that are not acknowledged within the server ACK
 timeout get a `get_pending_commands` probe, then up to three deliveries in total.
@@ -147,6 +154,7 @@ The OTA commands:
 | `boot_with_new_fw` | `version` | `version`, `partition`, `boot_next` |
 | `get_pending_commands` | `{}` | `pending` (command ids the device still has in flight) |
 | `get_data_again` | `start_epoch`, `end_epoch` (max 7 days) | `records` replayed from SD; the server upserts by `message_id` |
+| `download_raw_data` | `start_epoch`, `end_epoch` (max 7 days) | `records` uploaded, `truncated`; raw frames land in a server CSV |
 
 Acknowledgements may include a structured `result` object. `download_new_fw`
 does not reboot; `boot_with_new_fw` acknowledges before restarting.

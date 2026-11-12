@@ -11,6 +11,15 @@ namespace {
 
 constexpr int64_t kIstOffsetSeconds = 5 * 3600 + 30 * 60;  // +05:30, no DST
 
+int64_t daysFromCivil(int year, unsigned month, unsigned day) {
+  year -= month <= 2;
+  const int era = (year >= 0 ? year : year - 399) / 400;
+  const unsigned yearOfEra = static_cast<unsigned>(year - era * 400);
+  const unsigned dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+  const unsigned dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+  return static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(dayOfEra) - 719468;
+}
+
 }  // namespace
 
 RawLog::RawLog(const RawLogConfig& config) : config_(config) {}
@@ -139,6 +148,116 @@ void RawLog::loop(uint32_t nowMs) {
   if (count_ > 0 && nowMs - lastFlushMs_ >= config_.flushIntervalMs) {
     flush();
   }
+}
+
+Status RawLog::beginReplayRange(int64_t startEpoch, int64_t endEpoch) {
+  if (!ready_ || startEpoch <= 0 || endEpoch < startEpoch) {
+    return Status::InvalidArgument;
+  }
+  replay_ = true;
+  replayStart_ = startEpoch;
+  replayEnd_ = endEpoch;
+  replayWeekday_ = 0;
+  if (replayFile_) {
+    replayFile_.close();
+  }
+  return Status::Ok;
+}
+
+bool RawLog::nextReplayRecord(Record& record) {
+  if (!replay_) {
+    return false;
+  }
+  char path[64];
+  while (replayWeekday_ < 7) {
+    if (!replayFile_) {
+      std::snprintf(path, sizeof(path), "%s/raw-data-%s", config_.directory,
+                    weekdayName(replayWeekday_));
+      replayFile_ = SD.open(path, FILE_READ);
+      ++replayWeekday_;
+      if (!replayFile_) {
+        continue;
+      }
+    }
+    size_t length = 0;
+    bool gotLine = false;
+    while (replayFile_.available()) {
+      const int raw = replayFile_.read();
+      if (raw < 0) {
+        break;
+      }
+      const char c = static_cast<char>(raw);
+      if (c == '\n') {
+        gotLine = true;
+        break;
+      }
+      if (c != '\r' && length + 1 < sizeof(replayLine_)) {
+        replayLine_[length++] = c;
+      }
+    }
+    replayLine_[length] = '\0';
+    if (!gotLine && length == 0) {
+      replayFile_.close();
+      continue;
+    }
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
+    if (std::sscanf(replayLine_, "%d-%d-%dT%d:%d:%d+05:30,", &year, &month, &day, &hour,
+                    &minute, &second) != 6) {
+      continue;
+    }
+    const int64_t epoch =
+        daysFromCivil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)) * 86400 +
+        hour * 3600 + minute * 60 + second - kIstOffsetSeconds;
+    if (epoch < replayStart_ || epoch > replayEnd_) {
+      continue;
+    }
+    const char* fields = std::strchr(replayLine_, ',');
+    if (fields == nullptr) {
+      continue;
+    }
+    ++fields;
+    const char* lastComma = std::strrchr(fields, ',');
+    if (lastComma == nullptr) {
+      continue;
+    }
+    const char* rssiStart = lastComma;
+    while (rssiStart > fields && *(rssiStart - 1) != ',') {
+      --rssiStart;
+    }
+    if (rssiStart == fields) {
+      continue;
+    }
+    unsigned bytes[8] = {};
+    const int parsed = std::sscanf(fields, "%2X %2X %2X %2X %2X %2X %2X %2X", &bytes[0],
+                                   &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5],
+                                   &bytes[6], &bytes[7]);
+    if (parsed <= 0) {
+      continue;
+    }
+    record.epoch = epoch;
+    record.length = static_cast<uint8_t>(parsed);
+    for (int i = 0; i < parsed && i < 8; ++i) {
+      record.frame[i] = static_cast<uint8_t>(bytes[i]);
+    }
+    record.rssi = static_cast<int16_t>(std::atoi(rssiStart));
+    record.channel = static_cast<uint8_t>(std::atoi(lastComma + 1));
+    return true;
+  }
+  replayFile_.close();
+  replay_ = false;
+  return false;
+}
+
+void RawLog::endReplay() {
+  if (replayFile_) {
+    replayFile_.close();
+  }
+  replay_ = false;
 }
 
 }  // namespace akashvani

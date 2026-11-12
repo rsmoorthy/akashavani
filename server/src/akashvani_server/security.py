@@ -30,6 +30,11 @@ def require_device(
     x_device_mac: Annotated[str | None, Header(alias="X-Device-Mac")] = None,
     x_firmware_version: Annotated[str | None, Header(alias="X-Firmware-Version")] = None,
     x_last_radio_at: Annotated[str | None, Header(alias="X-Last-Radio-At")] = None,
+    x_uptime_seconds: Annotated[str | None, Header(alias="X-Uptime-Seconds")] = None,
+    x_queue_depth: Annotated[str | None, Header(alias="X-Queue-Depth")] = None,
+    x_free_heap: Annotated[str | None, Header(alias="X-Free-Heap")] = None,
+    x_reset_reason: Annotated[str | None, Header(alias="X-Reset-Reason")] = None,
+    x_wifi_rssi: Annotated[str | None, Header(alias="X-Wifi-Rssi")] = None,
     authorization: Annotated[str | None, Header()] = None,
     db: Session = Depends(get_db),
 ) -> Device:
@@ -65,6 +70,35 @@ def require_device(
     if x_firmware_version and device.firmware_version != x_firmware_version[:32]:
         device.firmware_version = x_firmware_version[:32]
         changed = True
+
+    def _as_int(value: str | None) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
+
+    uptime_seconds = _as_int(x_uptime_seconds)
+    if uptime_seconds is not None and device.uptime_seconds != uptime_seconds:
+        device.uptime_seconds = uptime_seconds
+        changed = True
+    queue_depth = _as_int(x_queue_depth)
+    if queue_depth is not None and device.queue_depth != queue_depth:
+        device.queue_depth = queue_depth
+        changed = True
+    free_heap = _as_int(x_free_heap)
+    if free_heap is not None and device.free_heap != free_heap:
+        device.free_heap = free_heap
+        changed = True
+    wifi_rssi = _as_int(x_wifi_rssi)
+    if wifi_rssi is not None and device.wifi_rssi != wifi_rssi:
+        device.wifi_rssi = wifi_rssi
+        changed = True
+    if x_reset_reason and device.reset_reason != x_reset_reason[:16]:
+        device.reset_reason = x_reset_reason[:16]
+        changed = True
+
     if x_last_radio_at:
         try:
             radio_epoch = int(x_last_radio_at)

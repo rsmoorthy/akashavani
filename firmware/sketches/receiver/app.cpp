@@ -61,6 +61,7 @@ ArchiveCollector archiveCollector(300, 3000);
 
 std::unique_ptr<SdArchive> archive;
 RawLog rawLog(RawLogConfig{});
+bool rawLogReady = false;
 std::unique_ptr<WebConfigServer> webServer;
 std::unique_ptr<OtaService> ota;
 
@@ -89,6 +90,7 @@ bool haveObservation = false;
 // Epoch of the last CRC-valid Davis frame, reported as X-Last-Radio-At on every
 // API request. Zero means "never seen".
 int64_t lastRadioEpoch = 0;
+const char* bootResetReason = "unknown";
 
 // Newest archive bucket the server acknowledged; persisted on SD as last_sent.
 int64_t lastSentEpoch = 0;
@@ -101,7 +103,7 @@ constexpr size_t kCatchupLineBytes = 1536;
 constexpr size_t kCatchupBodyBytes = kCatchupBatchRecords * kCatchupLineBytes + 32;
 char catchupBody[kCatchupBodyBytes];
 
-size_t buildReplayBatch(int64_t& lastEpoch);
+size_t buildReplayBatch(int64_t& lastEpoch, size_t& byteLength);
 bool runRangeReplay(int64_t startEpoch, int64_t endEpoch, uint32_t& sent, char* error,
                     size_t errorSize);
 
@@ -519,6 +521,43 @@ void enqueueArchive(const char* payload, const char* messageId, int64_t bucketEn
   slot.nextAttemptMs = millis();
 }
 
+const char* resetReasonName() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:
+      return "poweron";
+    case ESP_RST_EXT:
+      return "external";
+    case ESP_RST_SW:
+      return "software";
+    case ESP_RST_PANIC:
+      return "panic";
+    case ESP_RST_INT_WDT:
+      return "int_wdt";
+    case ESP_RST_TASK_WDT:
+      return "task_wdt";
+    case ESP_RST_WDT:
+      return "wdt";
+    case ESP_RST_DEEPSLEEP:
+      return "deepsleep";
+    case ESP_RST_BROWNOUT:
+      return "brownout";
+    case ESP_RST_SDIO:
+      return "sdio";
+    default:
+      return "unknown";
+  }
+}
+
+DeviceHealth currentHealth() {
+  DeviceHealth health;
+  health.uptimeSeconds = millis() / 1000UL;
+  health.queueDepth = static_cast<uint16_t>(pendingCount);
+  health.freeHeap = ESP.getFreeHeap();
+  health.wifiRssi = wifi.staConnected() ? static_cast<int16_t>(WiFi.RSSI()) : 0;
+  health.resetReason = bootResetReason;
+  return health;
+}
+
 void markSent(int64_t bucketEndEpoch) {
   if (bucketEndEpoch <= lastSentEpoch) {
     return;
@@ -564,7 +603,8 @@ void serviceCatchUp() {
   }
   lastReplayAttemptMs = now;
 
-  const size_t count = buildReplayBatch(replayBatchLastEpoch);
+  size_t catchupBytes = 0;
+  const size_t count = buildReplayBatch(replayBatchLastEpoch, catchupBytes);
   if (count == 0) {
     AK_LOG_INFO("catchup", "replay end last_sent=%lld",
                 static_cast<long long>(lastSentEpoch));
@@ -573,8 +613,9 @@ void serviceCatchUp() {
     return;
   }
 
-  ApiClient api(settings, lastRadioEpoch);
-  const ArchiveBatchResult result = api.postArchiveBatch(catchupBody);
+  ApiClient api(settings, lastRadioEpoch, currentHealth());
+  const ArchiveBatchResult result =
+      api.postArchiveBatch(reinterpret_cast<const uint8_t*>(catchupBody), catchupBytes);
   if (isOk(result.status) && result.rejected == 0) {
     markSent(replayBatchLastEpoch);
     AK_LOG_INFO("catchup", "batch=%u accepted=%d duplicate=%d last_sent=%lld",
@@ -589,31 +630,39 @@ void serviceCatchUp() {
   lastReplayAttemptMs = now;
 }
 
-// Builds one batch (up to kCatchupBatchRecords) from the active replay.
-size_t buildReplayBatch(int64_t& lastEpoch) {
-  size_t used = 0;
-  size_t count = 0;
+// Builds one MessagePack batch (up to kCatchupBatchRecords) from the active
+// replay. ArduinoJson provides a native MessagePack encoder, so no custom
+// encoder is needed on the device.
+size_t buildReplayBatch(int64_t& lastEpoch, size_t& byteLength) {
   lastEpoch = 0;
-  catchupBody[used++] = '[';
-  while (count < kCatchupBatchRecords &&
-         used + kCatchupLineBytes + 2 < sizeof(catchupBody)) {
+  byteLength = 0;
+  JsonDocument batch;
+  JsonArray array = batch.to<JsonArray>();
+  size_t count = 0;
+  while (count < kCatchupBatchRecords) {
     char line[kCatchupLineBytes];
     int64_t epoch = 0;
     bool done = false;
     if (!archive->nextReplayLine(line, sizeof(line), epoch, done)) {
       break;
     }
-    const size_t length = std::strlen(line);
-    if (count > 0) {
-      catchupBody[used++] = ',';
+    JsonDocument record;
+    if (deserializeJson(record, line) != DeserializationError::Ok) {
+      continue;
     }
-    std::memcpy(catchupBody + used, line, length);
-    used += length;
+    array.add(record.as<JsonObjectConst>());
     ++count;
     lastEpoch = epoch;
   }
-  catchupBody[used++] = ']';
-  catchupBody[used] = '\0';
+  if (count == 0) {
+    return 0;
+  }
+  const size_t needed = measureMsgPack(batch);
+  if (needed > sizeof(catchupBody)) {
+    AK_LOG_ERROR("catchup", "batch too large: %u bytes", static_cast<unsigned>(needed));
+    return 0;
+  }
+  byteLength = serializeMsgPack(batch, catchupBody, sizeof(catchupBody));
   return count;
 }
 
@@ -633,13 +682,15 @@ bool runRangeReplay(int64_t startEpoch, int64_t endEpoch, uint32_t& sent,
   const uint32_t started = millis();
   while (millis() - started < 240000UL) {
     int64_t lastEpoch = 0;
-    const size_t count = buildReplayBatch(lastEpoch);
+    size_t byteLength = 0;
+    const size_t count = buildReplayBatch(lastEpoch, byteLength);
     if (count == 0) {
       archive->endReplay();
       return true;
     }
-    ApiClient api(settings, lastRadioEpoch);
-    const ArchiveBatchResult result = api.postArchiveBatch(catchupBody);
+    ApiClient api(settings, lastRadioEpoch, currentHealth());
+    const ArchiveBatchResult result =
+        api.postArchiveBatch(reinterpret_cast<const uint8_t*>(catchupBody), byteLength);
     if (!isOk(result.status) || result.rejected > 0) {
       std::snprintf(error, errorSize, "batch failed: %s rejected=%d",
                     result.error, result.rejected);
@@ -665,7 +716,7 @@ void drainUploads() {
     return;
   }
 
-  ApiClient api(settings, lastRadioEpoch);
+  ApiClient api(settings, lastRadioEpoch, currentHealth());
   const ArchiveUpload result =
       api.postArchive(pending[0].payload, pending[0].messageId);
   if (isOk(result.status)) {
@@ -777,7 +828,7 @@ bool handleFrame(const RadioFrame& frame) {
   lastObservation = observation;
   haveObservation = true;
   lastRadioEpoch = epoch;
-  if (archiveReady) {
+  if (rawLogReady) {
     rawLog.append(epoch, frame.data, frame.length, frame.rssiDbm, prodChannel);
   }
   archiveCollector.add(observation, frame.rssiDbm, decoded.batteryLow, epoch);
@@ -859,6 +910,70 @@ void fillRuntimeInfo(JsonDocument& result, const FirmwareRuntimeInfo& info) {
   result["mac"] = String(settings.deviceMac);
 }
 
+// Uploads raw frames in [start, end] to the server for CSV export. Bounded to
+// 20k frames per command so a week of 3 s frames cannot stall the device.
+bool sendRawRange(int64_t startEpoch, int64_t endEpoch, uint32_t& total, bool& truncated,
+                  char* error, size_t errorSize) {
+  total = 0;
+  truncated = false;
+  if (endEpoch <= startEpoch || endEpoch - startEpoch > 7 * 86400) {
+    std::snprintf(error, errorSize, "range must be >0 and at most 7 days");
+    return false;
+  }
+  if (!rawLogReady || !isOk(rawLog.beginReplayRange(startEpoch, endEpoch))) {
+    std::snprintf(error, errorSize, "raw log unavailable");
+    return false;
+  }
+  JsonDocument doc;
+  doc["start_epoch"] = startEpoch;
+  doc["end_epoch"] = endEpoch;
+  JsonArray records = doc["records"].to<JsonArray>();
+  size_t inBatch = 0;
+  RawLog::Record record;
+  while (rawLog.nextReplayRecord(record)) {
+    if (total >= 20000) {
+      truncated = true;
+      break;
+    }
+    JsonObject item = records.add<JsonObject>();
+    item["t"] = record.epoch;
+    char hex[3 * 8 + 1];
+    formatHex(record.frame, record.length, hex, sizeof(hex));
+    item["hex"] = hex;
+    item["rssi"] = record.rssi;
+    item["ch"] = record.channel;
+    ++inBatch;
+    ++total;
+    if (inBatch >= 100) {
+      String payload;
+      serializeJson(doc, payload);
+      ApiClient api(settings, lastRadioEpoch, currentHealth());
+      if (!isOk(api.postRawBatch(payload.c_str()))) {
+        std::snprintf(error, errorSize, "raw upload failed");
+        rawLog.endReplay();
+        return false;
+      }
+      doc.clear();
+      doc["start_epoch"] = startEpoch;
+      doc["end_epoch"] = endEpoch;
+      records = doc["records"].to<JsonArray>();
+      inBatch = 0;
+    }
+  }
+  if (inBatch > 0) {
+    String payload;
+    serializeJson(doc, payload);
+    ApiClient api(settings, lastRadioEpoch, currentHealth());
+    if (!isOk(api.postRawBatch(payload.c_str()))) {
+      std::snprintf(error, errorSize, "raw upload failed");
+      rawLog.endReplay();
+      return false;
+    }
+  }
+  rawLog.endReplay();
+  return true;
+}
+
 void pollCommands() {
   const uint32_t intervalMs =
       static_cast<uint32_t>(settings.commandPollIntervalSeconds) * 1000UL;
@@ -870,7 +985,7 @@ void pollCommands() {
   }
   lastCommandPollMs = millis();
 
-  ApiClient api(settings, lastRadioEpoch);
+  ApiClient api(settings, lastRadioEpoch, currentHealth());
   CommandMessage commands[1];
   size_t count = 0;
   const Status status = api.leaseCommands(commands, 1, count);
@@ -1018,7 +1133,22 @@ void pollCommands() {
           // requeues the timed-out command.
           result["pending"].to<JsonArray>();
           break;
-        case protocol::CommandType::DownloadRawData:
+        case protocol::CommandType::DownloadRawData: {
+          const int64_t startEpoch = payload["start_epoch"] | static_cast<int64_t>(0);
+          const int64_t endEpoch = payload["end_epoch"] | static_cast<int64_t>(0);
+          uint32_t total = 0;
+          bool truncated = false;
+          char rawError[96] = {};
+          if (!sendRawRange(startEpoch, endEpoch, total, truncated, rawError,
+                            sizeof(rawError))) {
+            ok = false;
+            error = rawError;
+          } else {
+            result["records"] = total;
+            result["truncated"] = truncated;
+          }
+          break;
+        }
         case protocol::CommandType::SetConfig:
         case protocol::CommandType::UploadLogs:
         case protocol::CommandType::Unknown:
@@ -1128,6 +1258,7 @@ void logBanner() {
 
 void setup() {
   Log::begin(config::kSerialBaud);
+  bootResetReason = resetReasonName();
   // Hold the first line so an operator who powers the board in the field can
   // start minicom/`make fw-monitor` and still catch the boot banner. The ROM
   // bootloader text before this is not delayable.
@@ -1197,7 +1328,8 @@ void setup() {
         const int64_t cutoff =
             timeService.nowEpoch() - static_cast<int64_t>(config::kArchiveRetentionDays) * 86400;
         archive->pruneBefore(cutoff);
-        if (isOk(rawLog.begin(timeService.nowEpoch()))) {
+        rawLogReady = isOk(rawLog.begin(timeService.nowEpoch()));
+        if (rawLogReady) {
           AK_LOG_INFO("raw", "rolling weekday log ready");
         }
       }
@@ -1290,7 +1422,7 @@ void loop() {
     }
   }
 
-  if (archiveReady) {
+  if (rawLogReady) {
     rawLog.loop(millis());
   }
   serviceCatchUp();

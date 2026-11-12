@@ -28,8 +28,9 @@ void copyJsonString(const JsonVariantConst& value, char* output, size_t size) {
 
 }  // namespace
 
-ApiClient::ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch)
-    : settings_(settings), lastRadioEpoch_(lastRadioEpoch) {}
+ApiClient::ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch,
+                     const DeviceHealth& health)
+    : settings_(settings), lastRadioEpoch_(lastRadioEpoch), health_(health) {}
 
 void ApiClient::fillClients() {
   if (isHttps()) {
@@ -75,6 +76,19 @@ void ApiClient::prepareHttp(HTTPClient& http, const String& url) {
     std::snprintf(lastRadio, sizeof(lastRadio), "0");
   }
   http.addHeader("X-Last-Radio-At", lastRadio);
+  char value[24];
+  std::snprintf(value, sizeof(value), "%lu",
+                static_cast<unsigned long>(health_.uptimeSeconds));
+  http.addHeader("X-Uptime-Seconds", value);
+  std::snprintf(value, sizeof(value), "%u",
+                static_cast<unsigned>(health_.queueDepth));
+  http.addHeader("X-Queue-Depth", value);
+  std::snprintf(value, sizeof(value), "%lu", static_cast<unsigned long>(health_.freeHeap));
+  http.addHeader("X-Free-Heap", value);
+  std::snprintf(value, sizeof(value), "%d", static_cast<int>(health_.wifiRssi));
+  http.addHeader("X-Wifi-Rssi", value);
+  http.addHeader("X-Reset-Reason", health_.resetReason == nullptr ? "unknown"
+                                                                  : health_.resetReason);
 }
 
 ObservationUpload ApiClient::postObservation(const DavisObservation& observation,
@@ -177,23 +191,40 @@ ArchiveUpload ApiClient::postArchive(const char* payloadJson, const char* messag
 }
 
 
-ArchiveBatchResult ApiClient::postArchiveBatch(const char* jsonArray) {
+Status ApiClient::postRawBatch(const char* jsonBody) {
+  if (jsonBody == nullptr) {
+    return Status::InvalidArgument;
+  }
+  HTTPClient http;
+  const String url = endpoint("/api/v1/devices/me/raw");
+  prepareHttp(http, url);
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.POST(String(jsonBody));
+  http.end();
+  if (code == 202 || code == 200) {
+    return Status::Ok;
+  }
+  AK_LOG_WARN("api", "raw batch failed: http %d", code);
+  return code <= 0 ? Status::Timeout : Status::IoError;
+}
+
+ArchiveBatchResult ApiClient::postArchiveBatch(const uint8_t* body, size_t length) {
   ArchiveBatchResult result;
-  if (jsonArray == nullptr) {
+  if (body == nullptr || length == 0) {
     result.status = Status::InvalidArgument;
     return result;
   }
   HTTPClient http;
   const String url = endpoint("/api/v1/archive/batch");
   prepareHttp(http, url);
-  http.addHeader("Content-Type", "application/json");
-  const int code = http.POST(String(jsonArray));
-  const String body = http.getString();
+  http.addHeader("Content-Type", "application/msgpack");
+  const int code = http.POST(const_cast<uint8_t*>(body), length);
+  const String response = http.getString();
   http.end();
   if (code == 202 || code == 200) {
     result.status = Status::Ok;
     JsonDocument doc;
-    if (deserializeJson(doc, body) == DeserializationError::Ok) {
+    if (deserializeJson(doc, response) == DeserializationError::Ok) {
       result.accepted = doc["accepted"] | 0;
       result.duplicates = doc["duplicates"] | 0;
       result.rejected = doc["rejected"] | 0;

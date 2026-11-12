@@ -36,6 +36,11 @@ class Device(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_radio_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    uptime_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    queue_depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    free_heap: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reset_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    wifi_rssi: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     observations: Mapped[list[Observation]] = relationship(back_populates="device")
     archive_records: Mapped[list[ArchiveRecord]] = relationship(back_populates="device")
