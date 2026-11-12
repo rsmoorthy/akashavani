@@ -5,6 +5,32 @@
 **Status:** agreed backlog. Items marked **done** were completed in this pass;
 the rest are work items.
 
+## Status (2026-11-12 implementation pass)
+
+| Item | Status |
+| --- | --- |
+| 0. Remove `station_id` | **done** |
+| 1. 30 s health, `last_radio_at`, always-on 5-minute radio packet | **done** |
+| 2. Server per-device status data | **done** (online, last radio, latest bucket/frames/RSSI in `/admin`; uptime/queue/reset reason still not reported by the device) |
+| 3. Admin console (no login, 50 commands) | unchanged by decision; extra status data added |
+| 4. Command set | unchanged plus `get_pending_commands`, `get_data_again` |
+| 5. `last_sent` + SD catch-up + 3-year retention + AP page | **done** (firmware sends JSON batches; server also accepts CBOR) |
+| 6. Troubleshooting commands | `get_data_again` and server-side `download_data` CSV **done**; `download_raw_data` **pending** |
+| 7. Raw 8-byte weekday log | **done** (weekly truncate, 5-minute flush) |
+| 8. One command in flight, async ack, timeout/probe/3 retries | **done** |
+
+Implemented deviations to be aware of:
+
+- Bulk uploads from the firmware use JSON arrays; the batch endpoint also accepts
+  CBOR (`application/cbor`) for a future firmware encoder.
+- `get_data_again` runs synchronously inside the command handler and acks when
+  the replay finishes (bounded to one week and 4 minutes). It blocks RF receive
+  while it runs, which is acceptable for a manual troubleshooting command.
+- A command counts as in flight while `delivered`; after the 5-minute ACK
+  timeout it becomes `timed_out`, a `get_pending_commands` probe is queued, and
+  the original is requeued when the probe reports it is no longer running. Three
+  attempts maximum.
+
 ## Start here (new session)
 
 1. Read `AGENTS.md`, `docs/development/handoff.md`, then this file.
@@ -24,12 +50,12 @@ Bench state at handoff (2026-11-11, verified):
 - Server DB: `server/data/akashvani.db`; admin token `dev-admin-token`;
   `/admin` at `http://127.0.0.1:8000/admin`.
 - USB0's SSD1306 top rows are ghosted (accepted limitation); USB1 is clean.
-- `station_id` still exists in code/DB at the time of writing — item 0 removes
-  it first.
+- `station_id` has been removed from the firmware, server API/UI and DB
+  (migration `7d1c93a5e2b4`); identity is the device token plus `X-Device-Id`.
 
 Suggested implementation order:
 
-1. `station_id` removal (section 0) — identity cleanup, unblocks the rest.
+1. ~~`station_id` removal (section 0)~~ — **done 2026-11-12**.
 2. `last_radio_at` header + always-on 5-minute radio packet (section 1).
 3. `last_sent` + SD catch-up with CBOR batches (section 5).
 4. Admin status data (sections 2 and 3).
@@ -39,7 +65,12 @@ Suggested implementation order:
 
 ---
 
-## 0. Remove `station_id` entirely
+## 0. Remove `station_id` entirely — **DONE**
+
+Implemented: dropped `devices.station_id` (Alembic `7d1c93a5e2b4`), removed the
+`X-Station-Id` fallback (identity fallback is now `X-Device-Id` only), removed
+the field from `DeviceOut`, `/admin`, the AP page, NVS, `ApiClient`,
+`config::kStationId`, `self_test` and the boot log. Server tests updated.
 
 Owner decision: drop the station number from the system. It is neither the
 device name (`device_id`, MAC-derived `ak-xxxxxx`) nor a credential (the device
@@ -57,7 +88,7 @@ token), and it is the source of the ambiguous identity fallback.
 - Wire/API change: older firmware sending `X-Station-Id` is ignored; admin API
   consumers lose the field.
 
-## 1. Periodic health / command update
+## 1. Periodic health / command update — **DONE**
 
 **Done in this pass**
 
@@ -99,7 +130,7 @@ token), and it is the source of the ambiguous identity fallback.
 - Heartbeat failures (server unreachable) should be logged/counted on the
   device and surfaced on the board status page.
 
-## 2. Server-side per-device status view (add data, no new login)
+## 2. Server-side per-device status view (add data, no new login) — **DONE for the table**
 
 Owner decision: show **all available data**; do not trim or limit what the page
 displays.
@@ -148,7 +179,7 @@ Accepted by the server but **not implemented on the device** (acks
 `not implemented`): `set_config`, `upload_logs`.
 
 
-## 5. SD archive, offline catch-up and `last_sent`
+## 5. SD archive, offline catch-up and `last_sent` — **DONE**
 
 **Exists today**
 
@@ -185,7 +216,7 @@ Accepted by the server but **not implemented on the device** (acks
    backlog is ~5 MB.
 
 
-## 6. Troubleshooting commands (data re-fetch / export)
+## 6. Troubleshooting commands (data re-fetch / export) — **PARTIAL**
 
 These are operator tools for repairing or inspecting data; they are not part of
 the normal upload path.
@@ -194,7 +225,7 @@ the normal upload path.
 | --- | --- | --- |
 | `get_data_again` | `start`, `end` (date/time) | Device re-sends the SD archive records in the range. Server **upserts rows with the same `message_id`** (and `(device_id, date_time)`), never duplicates, never a wholesale DB replace. Batched (up to 20 records), rate-limited, asynchronous: the command ack arrives after the replay completes. |
 | `download_data` | `start`, `end` | Produce a CSV of the stored archive rows for the range in a temp location on the server for the operator to download. |
-| `download_raw_data` | `start`, `end` | Device returns the raw 8-byte frames with receive timestamps for the range; server writes a CSV for download. |
+| `download_raw_data` | `start`, `end` | **Pending.** Device returns the raw 8-byte frames with receive timestamps for the range; server writes a CSV for download. The device currently acks `not implemented`. |
 
 Open design points to settle before implementing:
 
@@ -212,7 +243,7 @@ Open design points to settle before implementing:
 - Authorization: these must be admin-only (they are queued through `/admin`).
 - CSV naming/location and cleanup of the temp files.
 
-## 7. Raw frame log on SD
+## 7. Raw frame log on SD — **DONE**
 
 **Missing today** (frames are only logged to serial).
 
@@ -233,7 +264,7 @@ Open design points to settle before implementing:
   `2026-11-11T16:25:03Z,81 06 01 2B EE 00 6F 3B` (~45 bytes) is ~1.3 MB/day,
   so the seven weekly files hold at most ~9 MB — no retention problem.
 
-## 8. One command in flight, sync or async completion
+## 8. One command in flight, sync or async completion — **DONE**
 
 New global rule from the owner: the server sends **at most one command at a time
 to a device**. The next command is only queued/delivered after the previous one

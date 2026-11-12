@@ -60,6 +60,7 @@ uint32_t lastBmeSampleMs = 0;
 ArchiveCollector archiveCollector(300, 3000);
 
 std::unique_ptr<SdArchive> archive;
+RawLog rawLog(RawLogConfig{});
 std::unique_ptr<WebConfigServer> webServer;
 std::unique_ptr<OtaService> ota;
 
@@ -85,6 +86,24 @@ bool prodSearchMode = false;
 
 DavisObservation lastObservation;
 bool haveObservation = false;
+// Epoch of the last CRC-valid Davis frame, reported as X-Last-Radio-At on every
+// API request. Zero means "never seen".
+int64_t lastRadioEpoch = 0;
+
+// Newest archive bucket the server acknowledged; persisted on SD as last_sent.
+int64_t lastSentEpoch = 0;
+bool replayActive = false;
+uint32_t lastReplayAttemptMs = 0;
+int64_t replayBatchLastEpoch = 0;
+
+constexpr size_t kCatchupBatchRecords = 20;
+constexpr size_t kCatchupLineBytes = 1536;
+constexpr size_t kCatchupBodyBytes = kCatchupBatchRecords * kCatchupLineBytes + 32;
+char catchupBody[kCatchupBodyBytes];
+
+size_t buildReplayBatch(int64_t& lastEpoch);
+bool runRangeReplay(int64_t startEpoch, int64_t endEpoch, uint32_t& sent, char* error,
+                    size_t errorSize);
 
 // ---------------------------------------------------------------------------
 // RF/Davis bench test loop
@@ -394,6 +413,7 @@ void setupRfTest() {
 struct PendingArchive {
   char messageId[65] = {};
   char payload[2048] = {};
+  int64_t bucketEndEpoch = 0;
   uint8_t attempts = 0;
   uint32_t nextAttemptMs = 0;
 };
@@ -411,7 +431,6 @@ void buildArchiveMessageId(char* output, size_t size, int64_t bucketEndEpoch) {
 // Once anything is saved through the AP page, NVS wins on later boots. The
 // credentials themselves live in the git-ignored secrets.h.
 void applyDevelopmentSettings(DeviceSettings& target) {
-  target.stationId = config::kStationId;
   // Keep the MAC-derived device ID that SettingsStore::applyDefaults() filled
   // in (`ak-xxxxxx`). It must stay unique per board; the station number is a
   // separate field and changing it must not change the device identity.
@@ -477,7 +496,7 @@ void shiftPending() {
   --pendingCount;
 }
 
-void enqueueArchive(const char* payload, const char* messageId) {
+void enqueueArchive(const char* payload, const char* messageId, int64_t bucketEndEpoch) {
   if (payload == nullptr || payload[0] == '\0') {
     return;
   }
@@ -495,11 +514,149 @@ void enqueueArchive(const char* payload, const char* messageId) {
   slot.messageId[sizeof(slot.messageId) - 1] = '\0';
   std::strncpy(slot.payload, payload, sizeof(slot.payload) - 1);
   slot.payload[sizeof(slot.payload) - 1] = '\0';
+  slot.bucketEndEpoch = bucketEndEpoch;
   slot.attempts = 0;
   slot.nextAttemptMs = millis();
 }
 
+void markSent(int64_t bucketEndEpoch) {
+  if (bucketEndEpoch <= lastSentEpoch) {
+    return;
+  }
+  lastSentEpoch = bucketEndEpoch;
+  if (archive) {
+    archive->setLastSentEpoch(bucketEndEpoch);
+  }
+}
+
+// Replays SD archive records newer than last_sent in batches, oldest first.
+// Live uploads are held while a replay is active so last_sent cannot jump over
+// older unsent records.
+void serviceCatchUp() {
+  if (!archiveReady || !archive || !settings.uploadEnabled ||
+      !settings.cloudConfigured() || !wifi.staConnected() || !timeService.isValid()) {
+    return;
+  }
+  if (pendingCount > 0 && !replayActive) {
+    return;
+  }
+  const int64_t nowEpoch = timeService.nowEpoch();
+  if (!replayActive && lastSentEpoch > 0 && nowEpoch - lastSentEpoch < 300) {
+    return;  // newest bucket is already acknowledged
+  }
+  const uint32_t now = millis();
+  if (replayActive && now - lastReplayAttemptMs < 1000) {
+    return;
+  }
+  if (!replayActive) {
+    if (now - lastReplayAttemptMs < 5000) {
+      return;
+    }
+    lastReplayAttemptMs = now;
+    const Status started = archive->beginReplay(lastSentEpoch, nowEpoch);
+    if (!isOk(started)) {
+      return;
+    }
+    AK_LOG_INFO("catchup", "replay start after=%lld now=%lld",
+                static_cast<long long>(lastSentEpoch),
+                static_cast<long long>(timeService.nowEpoch()));
+    replayActive = true;
+  }
+  lastReplayAttemptMs = now;
+
+  const size_t count = buildReplayBatch(replayBatchLastEpoch);
+  if (count == 0) {
+    AK_LOG_INFO("catchup", "replay end last_sent=%lld",
+                static_cast<long long>(lastSentEpoch));
+    archive->endReplay();
+    replayActive = false;
+    return;
+  }
+
+  ApiClient api(settings, lastRadioEpoch);
+  const ArchiveBatchResult result = api.postArchiveBatch(catchupBody);
+  if (isOk(result.status) && result.rejected == 0) {
+    markSent(replayBatchLastEpoch);
+    AK_LOG_INFO("catchup", "batch=%u accepted=%d duplicate=%d last_sent=%lld",
+                static_cast<unsigned>(count), result.accepted, result.duplicates,
+                static_cast<long long>(lastSentEpoch));
+    return;
+  }
+  AK_LOG_WARN("catchup", "batch failed status=%s rejected=%d err=%s; backing off",
+              statusToString(result.status), result.rejected, result.error);
+  archive->endReplay();
+  replayActive = false;
+  lastReplayAttemptMs = now;
+}
+
+// Builds one batch (up to kCatchupBatchRecords) from the active replay.
+size_t buildReplayBatch(int64_t& lastEpoch) {
+  size_t used = 0;
+  size_t count = 0;
+  lastEpoch = 0;
+  catchupBody[used++] = '[';
+  while (count < kCatchupBatchRecords &&
+         used + kCatchupLineBytes + 2 < sizeof(catchupBody)) {
+    char line[kCatchupLineBytes];
+    int64_t epoch = 0;
+    bool done = false;
+    if (!archive->nextReplayLine(line, sizeof(line), epoch, done)) {
+      break;
+    }
+    const size_t length = std::strlen(line);
+    if (count > 0) {
+      catchupBody[used++] = ',';
+    }
+    std::memcpy(catchupBody + used, line, length);
+    used += length;
+    ++count;
+    lastEpoch = epoch;
+  }
+  catchupBody[used++] = ']';
+  catchupBody[used] = '\0';
+  return count;
+}
+
+// Synchronous bounded replay used by the get_data_again troubleshooting
+// command: sends SD records in [start, end] and returns when done or failed.
+bool runRangeReplay(int64_t startEpoch, int64_t endEpoch, uint32_t& sent,
+                    char* error, size_t errorSize) {
+  sent = 0;
+  if (endEpoch <= startEpoch || endEpoch - startEpoch > 7 * 86400) {
+    std::snprintf(error, errorSize, "range must be >0 and at most 7 days");
+    return false;
+  }
+  if (!isOk(archive->beginReplayRange(startEpoch, endEpoch))) {
+    std::snprintf(error, errorSize, "replay unavailable");
+    return false;
+  }
+  const uint32_t started = millis();
+  while (millis() - started < 240000UL) {
+    int64_t lastEpoch = 0;
+    const size_t count = buildReplayBatch(lastEpoch);
+    if (count == 0) {
+      archive->endReplay();
+      return true;
+    }
+    ApiClient api(settings, lastRadioEpoch);
+    const ArchiveBatchResult result = api.postArchiveBatch(catchupBody);
+    if (!isOk(result.status) || result.rejected > 0) {
+      std::snprintf(error, errorSize, "batch failed: %s rejected=%d",
+                    result.error, result.rejected);
+      archive->endReplay();
+      return false;
+    }
+    sent += static_cast<uint32_t>(count);
+  }
+  std::snprintf(error, errorSize, "replay timed out");
+  archive->endReplay();
+  return false;
+}
+
 void drainUploads() {
+  if (replayActive) {
+    return;
+  }
   if (pendingCount == 0 || !settings.uploadEnabled || !settings.cloudConfigured() ||
       !wifi.staConnected() || !timeService.isValid()) {
     return;
@@ -508,10 +665,14 @@ void drainUploads() {
     return;
   }
 
-  ApiClient api(settings);
+  ApiClient api(settings, lastRadioEpoch);
   const ArchiveUpload result =
       api.postArchive(pending[0].payload, pending[0].messageId);
   if (isOk(result.status)) {
+    AK_LOG_INFO("upload", "sent bucket=%lld duplicate=%u",
+                static_cast<long long>(pending[0].bucketEndEpoch),
+                result.duplicate ? 1u : 0u);
+    markSent(pending[0].bucketEndEpoch);
     shiftPending();
     return;
   }
@@ -559,7 +720,7 @@ void finishArchiveRecord(const ArchiveRecord& record) {
                   : 0);
 
   if (settings.uploadEnabled && settings.cloudConfigured()) {
-    enqueueArchive(payload.c_str(), messageId);
+    enqueueArchive(payload.c_str(), messageId, record.bucketEndEpoch);
   }
 }
 
@@ -615,6 +776,10 @@ bool handleFrame(const RadioFrame& frame) {
 
   lastObservation = observation;
   haveObservation = true;
+  lastRadioEpoch = epoch;
+  if (archiveReady) {
+    rawLog.append(epoch, frame.data, frame.length, frame.rssiDbm, prodChannel);
+  }
   archiveCollector.add(observation, frame.rssiDbm, decoded.batteryLow, epoch);
   return true;
 }
@@ -691,7 +856,6 @@ void fillRuntimeInfo(JsonDocument& result, const FirmwareRuntimeInfo& info) {
   result["build_date"] = String(info.buildDate);
   result["build_time"] = String(info.buildTime);
   result["free_sketch_bytes"] = info.freeSketchBytes;
-  result["station_id"] = settings.stationId;
   result["mac"] = String(settings.deviceMac);
 }
 
@@ -706,10 +870,10 @@ void pollCommands() {
   }
   lastCommandPollMs = millis();
 
-  ApiClient api(settings);
-  CommandMessage commands[4];
+  ApiClient api(settings, lastRadioEpoch);
+  CommandMessage commands[1];
   size_t count = 0;
-  const Status status = api.leaseCommands(commands, 4, count);
+  const Status status = api.leaseCommands(commands, 1, count);
   if (!isOk(status)) {
     AK_LOG_DEBUG("cmd", "lease failed: %s", statusToString(status));
     return;
@@ -834,6 +998,27 @@ void pollCommands() {
           result["archive_ready"] = archiveReady;
           result["time_valid"] = timeService.isValid();
           break;
+        case protocol::CommandType::GetDataAgain: {
+          const int64_t startEpoch = payload["start_epoch"] | static_cast<int64_t>(0);
+          const int64_t endEpoch = payload["end_epoch"] | static_cast<int64_t>(0);
+          uint32_t sent = 0;
+          char replayError[96] = {};
+          if (!runRangeReplay(startEpoch, endEpoch, sent, replayError,
+                              sizeof(replayError))) {
+            ok = false;
+            error = replayError;
+          } else {
+            result["records"] = sent;
+          }
+          break;
+        }
+        case protocol::CommandType::GetPendingCommands:
+          // Commands are executed synchronously, so nothing is left in flight.
+          // A rebooted device legitimately reports an empty list and the server
+          // requeues the timed-out command.
+          result["pending"].to<JsonArray>();
+          break;
+        case protocol::CommandType::DownloadRawData:
         case protocol::CommandType::SetConfig:
         case protocol::CommandType::UploadLogs:
         case protocol::CommandType::Unknown:
@@ -912,6 +1097,8 @@ void updateDisplay() {
   if (webServer) {
     webServer->setSubsystemStatus(radioReady, archiveReady);
     webServer->setCounters(state.queuedUploads, state.recordsToday);
+    webServer->setLastSentEpoch(lastSentEpoch);
+    webServer->setRawFrames(rawLog.written());
     WeatherSnapshot weather;
     if (haveObservation) {
       weather.available = true;
@@ -967,8 +1154,7 @@ void setup() {
   if (!settingsStore.configured()) {
     applyDevelopmentSettings(settings);
   }
-  AK_LOG_INFO("boot", "station=%u device=%s server=%s", static_cast<unsigned>(settings.stationId),
-              settings.deviceId, settings.serverBaseUrl);
+  AK_LOG_INFO("boot", "device=%s server=%s", settings.deviceId, settings.serverBaseUrl);
 
   if (config::kEnableDisplay) {
     display = &panel;
@@ -1004,6 +1190,18 @@ void setup() {
     sdConfig.deviceId = settings.deviceId;
     archive = std::make_unique<SdArchive>(SPI, sdConfig);
     archiveReady = isOk(archive->begin());
+    if (archiveReady) {
+      lastSentEpoch = archive->lastSentEpoch();
+      AK_LOG_INFO("archive", "last_sent=%lld", static_cast<long long>(lastSentEpoch));
+      if (timeService.isValid()) {
+        const int64_t cutoff =
+            timeService.nowEpoch() - static_cast<int64_t>(config::kArchiveRetentionDays) * 86400;
+        archive->pruneBefore(cutoff);
+        if (isOk(rawLog.begin(timeService.nowEpoch()))) {
+          AK_LOG_INFO("raw", "rolling weekday log ready");
+        }
+      }
+    }
   }
 
   RadioConfig radioConfig;
@@ -1092,6 +1290,10 @@ void loop() {
     }
   }
 
+  if (archiveReady) {
+    rawLog.loop(millis());
+  }
+  serviceCatchUp();
   drainUploads();
   pollCommands();
 

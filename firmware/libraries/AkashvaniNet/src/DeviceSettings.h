@@ -24,7 +24,6 @@ struct DeviceSettings {
   char apiToken[65] = {};
   char serverBaseUrl[129] = {};
   char deviceMac[18] = {};
-  uint16_t stationId = 0;
 
   // Ordered list of site networks. The AP is always available; the STA side
   // tries these in order until one connects.

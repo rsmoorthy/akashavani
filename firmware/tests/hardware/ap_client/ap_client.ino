@@ -87,8 +87,9 @@ bool httpPostSettings(const String& payload, String& response, int& code) {
 
 String buildPayload(JsonDocument& settings, bool includeTestProfile) {
   JsonDocument body;
-  body["station_id"] = settings["station_id"];
   body["server_url"] = settings["server_url"];
+  body["api_token"] = settings["api_token"] | "";
+  body["device_token"] = settings["device_token"] | "";
   JsonArray wifi = body["wifi"].to<JsonArray>();
   for (JsonVariantConst entry : settings["wifi"].as<JsonArrayConst>()) {
     const char* ssid = entry["ssid"] | "";
@@ -197,15 +198,16 @@ void runOnce() {
 
   // Server-side validation spot checks.
   JsonDocument invalid;
-  invalid["station_id"] = 0;
   invalid["server_url"] = "http://10.90.0.1";
+  invalid["api_token"] = "secret";
+  invalid["device_token"] = "";
   invalid["wifi"] = JsonArray();
   String invalidBody;
   serializeJson(invalid, invalidBody);
   httpPostSettings(invalidBody, response, code);
-  Serial.printf("rejects station_id 0: %s\n", code == 400 ? "PASS" : "FAIL");
+  Serial.printf("rejects empty device token: %s\n", code == 400 ? "PASS" : "FAIL");
 
-  invalid["station_id"] = 1;
+  invalid["device_token"] = "secret123";
   invalid["server_url"] = "ftp://10.90.0.1";
   serializeJson(invalid, invalidBody);
   httpPostSettings(invalidBody, response, code);

@@ -27,9 +27,9 @@ def require_device(
     request: Request,
     x_device_token: Annotated[str | None, Header(alias="X-Device-Token")] = None,
     x_device_id: Annotated[str | None, Header(alias="X-Device-Id")] = None,
-    x_station_id: Annotated[str | None, Header(alias="X-Station-Id")] = None,
     x_device_mac: Annotated[str | None, Header(alias="X-Device-Mac")] = None,
     x_firmware_version: Annotated[str | None, Header(alias="X-Firmware-Version")] = None,
+    x_last_radio_at: Annotated[str | None, Header(alias="X-Last-Radio-At")] = None,
     authorization: Annotated[str | None, Header()] = None,
     db: Session = Depends(get_db),
 ) -> Device:
@@ -38,20 +38,17 @@ def require_device(
     if x_device_token:
         device = db.scalar(select(Device).where(Device.token_hash == hash_token(x_device_token)))
 
-    # The shared bearer token may be used for all device APIs. Identity comes
-    # from X-Device-Id or the station ID in that case.
+    # The shared bearer token may be used for all device APIs. Identity then
+    # comes from X-Device-Id (the MAC-derived `ak-xxxxxx`), never from a
+    # station number.
     if device is None:
         supplied = _bearer_token(authorization)
-        if supplied is not None and secrets.compare_digest(supplied, settings.api_token):
-            if x_device_id:
-                device = db.get(Device, x_device_id)
-            elif x_station_id:
-                try:
-                    station_id = int(x_station_id)
-                except ValueError:
-                    station_id = 0
-                if station_id > 0:
-                    device = db.scalar(select(Device).where(Device.station_id == station_id))
+        if (
+            supplied is not None
+            and secrets.compare_digest(supplied, settings.api_token)
+            and x_device_id
+        ):
+            device = db.get(Device, x_device_id)
 
     if device is None:
         raise HTTPException(
@@ -60,19 +57,6 @@ def require_device(
         )
 
     changed = False
-    if x_station_id:
-        header_station_id: int | None
-        try:
-            header_station_id = int(x_station_id)
-        except ValueError:
-            header_station_id = None
-        if (
-            header_station_id is not None
-            and 0 < header_station_id <= 65535
-            and device.station_id != header_station_id
-        ):
-            device.station_id = header_station_id
-            changed = True
     if x_device_mac:
         mac = x_device_mac.strip().lower()
         if len(mac) == 17 and mac.count(":") == 5 and device.mac_address != mac:
@@ -81,12 +65,24 @@ def require_device(
     if x_firmware_version and device.firmware_version != x_firmware_version[:32]:
         device.firmware_version = x_firmware_version[:32]
         changed = True
+    if x_last_radio_at:
+        try:
+            radio_epoch = int(x_last_radio_at)
+        except ValueError:
+            radio_epoch = 0
+        if radio_epoch > 0:
+            radio_at = datetime.fromtimestamp(radio_epoch, UTC)
+            existing_radio = device.last_radio_at
+            if existing_radio is not None and existing_radio.tzinfo is None:
+                existing_radio = existing_radio.replace(tzinfo=UTC)
+            if existing_radio is None or existing_radio < radio_at:
+                device.last_radio_at = radio_at
+                changed = True
     device.last_seen_at = datetime.now(UTC)
     if changed:
         logger.info(
-            "device identity id=%s station=%s mac=%s",
+            "device identity id=%s mac=%s",
             device.id,
-            device.station_id,
             device.mac_address,
         )
     db.commit()

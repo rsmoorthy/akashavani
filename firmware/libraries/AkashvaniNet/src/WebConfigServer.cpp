@@ -52,7 +52,6 @@ button:disabled{opacity:.6}
 <section class="card">
 <h2>Status <span id="live" class="dot" title="status"></span></h2>
 <div class="row"><span>Date &amp; time</span><b id="time">-</b></div>
-<div class="row"><span>Station ID</span><b id="station">-</b></div>
 <div class="row"><span>Uptime</span><b id="uptime">-</b></div>
 <div class="row"><span>Site Wi-Fi</span><b id="wifi">-</b></div>
 <div class="row"><span>Site SSID</span><b id="stassid">-</b></div>
@@ -63,6 +62,7 @@ button:disabled{opacity:.6}
 <div class="row"><span>Radio</span><b id="radio">-</b></div>
 <div class="row"><span>SD card</span><b id="sd">-</b></div>
 <div class="row"><span>Queued uploads</span><b id="queue">-</b></div>
+<div class="row"><span>Last sent</span><b id="lastsent">-</b></div>
 <h3>Weather station</h3>
 <div id="weather" class="muted">No weather frame decoded yet.</div>
 </section>
@@ -70,8 +70,6 @@ button:disabled{opacity:.6}
 <section class="card">
 <h2>Configuration</h2>
 <form id="cfg" novalidate>
-<label for="stationInput">Station ID</label>
-<input id="stationInput" type="number" inputmode="numeric" min="1" max="65535" required>
 <label for="serverInput">Server URL</label>
 <input id="serverInput" type="url" placeholder="http://192.168.1.100:8000" required>
 <label for="apiTokenInput">Server API token</label>
@@ -113,7 +111,6 @@ async function refresh(){
     $('device').textContent = j.device_id || '-';
     $('mac').textContent = j.mac || '-';
     $('fw').textContent = j.firmware || '-';
-    $('station').textContent = j.station_id ?? '-';
     $('uptime').textContent = formatUptime(j.uptime_s);
     const t = j.time || {};
     $('time').textContent = t.valid ? formatTime(t.epoch) : 'invalid - waiting for SNTP';
@@ -129,6 +126,7 @@ async function refresh(){
     $('radio').textContent = j.radio_ready ? 'ready' : 'not ready';
     $('sd').textContent = j.archive_ready ? 'mounted' : 'not mounted';
     $('queue').textContent = j.queued_uploads ?? '-';
+    $('lastsent').textContent = j.last_sent_epoch ? formatTime(j.last_sent_epoch) : '-';
     $('live').className = 'dot ' + (w.sta_connected ? 'ok' : 'bad');
     const weather = j.weather || {};
     $('weather').textContent = weather.available
@@ -178,7 +176,6 @@ async function loadSettings(){
     const r = await fetch('/api/settings', {cache:'no-store'});
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    $('stationInput').value = j.station_id ?? '';
     $('serverInput').value = j.server_url || '';
     $('apiTokenInput').value = j.api_token || '';
     $('deviceTokenInput').value = j.device_token || '';
@@ -212,14 +209,9 @@ $('togglePass').addEventListener('click', () => {
 });
 $('cfg').addEventListener('submit', async ev => {
   ev.preventDefault();
-  const station = Number($('stationInput').value);
   const server = $('serverInput').value.trim();
   const apiToken = $('apiTokenInput').value.trim();
   const deviceToken = $('deviceTokenInput').value.trim();
-  if(!Number.isInteger(station) || station < 1 || station > 65535){
-    show('Station ID must be a whole number from 1 to 65535.', 'err');
-    return;
-  }
   if(!/^https?:\/\/.+/i.test(server) || server.length > 128){
     show('Server URL must start with http:// or https:// and be at most 128 characters.', 'err');
     return;
@@ -241,7 +233,7 @@ $('cfg').addEventListener('submit', async ev => {
     const r = await fetch('/api/settings', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({station_id: station, server_url: server, api_token: apiToken, device_token: deviceToken, wifi: collected.profiles})
+      body: JSON.stringify({server_url: server, api_token: apiToken, device_token: deviceToken, wifi: collected.profiles})
     });
     const text = await r.text();
     let result = {};
@@ -356,7 +348,6 @@ void WebConfigServer::handleStatus() {
   JsonDocument doc;
   doc["device_id"] = settings_.deviceId;
   doc["mac"] = settings_.deviceMac;
-  doc["station_id"] = settings_.stationId;
   doc["firmware"] = AKASHVANI_FW_VERSION;
   doc["uptime_s"] = millis() / 1000UL;
   doc["provisioned"] = settings_.provisioned();
@@ -403,6 +394,8 @@ void WebConfigServer::handleStatus() {
   doc["archive_ready"] = archiveReady_;
   doc["queued_uploads"] = queuedUploads_;
   doc["records_today"] = recordsToday_;
+  doc["last_sent_epoch"] = lastSentEpoch_;
+  doc["raw_frames"] = rawFrames_;
 
   String body;
   serializeJson(doc, body);
@@ -413,7 +406,6 @@ void WebConfigServer::handleGetSettings() {
   JsonDocument doc;
   doc["device_id"] = settings_.deviceId;
   doc["mac"] = settings_.deviceMac;
-  doc["station_id"] = settings_.stationId;
   doc["server_url"] = settings_.serverBaseUrl;
   doc["api_token"] = settings_.apiToken;
   doc["device_token"] = settings_.deviceToken;
@@ -445,11 +437,6 @@ void WebConfigServer::handleSaveSettings() {
     return;
   }
 
-  const int stationId = doc["station_id"] | 0;
-  if (stationId < 1 || stationId > 65535) {
-    sendJson(400, "{\"error\":\"station_id must be between 1 and 65535\"}");
-    return;
-  }
   const char* serverUrl = jsonString(doc["server_url"]);
   if (serverUrl == nullptr ||
       (std::strncmp(serverUrl, "http://", 7) != 0 &&
@@ -505,12 +492,10 @@ void WebConfigServer::handleSaveSettings() {
     }
   }
 
-  updated.stationId = static_cast<uint16_t>(stationId);
   copyString(serverUrl, updated.serverBaseUrl, sizeof(updated.serverBaseUrl));
   copyString(apiToken, updated.apiToken, sizeof(updated.apiToken));
   copyString(deviceToken, updated.deviceToken, sizeof(updated.deviceToken));
-  // The device ID is the MAC-derived `ak-xxxxxx` and is not editable here, so
-  // changing the station number cannot break the server-side identity.
+  // The device ID is the MAC-derived `ak-xxxxxx` and is not editable here.
 
   const bool networkChanged = !sameProfiles(updated, settings_);
   const Status status = store_.save(updated);
@@ -519,8 +504,7 @@ void WebConfigServer::handleSaveSettings() {
     return;
   }
   settings_ = updated;
-  AK_LOG_INFO("web", "settings saved: station=%u profiles=%u network_changed=%s",
-              static_cast<unsigned>(settings_.stationId),
+  AK_LOG_INFO("web", "settings saved: profiles=%u network_changed=%s",
               static_cast<unsigned>(settings_.wifiProfileCount),
               networkChanged ? "yes" : "no");
 

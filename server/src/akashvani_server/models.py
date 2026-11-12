@@ -31,11 +31,11 @@ class Device(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(80), default="", nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
-    station_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mac_address: Mapped[str | None] = mapped_column(String(17), nullable=True)
     firmware_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_radio_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     observations: Mapped[list[Observation]] = relationship(back_populates="device")
     archive_records: Mapped[list[ArchiveRecord]] = relationship(back_populates="device")
@@ -183,6 +183,8 @@ class Command(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     device: Mapped[Device] = relationship(back_populates="commands")
 

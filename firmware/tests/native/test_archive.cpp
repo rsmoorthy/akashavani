@@ -115,20 +115,27 @@ TEST(ArchiveCollector, VectorDirectionSumsHandleWrap) {
   EXPECT_NEAR(0.0, record.windDirSinSum, 0.01);
 }
 
-TEST(ArchiveCollector, BmeOnlyBucketIsSkipped) {
+TEST(ArchiveCollector, BmeOnlyBucketIsEmitted) {
+  // Every 5-minute bucket doubles as the radio-health report, even when no
+  // Davis frame arrived.
   ArchiveCollector collector(300, 3000);
   const int64_t start = 1793547000;
   ASSERT_TRUE(collector.addBme280(25.0f, 40.0f, 910.0f, start));
   ArchiveRecord record;
-  ASSERT_FALSE(collector.poll(start + 300, record));
+  ASSERT_TRUE(collector.poll(start + 300, record));
+  ASSERT_EQ(record.framesValid, 0u);
+  ASSERT_EQ(record.framesExpected, 100u);
 }
 
-TEST(ArchiveCollector, EmptyBucketIsSkipped) {
+TEST(ArchiveCollector, EmptyBucketIsEmitted) {
   ArchiveCollector collector(300, 3000);
   const int64_t start = 1793547000;
   ASSERT_TRUE(collector.add(makeObservation(1.0f, 10.0f), -50, false, start));
   ArchiveRecord record;
   ASSERT_TRUE(collector.poll(start + 300, record));
+  ASSERT_TRUE(collector.poll(start + 600, record));
+  ASSERT_EQ(record.framesValid, 0u);
+  ASSERT_EQ(record.framesExpected, 100u);
   ASSERT_FALSE(collector.poll(start + 600, record));
 }
 

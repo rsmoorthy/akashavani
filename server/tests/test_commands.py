@@ -109,12 +109,12 @@ def test_device_identity(client):
     assert response.json()["name"] == "Simulator"
 
 
-def test_device_reports_station_and_mac(client):
-    headers = device_headers() | {"X-Station-Id": "1", "X-Device-Mac": "08:B6:1F:B8:38:50"}
+def test_device_reports_mac(client):
+    headers = device_headers() | {"X-Device-Mac": "08:B6:1F:B8:38:50"}
     response = client.get("/api/v1/devices/me", headers=headers)
     assert response.status_code == 200
     body = response.json()
-    assert body["station_id"] == 1
+    assert "station_id" not in body
     assert body["mac_address"] == "08:b6:1f:b8:38:50"
     assert body["last_seen_at"] is not None
 
@@ -156,3 +156,98 @@ def test_list_commands_after_lease(client):
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()] == [command_id]
     assert listed.json()[0]["status"] == "delivered"
+
+
+def test_device_reports_last_radio(client):
+    epoch = 1794400000
+    headers = device_headers() | {"X-Last-Radio-At": str(epoch)}
+    response = client.get("/api/v1/devices/me", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["last_radio_at"] is not None
+    assert body["last_radio_at"].startswith("2026-11-11T")
+
+
+def test_last_radio_zero_is_ignored(client):
+    headers = device_headers() | {"X-Last-Radio-At": "0"}
+    response = client.get("/api/v1/devices/me", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["last_radio_at"] is None
+
+
+def test_only_one_command_in_flight(client):
+    first = enqueue(client, "self_test").json()
+    second = enqueue(client, "sync_time").json()
+
+    lease = client.post("/api/v1/devices/me/commands/lease", headers=device_headers())
+    assert [c["id"] for c in lease.json()] == [first["id"]]
+    assert lease.json()[0]["attempts"] == 1
+
+    blocked = client.post("/api/v1/devices/me/commands/lease", headers=device_headers())
+    assert blocked.json() == []
+
+    client.post(
+        f"/api/v1/devices/me/commands/{first['id']}/ack",
+        json={"status": "ok", "result": {"ok": True}},
+        headers=device_headers(),
+    )
+
+    next_lease = client.post("/api/v1/devices/me/commands/lease", headers=device_headers())
+    assert [c["id"] for c in next_lease.json()] == [second["id"]]
+
+
+def test_ack_timeout_probes_then_requeues(client, app):
+    app.state.settings.command_ack_timeout_seconds = 0
+    command = enqueue(client, "self_test").json()
+
+    first = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+    assert first[0]["id"] == command["id"]
+    assert first[0]["attempts"] == 1
+
+    # The next lease times the delivery out and hands out the recovery probe.
+    probe = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+    assert len(probe) == 1
+    assert probe[0]["type"] == "get_pending_commands"
+    assert probe[0]["payload"]["for"] == command["id"]
+
+    # The device no longer has the command (e.g. it rebooted): acknowledge the
+    # probe with an empty list, then the original comes back.
+    client.post(
+        f"/api/v1/devices/me/commands/{probe[0]['id']}/ack",
+        json={"status": "ok", "result": {"pending": []}},
+        headers=device_headers(),
+    )
+    retried = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+    assert retried[0]["id"] == command["id"]
+    assert retried[0]["attempts"] == 2
+
+
+def test_command_fails_after_three_attempts(client, app):
+    app.state.settings.command_ack_timeout_seconds = 0
+    command = enqueue(client, "self_test").json()
+
+    for attempt in (1, 2):
+        leased = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+        assert leased[0]["id"] == command["id"]
+        assert leased[0]["attempts"] == attempt
+        probe = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+        assert probe[0]["type"] == "get_pending_commands"
+        client.post(
+            f"/api/v1/devices/me/commands/{probe[0]['id']}/ack",
+            json={"status": "ok", "result": {"pending": []}},
+            headers=device_headers(),
+        )
+
+    third = client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json()
+    assert third[0]["attempts"] == 3
+
+    # No ack: the sweep marks it failed and hands out nothing.
+    assert client.post("/api/v1/devices/me/commands/lease", headers=device_headers()).json() == []
+
+    listed = client.get(
+        f"/api/v1/admin/devices/{DEVICE_ID}/commands",
+        headers=admin_headers(),
+    ).json()
+    failed = next(c for c in listed if c["id"] == command["id"])
+    assert failed["status"] == "failed"
+    assert "3 attempts" in failed["error"]

@@ -28,7 +28,8 @@ void copyJsonString(const JsonVariantConst& value, char* output, size_t size) {
 
 }  // namespace
 
-ApiClient::ApiClient(const DeviceSettings& settings) : settings_(settings) {}
+ApiClient::ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch)
+    : settings_(settings), lastRadioEpoch_(lastRadioEpoch) {}
 
 void ApiClient::fillClients() {
   if (isHttps()) {
@@ -63,12 +64,17 @@ void ApiClient::prepareHttp(HTTPClient& http, const String& url) {
     http.addHeader("Authorization", String("Bearer ") + settings_.apiToken);
   }
   http.addHeader("X-Firmware-Version", AKASHVANI_FW_VERSION);
-  char station[12];
-  std::snprintf(station, sizeof(station), "%u", static_cast<unsigned>(settings_.stationId));
-  http.addHeader("X-Station-Id", station);
   const char* mac = settings_.deviceMac[0] != '\0' ? settings_.deviceMac
                                                    : WiFi.macAddress().c_str();
   http.addHeader("X-Device-Mac", mac);
+  char lastRadio[24];
+  if (lastRadioEpoch_ > 0) {
+    std::snprintf(lastRadio, sizeof(lastRadio), "%lld",
+                  static_cast<long long>(lastRadioEpoch_));
+  } else {
+    std::snprintf(lastRadio, sizeof(lastRadio), "0");
+  }
+  http.addHeader("X-Last-Radio-At", lastRadio);
 }
 
 ObservationUpload ApiClient::postObservation(const DavisObservation& observation,
@@ -167,6 +173,35 @@ ArchiveUpload ApiClient::postArchive(const char* payloadJson, const char* messag
   } else if (result.status != Status::Ok) {
     AK_LOG_WARN("api", "archive upload failed: %s", result.error);
   }
+  return result;
+}
+
+
+ArchiveBatchResult ApiClient::postArchiveBatch(const char* jsonArray) {
+  ArchiveBatchResult result;
+  if (jsonArray == nullptr) {
+    result.status = Status::InvalidArgument;
+    return result;
+  }
+  HTTPClient http;
+  const String url = endpoint("/api/v1/archive/batch");
+  prepareHttp(http, url);
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.POST(String(jsonArray));
+  const String body = http.getString();
+  http.end();
+  if (code == 202 || code == 200) {
+    result.status = Status::Ok;
+    JsonDocument doc;
+    if (deserializeJson(doc, body) == DeserializationError::Ok) {
+      result.accepted = doc["accepted"] | 0;
+      result.duplicates = doc["duplicates"] | 0;
+      result.rejected = doc["rejected"] | 0;
+    }
+    return result;
+  }
+  result.status = code <= 0 ? Status::Timeout : Status::IoError;
+  std::snprintf(result.error, sizeof(result.error), "http %d", code);
   return result;
 }
 

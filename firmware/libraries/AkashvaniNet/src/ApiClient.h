@@ -41,6 +41,14 @@ struct FirmwareInfo {
   bool mandatory = false;
 };
 
+struct ArchiveBatchResult {
+  Status status = Status::NotReady;
+  int accepted = 0;
+  int duplicates = 0;
+  int rejected = 0;
+  char error[96] = {};
+};
+
 struct CommandMessage {
   char id[37] = {};
   char type[32] = {};
@@ -49,7 +57,7 @@ struct CommandMessage {
 
 class ApiClient {
  public:
-  explicit ApiClient(const DeviceSettings& settings);
+  explicit ApiClient(const DeviceSettings& settings, int64_t lastRadioEpoch = 0);
 
   ObservationUpload postObservation(const DavisObservation& observation,
                                     const char* messageId, int64_t observedAtEpoch,
@@ -58,6 +66,10 @@ class ApiClient {
   // Uploads a pre-serialized archive record. The archive API uses the shared
   // bearer token from the hotspot configuration page.
   ArchiveUpload postArchive(const char* payloadJson, const char* messageId);
+
+  // Uploads a JSON array of archive records (catch-up batches). The server
+  // returns one outcome per record.
+  ArchiveBatchResult postArchiveBatch(const char* jsonArray);
 
   Status checkForUpdate(const char* currentVersion, const char* channel,
                         FirmwareInfo& info);
@@ -73,6 +85,7 @@ class ApiClient {
   void prepareHttp(HTTPClient& http, const String& url);
 
   const DeviceSettings& settings_;
+  int64_t lastRadioEpoch_ = 0;
   WiFiClient plainClient_;
   WiFiClientSecure secureClient_;
 };

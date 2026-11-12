@@ -8,9 +8,8 @@ the site network being correct.
 The device ID is shown **on the board's own status page** (header line
 `Device … · MAC …`) and in `GET /api/status` as `device_id`/`mac`, so no serial
 console is needed in the field. A blank board derives it from the MAC as
-`ak-xxxxxx`; the station number is a separate field and does not change it. The
-serial log prints it as `device=ak-xxxxxx` if a console is available. Create a
-token for that ID:
+`ak-xxxxxx`. The serial log prints it as `device=ak-xxxxxx` if a console is
+available. Create a token for that ID:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/devices \
@@ -38,8 +37,8 @@ in `firmware/sketches/receiver/config.h`.
 ## 3. Configure site Wi-Fi and cloud
 
 1. Open `http://10.90.0.1/` on a phone or laptop connected to the AP.
-2. Fill in the station ID and the Python server URL (e.g.
-   `http://192.168.1.100:8000` during development).
+2. Fill in the Python server URL (e.g. `http://192.168.1.100:8000` during
+   development).
 3. Paste the **device token** from step 1. This is the credential the board
    presents to the server; the server maps it to the device record. It is
    separate from the shared server API token.
@@ -101,7 +100,7 @@ refreshes every 5 seconds.
 | ArduinoOTA password | NVS (`admin_pw`) | not exposed on the new page |
 
 The AP page has no separate login. Anyone who knows the AP password can change
-the station ID, server URL and Wi-Fi profiles. Add authentication and a
+the server URL, device token and Wi-Fi profiles. Add authentication and a
 per-board AP password before field deployment.
 
 ## Token rotation

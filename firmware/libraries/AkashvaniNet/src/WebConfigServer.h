@@ -43,6 +43,8 @@ class WebConfigServer {
 
   void setSubsystemStatus(bool radioReady, bool archiveReady);
   void setCounters(uint32_t queuedUploads, uint32_t recordsToday);
+  void setLastSentEpoch(int64_t epoch) { lastSentEpoch_ = epoch; }
+  void setRawFrames(uint32_t count) { rawFrames_ = count; }
   void setWeather(const WeatherSnapshot& weather);
 
  private:
@@ -61,6 +63,8 @@ class WebConfigServer {
   TimeService& time_;
   WebServer server_;
   WeatherSnapshot weather_;
+  int64_t lastSentEpoch_ = 0;
+  uint32_t rawFrames_ = 0;
   bool radioReady_ = false;
   bool archiveReady_ = false;
   uint32_t queuedUploads_ = 0;

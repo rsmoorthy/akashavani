@@ -39,7 +39,6 @@ class ArchiveCollector {
   uint32_t slotMs_;
   bool started_ = false;
   bool ready_ = false;
-  bool hasData_ = false;
   int64_t bucketEndEpoch_ = 0;
   ArchiveRecord current_;
   ArchiveRecord completed_;

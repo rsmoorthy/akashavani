@@ -38,7 +38,6 @@ OTA tooling.
 | `kApMaxClients` | 4 | simultaneous AP clients |
 | `kApIp` / `kApGateway` / `kApSubnet` | `10.90.0.1` / `10.90.0.1` / `255.255.255.0` | AP interface |
 | `kApDhcpFirst` / `kApDhcpLast` | `10.90.0.11` / `10.90.0.20` | DHCP pool handed to AP clients |
-| `kStationId` | 1 | seed for a blank device; editable on the AP page |
 | `kDeviceToken` | from `secrets.h` | git-ignored development token |
 | `kWifiSsid` / `kWifiPassword` | from `secrets.h` | git-ignored development credentials |
 | `kServerBaseUrl` | `http://192.168.29.31:8000` | bench server |
@@ -62,7 +61,6 @@ Namespace `akashvani`, written by the local AP page.
 | Key | Default | Secret |
 | --- | --- | --- |
 | `dev_id` | MAC-derived `ak-xxxxxx` | no |
-| `station` | 1 | no |
 | `token` | empty | yes |
 | `api_token` | `secret` | yes |
 | `server` | `http://192.168.1.100:8000` | no |
@@ -70,16 +68,17 @@ Namespace `akashvani`, written by the local AP page.
 | `wifi_pass_0` … `wifi_pass_5` | empty | yes |
 | `admin_pw` | `akashvani-admin` | yes (ArduinoOTA only) |
 | `upload` / `archive` | true / true | no |
-| `upl_int` / `cmd_int` | 60 / 60 seconds | no |
+| `upl_int` / `cmd_int` | 60 / 30 seconds | no |
 | `configured` | set by the first save | no |
 
 The AP password and DHCP range are compiled in, not stored in NVS.
 
 On a blank device (no `configured` marker and no legacy keys) the receiver seeds
-`station-1`, the bench server URL, the git-ignored `secrets.h` credentials and a
-5-second command poll from `config.h`. Once anything is saved through the AP
-page, those seed values are not applied again on later boots. Legacy keys
-`wifi_ssid` / `wifi_pass` from earlier firmware are migrated into profile 0.
+the MAC-derived device ID, the bench server URL, the git-ignored `secrets.h`
+credentials and a 30-second command poll from `config.h`. Once anything is
+saved through the AP page, those seed values are not applied again on later
+boots. Legacy keys `wifi_ssid` / `wifi_pass` from earlier firmware are migrated
+into profile 0.
 
 The OTA staged release is stored in NVS namespace `ota_meta` under
 `staged_version` until `boot_with_new_fw` consumes it.
@@ -96,10 +95,10 @@ The OTA staged release is stored in NVS namespace `ota_meta` under
 
 The page has no separate admin login; the AP WPA2 password is the boundary. It
 shows time, firmware, STA connection/SSID/IP, AP state, radio/SD flags, queue
-depth and the last weather frame when one exists. The form saves station ID,
-server URL and up to six site Wi-Fi profiles together. Passwords are hidden
+depth and the last weather frame when one exists. The form saves the server URL,
+device token and up to six site Wi-Fi profiles together. Passwords are hidden
 until "Show passwords" is pressed. A Wi-Fi change restarts the board after the
-response is sent; station ID and server URL changes apply immediately.
+response is sent; server URL and token changes apply immediately.
 
 ## Server environment
 

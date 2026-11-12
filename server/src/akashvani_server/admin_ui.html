@@ -41,9 +41,20 @@
 <section>
   <h2>Devices</h2>
   <table>
-    <thead><tr><th>ID</th><th>Name</th><th>Station</th><th>MAC</th><th>Firmware</th><th>Last seen</th></tr></thead>
+    <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
     <tbody id="devices"></tbody>
   </table>
+</section>
+
+<section>
+  <h2>Download archive CSV</h2>
+  <form id="csvForm">
+    <label>Device <select id="csvDevice" required></select></label>
+    <label>Start <input id="csvStart" type="datetime-local" required></label>
+    <label>End <input id="csvEnd" type="datetime-local" required></label>
+    <button type="submit">Download CSV</button>
+  </form>
+  <p class="muted">Stored archive buckets, IST timestamps, maximum one week per download.</p>
 </section>
 
 <section>
@@ -75,11 +86,15 @@
         <option value="reboot">reboot</option>
         <option value="sync_time">sync_time</option>
         <option value="self_test">self_test</option>
+        <option value="get_data_again">get_data_again</option>
+        <option value="get_pending_commands">get_pending_commands</option>
       </select>
     </label>
     <label id="versionField">Firmware version
       <select id="commandVersion"></select>
     </label>
+    <label id="rangeField">Start <input id="commandStart" type="datetime-local"></label>
+    <label id="rangeEndField">End <input id="commandEnd" type="datetime-local"></label>
     <button type="submit">Queue command</button>
   </form>
   <h3>Commands</h3>
@@ -129,12 +144,21 @@ async function loadDevices() {
   const devices = await api('/api/v1/admin/devices');
   $('devices').innerHTML = devices.map((d) => `<tr>
     <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
-    <td>${escapeHtml(d.station_id ?? '')}</td><td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
-    <td>${escapeHtml(d.firmware_version ?? '')}</td><td>${escapeHtml(d.last_seen_at ?? '')}</td></tr>`).join('');
+    <td>${d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'}</td>
+    <td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
+    <td>${escapeHtml(d.firmware_version ?? '')}</td><td>${escapeHtml(d.last_seen_at ?? '')}</td>
+    <td>${escapeHtml(d.last_radio_at ?? '')}</td>
+    <td>${escapeHtml(d.latest_archive_at ?? '')}</td>
+    <td>${d.frames_valid === null || d.frames_valid === undefined ? '' : `${d.frames_valid}/${d.frames_expected}`}</td>
+    <td>${d.rssi_avg_dbm === null || d.rssi_avg_dbm === undefined ? '' : Number(d.rssi_avg_dbm).toFixed(0)}</td></tr>`).join('');
   const current = $('commandDevice').value;
   $('commandDevice').innerHTML = devices.map((d) =>
-    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.station_id ? ' (station ' + d.station_id + ')' : ''}</option>`).join('');
+    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
   if (current) $('commandDevice').value = current;
+  const csvCurrent = $('csvDevice').value;
+  $('csvDevice').innerHTML = devices.map((d) =>
+    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
+  if (csvCurrent) $('csvDevice').value = csvCurrent;
   return devices;
 }
 
@@ -164,6 +188,9 @@ async function loadCommands() {
 function updateCommandPayload() {
   const type = $('commandType').value;
   $('versionField').style.display = (type === 'download_new_fw' || type === 'boot_with_new_fw') ? '' : 'none';
+  const isRange = type === 'get_data_again';
+  $('rangeField').style.display = isRange ? '' : 'none';
+  $('rangeEndField').style.display = isRange ? '' : 'none';
 }
 
 async function refreshAll() {
@@ -192,12 +219,34 @@ $('uploadForm').addEventListener('submit', async (event) => {
   }
 });
 
+$('csvForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const device = $('csvDevice').value;
+  const start = Math.floor(new Date($('csvStart').value).getTime() / 1000);
+  const end = Math.floor(new Date($('csvEnd').value).getTime() / 1000);
+  const response = await fetch(`/api/v1/admin/archive.csv?device_id=${encodeURIComponent(device)}&start=${start}&end=${end}`, {
+    headers: { Authorization: 'Bearer ' + token() }
+  });
+  if (!response.ok) { setStatus('CSV download failed: HTTP ' + response.status, 'error'); return; }
+  const blob = await response.blob();
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = device + '-archive.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+  setStatus('Downloaded archive CSV for ' + device, 'ok');
+});
+
 $('commandForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const type = $('commandType').value;
   const payload = {};
   if (type === 'download_new_fw' || type === 'boot_with_new_fw') {
     payload.version = $('commandVersion').value;
+  }
+  if (type === 'get_data_again') {
+    payload.start_epoch = Math.floor(new Date($('commandStart').value).getTime() / 1000);
+    payload.end_epoch = Math.floor(new Date($('commandEnd').value).getTime() / 1000);
   }
   try {
     const command = await api(`/api/v1/admin/devices/${encodeURIComponent($('commandDevice').value)}/commands`, {

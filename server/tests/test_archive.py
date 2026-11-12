@@ -103,3 +103,102 @@ def test_archive_can_include_missing_sensors(client):
     assert row["rain_rate_instant_mm_h"] is None
     assert row["wind_dir_deg"] is None
     assert row["battery_low"] is True
+
+
+def test_accepts_empty_radio_bucket(client):
+    payload = archive_payload(
+        sums={key: 0.0 for key in archive_payload()["sums"]},
+        counts={key: 0 for key in archive_payload()["counts"]},
+        wind_dir={"sin_sum": 0.0, "cos_sum": 0.0, "speed_sum": 0.0},
+        wind_gust={"max_m_s": 0.0, "dir_deg": 0.0},
+        rain={"tips": 0, "rate_raw": 0, "rate_high": False, "rate_valid": False},
+        quality={
+            "frames_expected": 100,
+            "frames_valid": 0,
+            "frames_crc_bad": 0,
+            "resync_count": 0,
+            "search_count": 0,
+            "gap_slots": 100,
+            "max_gap_slots": 1,
+            "rssi_avg_dbm": 0.0,
+            "rssi_min_dbm": 0,
+            "rssi_max_dbm": 0,
+        },
+    )
+    response = client.post("/api/v1/archive", json=payload, headers=api_headers())
+    assert response.status_code == 202, response.text
+
+    rows = client.get("/api/v1/admin/archive", headers=admin_headers()).json()
+    row = rows[-1]
+    assert row["frames_valid"] == 0
+    assert row["frames_expected"] == 100
+    assert row["out_temp_c"] is None
+    assert row["rx_check_percent"] == 0.0
+
+
+def test_batch_accepts_json_and_reports_per_record(client):
+    first = archive_payload()
+    second = archive_payload(bucket_end_epoch=first["bucket_end_epoch"] - 300)
+    bad = {"message_id": "broken"}
+    response = client.post(
+        "/api/v1/archive/batch",
+        json=[first, first, second, bad],
+        headers=api_headers(),
+    )
+    assert response.status_code == 202, response.text
+    body = response.json()
+    assert body["accepted"] == 2
+    assert body["duplicates"] == 1
+    assert body["rejected"] == 1
+    assert [item["status"] for item in body["results"]] == [
+        "accepted",
+        "duplicate",
+        "accepted",
+        "rejected",
+    ]
+
+
+def test_batch_accepts_cbor(client):
+    import cbor2
+
+    first = archive_payload()
+    payloads = [first, archive_payload(bucket_end_epoch=first["bucket_end_epoch"] - 300)]
+    response = client.post(
+        "/api/v1/archive/batch",
+        content=cbor2.dumps(payloads),
+        headers={**api_headers(), "Content-Type": "application/cbor"},
+    )
+    assert response.status_code == 202, response.text
+    assert response.json()["accepted"] == 2
+
+
+def test_batch_rejects_oversized_batch(client):
+    response = client.post(
+        "/api/v1/archive/batch",
+        json=[archive_payload() for _ in range(101)],
+        headers=api_headers(),
+    )
+    assert response.status_code == 422
+
+
+def test_archive_csv_export(client):
+    payload = archive_payload()
+    assert client.post("/api/v1/archive", json=payload, headers=api_headers()).status_code == 202
+    start = payload["bucket_end_epoch"] - 300
+    end = payload["bucket_end_epoch"] + 300
+    response = client.get(
+        f"/api/v1/admin/archive.csv?device_id={payload['device_id']}&start={start}&end={end}",
+        headers=admin_headers(),
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "date_time_ist" in response.text
+    assert payload["device_id"] in response.headers["content-disposition"]
+
+
+def test_archive_csv_rejects_long_range(client):
+    response = client.get(
+        "/api/v1/admin/archive.csv?device_id=sim-001&start=0&end=999999",
+        headers=admin_headers(),
+    )
+    assert response.status_code == 422

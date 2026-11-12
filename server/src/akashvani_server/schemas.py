@@ -195,6 +195,21 @@ class ArchiveAccepted(BaseModel):
     date_time: UtcDateTime
 
 
+class ArchiveBatchItemOut(BaseModel):
+    message_id: str | None = None
+    status: Literal["accepted", "duplicate", "rejected"]
+    id: int | None = None
+    date_time: UtcDateTime | None = None
+    error: str | None = None
+
+
+class ArchiveBatchAccepted(BaseModel):
+    results: list[ArchiveBatchItemOut]
+    accepted: int
+    duplicates: int
+    rejected: int
+
+
 class ArchiveOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -277,11 +292,20 @@ class DeviceOut(BaseModel):
 
     id: str
     name: str
-    station_id: int | None = None
     mac_address: str | None = None
     firmware_version: str | None
     created_at: UtcDateTime
     last_seen_at: UtcDateTime | None
+    last_radio_at: UtcDateTime | None = None
+
+
+class DeviceAdminOut(DeviceOut):
+    online: bool
+    latest_archive_at: UtcDateTime | None = None
+    frames_valid: int | None = None
+    frames_expected: int | None = None
+    frames_crc_bad: int | None = None
+    rssi_avg_dbm: float | None = None
 
 
 class CommandType(str, Enum):
@@ -294,6 +318,9 @@ class CommandType(str, Enum):
     GET_FW_VERSION = "get_fw_version"
     DOWNLOAD_NEW_FW = "download_new_fw"
     BOOT_WITH_NEW_FW = "boot_with_new_fw"
+    GET_PENDING_COMMANDS = "get_pending_commands"
+    GET_DATA_AGAIN = "get_data_again"
+    DOWNLOAD_RAW_DATA = "download_raw_data"
 
 
 class CommandCreate(BaseModel):
@@ -315,6 +342,8 @@ class CommandOut(BaseModel):
     delivered_at: UtcDateTime | None = None
     acked_at: UtcDateTime | None = None
     expires_at: UtcDateTime | None = None
+    attempts: int = 0
+    last_attempt_at: UtcDateTime | None = None
 
 
 class CommandAck(BaseModel):

@@ -112,9 +112,11 @@ release blockers. See [OTA](../operations/ota.md).
 | Device | `X-Device-Token` bearer | SHA-256 hash in `devices.token_hash` |
 | Admin | `Authorization: Bearer ...` | `AKASHVANI_ADMIN_TOKEN` environment variable |
 
-Authenticated device requests also carry `X-Station-Id`, `X-Device-Mac` and
-`X-Firmware-Version`. The server records them (and `last_seen_at`) on the device
-row for admin display.
+Authenticated device requests also carry `X-Device-Mac`,
+`X-Firmware-Version` and `X-Last-Radio-At`. The server records them (and
+`last_seen_at`) on the device row for admin display. A device is shown as
+*online* when `last_seen_at` is within 90 s (three 30 s poll intervals);
+`last_radio_at` is independent and stays old when RF is lost.
 
 Seed devices are created from `AKASHVANI_DEVICE_SEEDS` on startup only if
 missing. Restarting never rotates a token. Use the admin API to rotate

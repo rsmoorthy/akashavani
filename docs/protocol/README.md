@@ -33,18 +33,21 @@ Devices send:
 ```http
 X-Device-Token: <per-device token>
 X-Firmware-Version: 0.3.0
-X-Station-Id: 1
 X-Device-Mac: 08:b6:1f:b8:38:50
+X-Last-Radio-At: 1794400000
 Content-Type: application/json
 ```
+
+`X-Last-Radio-At` is the epoch of the last CRC-valid Davis frame (0 when none
+has been seen). The server stores it as `devices.last_radio_at`.
 
 Commands and admin calls use `Authorization: Bearer <AKASHVANI_ADMIN_TOKEN>` on
 the administrative endpoints. Device tokens are stored as SHA-256 hashes.
 
 The shared `AKASHVANI_API_TOKEN` (default `secret`) is accepted by the archive
 API and the admin API. For device endpoints it can also be used with
-`X-Device-Id` or `X-Station-Id` to identify the device. The receiver stores this
-token on the hotspot page and sends it as a bearer token on all API calls.
+`X-Device-Id` to identify the device. The receiver stores this token on the
+hotspot page and sends it as a bearer token on all API calls.
 
 ## Observation envelope
 
@@ -129,14 +132,21 @@ configured on the hotspot page (default `secret`) and in the server's
 ## Commands
 
 Command types are `reboot`, `sync_time`, `set_config`, `check_for_update`,
-`upload_logs`, `self_test`, `get_fw_version`, `download_new_fw` and
-`boot_with_new_fw`. The last three are the OTA flow:
+`upload_logs`, `self_test`, `get_fw_version`, `download_new_fw`,
+`boot_with_new_fw`, `get_pending_commands` and `get_data_again`. Only one
+command is in flight per device; the next is delivered after the previous one is
+acknowledged. Delivered commands that are not acknowledged within the server ACK
+timeout get a `get_pending_commands` probe, then up to three deliveries in total.
+
+The OTA commands:
 
 | Type | Payload | Result |
 | --- | --- | --- |
-| `get_fw_version` | `{}` | `version`, `partition`, `build_date`, `build_time`, `free_sketch_bytes`, `station_id`, `mac` |
+| `get_fw_version` | `{}` | `version`, `partition`, `build_date`, `build_time`, `free_sketch_bytes`, `mac` |
 | `download_new_fw` | `version`, `url`, `sha256`, `size_bytes` (server fills the last three) | `staged`, `version`, `partition`, `bytes`, `sha256` |
 | `boot_with_new_fw` | `version` | `version`, `partition`, `boot_next` |
+| `get_pending_commands` | `{}` | `pending` (command ids the device still has in flight) |
+| `get_data_again` | `start_epoch`, `end_epoch` (max 7 days) | `records` replayed from SD; the server upserts by `message_id` |
 
 Acknowledgements may include a structured `result` object. `download_new_fw`
 does not reboot; `boot_with_new_fw` acknowledges before restarting.

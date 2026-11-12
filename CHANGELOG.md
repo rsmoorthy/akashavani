@@ -43,8 +43,28 @@ All notable changes are recorded here. The firmware version lives in
   connected Wi-Fi SSID, IP/RSSI and application lines; enabled in both sketches.
 - Wi-Fi station link in `transmitter_sim` (SSID display only, no cloud path).
 
+### Added
+
+- `X-Last-Radio-At` header and `devices.last_radio_at`; the 5-minute archive
+  bucket is emitted even with zero valid frames, so radio health reaches the
+  server every 5 minutes.
+- `/admin` status columns: online/offline, last radio, latest bucket, frames and
+  RSSI; CSV export of stored archive buckets (`GET /api/v1/admin/archive.csv`).
+- SD `last_sent` marker, offline catch-up replay (oldest first, 20-record
+  batches, `/api/v1/archive/batch` with per-record outcomes), 3-year archive
+  retention, and `last_sent` on the AP page.
+- Rolling raw 8-byte frame log on SD (one file per weekday, weekly truncate,
+  5-minute flush) and a `raw_frames` status counter.
+- Command lifecycle: one command in flight per device, attempt counter, ACK
+  timeout with `get_pending_commands` probe and up to three retries.
+- `get_data_again` command (bounded SD replay, upsert by `message_id`).
+
 ### Changed
 
+- Removed `station_id` end-to-end: DB column (migration `7d1c93a5e2b4`),
+  `X-Station-Id` header/fallback, `DeviceOut`, `/admin` column, AP-page field,
+  NVS key, `self_test` field and boot log. Identity is the device token plus
+  the MAC-derived `device_id`; the shared-token fallback uses `X-Device-Id`.
 - Command/health poll interval is 30 s (was 5 s; stored 60 s values migrate
   once). The device token is editable on the AP page.
 - Serial log lines are CRLF-terminated, so plain `minicom`/`screen` no longer

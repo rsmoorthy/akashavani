@@ -1,22 +1,33 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
+import cbor2
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import ArchiveRecord, Device
-from ..schemas import ArchiveAccepted, ArchiveEnvelope
+from ..schemas import (
+    ArchiveAccepted,
+    ArchiveBatchAccepted,
+    ArchiveBatchItemOut,
+    ArchiveEnvelope,
+)
 from ..security import require_api_token
 from ..services import weather
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["archive"])
+
+MAX_BATCH_RECORDS = 100
 
 
 def _existing(
@@ -30,16 +41,8 @@ def _existing(
     )
 
 
-@router.post(
-    "/archive",
-    response_model=ArchiveAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(require_api_token)],
-)
-def ingest_archive(
-    body: ArchiveEnvelope, request: Request, db: Session = Depends(get_db)
-) -> ArchiveAccepted | JSONResponse:
-    settings = request.app.state.settings
+def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAccepted:
+    """Store one archive bucket; duplicates return the existing row."""
     device = db.get(Device, body.device_id)
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unknown device")
@@ -51,11 +54,8 @@ def ingest_archive(
 
     existing = _existing(db, body.device_id, body.message_id, date_time)
     if existing is not None:
-        accepted = ArchiveAccepted(
+        return ArchiveAccepted(
             accepted=True, duplicate=True, id=existing.id, date_time=existing.date_time
-        )
-        return JSONResponse(
-            status_code=status.HTTP_200_OK, content=accepted.model_dump(mode="json")
         )
 
     sums = body.sums
@@ -215,11 +215,8 @@ def ingest_archive(
         existing = _existing(db, body.device_id, body.message_id, date_time)
         if existing is None:
             raise
-        accepted = ArchiveAccepted(
+        return ArchiveAccepted(
             accepted=True, duplicate=True, id=existing.id, date_time=existing.date_time
-        )
-        return JSONResponse(
-            status_code=status.HTTP_200_OK, content=accepted.model_dump(mode="json")
         )
 
     db.refresh(record)
@@ -232,3 +229,105 @@ def ingest_archive(
         rain_mm,
     )
     return ArchiveAccepted(accepted=True, duplicate=False, id=record.id, date_time=record.date_time)
+
+
+@router.post(
+    "/archive",
+    response_model=ArchiveAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_api_token)],
+)
+def ingest_archive(
+    body: ArchiveEnvelope, request: Request, db: Session = Depends(get_db)
+) -> ArchiveAccepted | JSONResponse:
+    settings = request.app.state.settings
+    result = _ingest_one(db, settings, body)
+    if result.duplicate:
+        return JSONResponse(status_code=status.HTTP_200_OK, content=result.model_dump(mode="json"))
+    return result
+
+
+@router.post(
+    "/archive/batch",
+    response_model=ArchiveBatchAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_api_token)],
+)
+async def ingest_archive_batch(
+    request: Request, db: Session = Depends(get_db)
+) -> ArchiveBatchAccepted:
+    """Bulk archive ingest used by catch-up and get_data_again.
+
+    Accepts a JSON array or a CBOR array of archive envelopes and returns one
+    outcome per record so the device can advance past accepted/duplicate rows.
+    """
+    settings = request.app.state.settings
+    raw = await request.body()
+    content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    try:
+        if content_type == "application/cbor":
+            items = cbor2.loads(raw)
+        elif content_type in ("application/json", ""):
+            items = json.loads(raw)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="expected application/json or application/cbor",
+            )
+    except (cbor2.CBORDecodeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"invalid body: {exc}"
+        ) from exc
+
+    if not isinstance(items, list):
+        raise HTTPException(status_code=422, detail="expected an array of archive records")
+    if len(items) > MAX_BATCH_RECORDS:
+        raise HTTPException(
+            status_code=422, detail=f"at most {MAX_BATCH_RECORDS} records per batch"
+        )
+
+    results: list[ArchiveBatchItemOut] = []
+    accepted = duplicates = rejected = 0
+    for item in items:
+        message_id = item.get("message_id") if isinstance(item, dict) else None
+        try:
+            body = ArchiveEnvelope.model_validate(item)
+        except ValidationError as exc:
+            rejected += 1
+            results.append(
+                ArchiveBatchItemOut(
+                    message_id=message_id,
+                    status="rejected",
+                    error=f"invalid envelope: {exc.errors()[0].get('msg', 'invalid')}",
+                )
+            )
+            continue
+        try:
+            outcome = _ingest_one(db, settings, body)
+        except HTTPException as exc:
+            rejected += 1
+            results.append(
+                ArchiveBatchItemOut(
+                    message_id=body.message_id, status="rejected", error=str(exc.detail)
+                )
+            )
+            continue
+        state: Literal["accepted", "duplicate"]
+        if outcome.duplicate:
+            duplicates += 1
+            state = "duplicate"
+        else:
+            accepted += 1
+            state = "accepted"
+        results.append(
+            ArchiveBatchItemOut(
+                message_id=body.message_id,
+                status=state,
+                id=outcome.id,
+                date_time=outcome.date_time,
+            )
+        )
+
+    return ArchiveBatchAccepted(
+        results=results, accepted=accepted, duplicates=duplicates, rejected=rejected
+    )

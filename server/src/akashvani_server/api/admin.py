@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import hashlib
-from datetime import UTC, datetime, timedelta
+import io
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -17,6 +19,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import PlainTextResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -28,6 +31,7 @@ from ..schemas import (
     CommandCreate,
     CommandOut,
     CommandType,
+    DeviceAdminOut,
     DeviceCreate,
     DeviceOut,
     FirmwareRegister,
@@ -35,6 +39,9 @@ from ..schemas import (
     ObservationOut,
 )
 from ..security import hash_token, require_admin
+
+# A device counts as online when seen within three 30-second poll intervals.
+ONLINE_WINDOW_SECONDS = 90
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -68,9 +75,41 @@ def create_or_rotate_device(
     return device
 
 
-@router.get("/devices", response_model=list[DeviceOut])
-def list_devices(db: Session = Depends(get_db)) -> list[Device]:
-    return list(db.scalars(select(Device).order_by(Device.id)).all())
+@router.get("/devices", response_model=list[DeviceAdminOut])
+def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
+    now = datetime.now(UTC)
+    devices = db.scalars(select(Device).order_by(Device.id)).all()
+    result: list[DeviceAdminOut] = []
+    for device in devices:
+        latest = db.scalar(
+            select(ArchiveRecord)
+            .where(ArchiveRecord.device_id == device.id)
+            .order_by(ArchiveRecord.date_time.desc())
+            .limit(1)
+        )
+        seen_at = device.last_seen_at
+        if seen_at is not None and seen_at.tzinfo is None:
+            # SQLite returns naive datetimes; rows are stored in UTC.
+            seen_at = seen_at.replace(tzinfo=UTC)
+        online = seen_at is not None and (now - seen_at).total_seconds() <= ONLINE_WINDOW_SECONDS
+        result.append(
+            DeviceAdminOut(
+                id=device.id,
+                name=device.name,
+                mac_address=device.mac_address,
+                firmware_version=device.firmware_version,
+                created_at=device.created_at,
+                last_seen_at=device.last_seen_at,
+                last_radio_at=device.last_radio_at,
+                online=online,
+                latest_archive_at=latest.date_time if latest else None,
+                frames_valid=latest.frames_valid if latest else None,
+                frames_expected=latest.frames_expected if latest else None,
+                frames_crc_bad=latest.frames_crc_bad if latest else None,
+                rssi_avg_dbm=latest.rssi_avg_dbm if latest else None,
+            )
+        )
+    return result
 
 
 @router.post("/devices/{device_id}/commands", response_model=CommandOut)
@@ -149,6 +188,77 @@ def list_commands(
             .order_by(Command.created_at.desc())
             .limit(limit)
         ).all()
+    )
+
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+@router.get("/archive.csv", response_class=PlainTextResponse)
+def download_archive_csv(
+    device_id: str,
+    start: int,
+    end: int,
+    db: Session = Depends(get_db),
+) -> PlainTextResponse:
+    """CSV export of stored archive buckets for a device (max one week)."""
+    if end <= start or end - start > 7 * 86400:
+        raise HTTPException(status_code=422, detail="range must be positive and at most one week")
+    if db.get(Device, device_id) is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    start_dt = datetime.fromtimestamp(start, UTC)
+    end_dt = datetime.fromtimestamp(end, UTC)
+    rows = db.scalars(
+        select(ArchiveRecord)
+        .where(
+            ArchiveRecord.device_id == device_id,
+            ArchiveRecord.date_time >= start_dt,
+            ArchiveRecord.date_time <= end_dt,
+        )
+        .order_by(ArchiveRecord.date_time)
+    ).all()
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "date_time_ist",
+            "out_temp_c",
+            "out_humidity_pct",
+            "pressure_hpa",
+            "wind_speed_m_s",
+            "wind_dir_deg",
+            "wind_gust_m_s",
+            "rain_mm",
+            "frames_valid",
+            "frames_expected",
+            "frames_crc_bad",
+            "rssi_avg_dbm",
+        ]
+    )
+    for row in rows:
+        when = row.date_time
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        writer.writerow(
+            [
+                when.astimezone(IST).isoformat(),
+                row.out_temp_c,
+                row.out_humidity_pct,
+                row.pressure_hpa,
+                row.wind_speed_m_s,
+                row.wind_dir_deg,
+                row.wind_gust_m_s,
+                row.rain_mm,
+                row.frames_valid,
+                row.frames_expected,
+                row.frames_crc_bad,
+                row.rssi_avg_dbm,
+            ]
+        )
+    return PlainTextResponse(
+        buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{device_id}-archive.csv"'},
     )
 
 

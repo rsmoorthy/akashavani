@@ -20,7 +20,6 @@ ArchiveCollector::ArchiveCollector(uint32_t bucketSeconds, uint32_t slotMs)
 void ArchiveCollector::reset() {
   started_ = false;
   ready_ = false;
-  hasData_ = false;
   bucketEndEpoch_ = 0;
   current_ = ArchiveRecord();
   completed_ = ArchiveRecord();
@@ -38,7 +37,6 @@ void ArchiveCollector::clearCurrent() {
   current_.bucketEndEpoch = bucketEndEpoch_;
   current_.intervalMinutes = bucketSeconds_ / 60;
   current_.framesExpected = (bucketSeconds_ * 1000UL) / slotMs_;
-  hasData_ = false;
 }
 
 bool ArchiveCollector::ensureBucket(int64_t epochSeconds) {
@@ -52,12 +50,10 @@ bool ArchiveCollector::ensureBucket(int64_t epochSeconds) {
     return true;
   }
   while (epochSeconds >= bucketEndEpoch_) {
-    // BME280-only buckets are not weather archives. Require at least one
-    // valid Davis frame so a radio outage does not create empty records.
-    if (hasData_ && current_.framesValid > 0) {
-      finalize();
-      ready_ = true;
-    }
+    // Emit every bucket, even with zero valid frames: the record doubles as the
+    // 5-minute radio-health report (frames_valid = 0, environmental means null).
+    finalize();
+    ready_ = true;
     bucketEndEpoch_ += static_cast<int64_t>(bucketSeconds_);
     clearCurrent();
   }
@@ -69,7 +65,6 @@ bool ArchiveCollector::add(const DavisObservation& observation, int16_t rssiDbm,
   if (!ensureBucket(epochSeconds)) {
     return false;
   }
-  hasData_ = true;
   current_.transmitterId = observation.transmitterId;
   ++current_.framesValid;
   current_.rssiSum += rssiDbm;
@@ -164,7 +159,6 @@ bool ArchiveCollector::addBme280(float temperatureC, float humidityPct,
   if (!ensureBucket(epochSeconds)) {
     return false;
   }
-  hasData_ = true;
   if (finite(temperatureC)) {
     current_.inTempCSum += temperatureC;
     ++current_.inTempCount;

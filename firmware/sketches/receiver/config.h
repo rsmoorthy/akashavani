@@ -83,7 +83,6 @@ constexpr bool kEnableLanOta = true;
 
 // Development identity/network. These values are temporary and will be replaced
 // by provisioning. The Wi-Fi credentials and device token live in secrets.h.
-constexpr uint16_t kStationId = 1;
 constexpr const char* kDeviceToken = AK_DEV_DEVICE_TOKEN;
 constexpr const char* kApiToken = "secret";
 constexpr const char* kWifiSsid = AK_DEV_WIFI_SSID;
@@ -101,6 +100,8 @@ constexpr uint32_t kNtpSyncIntervalMs = 6UL * 60UL * 60UL * 1000UL;
 // At most this many observations wait in RAM for a cloud connection. The SD
 // card remains the durable copy beyond this window.
 constexpr uint8_t kMaxPendingUploads = 8;
+// Archive day files older than this are deleted at boot (3-year retention).
+constexpr uint32_t kArchiveRetentionDays = 3 * 365;
 constexpr uint8_t kMaxUploadAttempts = 8;
 constexpr uint32_t kUploadRetryBaseMs = 5000;
 constexpr uint32_t kUploadRetryMaxMs = 300000;

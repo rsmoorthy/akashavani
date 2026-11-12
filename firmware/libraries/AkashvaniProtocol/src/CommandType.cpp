@@ -25,6 +25,12 @@ const char* toString(CommandType type) {
       return "download_new_fw";
     case CommandType::BootWithNewFw:
       return "boot_with_new_fw";
+    case CommandType::GetPendingCommands:
+      return "get_pending_commands";
+    case CommandType::GetDataAgain:
+      return "get_data_again";
+    case CommandType::DownloadRawData:
+      return "download_raw_data";
     case CommandType::Unknown:
       return "unknown";
   }
@@ -61,6 +67,15 @@ CommandType commandTypeFromString(const char* value) {
   }
   if (std::strcmp(value, "boot_with_new_fw") == 0) {
     return CommandType::BootWithNewFw;
+  }
+  if (std::strcmp(value, "get_pending_commands") == 0) {
+    return CommandType::GetPendingCommands;
+  }
+  if (std::strcmp(value, "get_data_again") == 0) {
+    return CommandType::GetDataAgain;
+  }
+  if (std::strcmp(value, "download_raw_data") == 0) {
+    return CommandType::DownloadRawData;
   }
   return CommandType::Unknown;
 }

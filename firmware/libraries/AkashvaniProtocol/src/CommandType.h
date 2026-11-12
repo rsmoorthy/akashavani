@@ -15,6 +15,9 @@ enum class CommandType : uint8_t {
   GetFwVersion = 6,
   DownloadNewFw = 7,
   BootWithNewFw = 8,
+  GetPendingCommands = 9,
+  GetDataAgain = 10,
+  DownloadRawData = 11,
   Unknown = 255,
 };
 

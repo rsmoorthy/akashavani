@@ -50,9 +50,6 @@ void SettingsStore::applyDefaults(DeviceSettings& settings) {
   std::snprintf(settings.deviceMac, sizeof(settings.deviceMac),
                 "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3],
                 mac[4], mac[5]);
-  if (settings.stationId == 0) {
-    settings.stationId = 1;
-  }
   if (settings.deviceId[0] == '\0') {
     if (!makeDeviceIdFromMac(mac, settings.deviceId, sizeof(settings.deviceId))) {
       std::snprintf(settings.deviceId, sizeof(settings.deviceId), "ak-unknown");
@@ -99,7 +96,6 @@ Status SettingsStore::load(DeviceSettings& settings) {
              preferences_.getString("server", ""), "");
   copyString(loaded.adminPassword, sizeof(loaded.adminPassword),
              preferences_.getString("admin_pw", ""), "");
-  loaded.stationId = preferences_.getUShort("station", 0);
 
   char key[16];
   for (uint8_t i = 0; i < kMaxWifiProfiles; ++i) {
@@ -135,9 +131,8 @@ Status SettingsStore::load(DeviceSettings& settings) {
 
   applyDefaults(loaded);
   settings = loaded;
-  AK_LOG_INFO("settings", "device=%s station=%u wifi_profiles=%u provisioned=%s",
-              settings.deviceId, static_cast<unsigned>(settings.stationId),
-              static_cast<unsigned>(settings.wifiProfileCount),
+  AK_LOG_INFO("settings", "device=%s wifi_profiles=%u provisioned=%s",
+              settings.deviceId, static_cast<unsigned>(settings.wifiProfileCount),
               settings.provisioned() ? "yes" : "no");
   return Status::Ok;
 }
@@ -154,7 +149,6 @@ Status SettingsStore::save(const DeviceSettings& settings) {
   preferences_.putString("api_token", settings.apiToken);
   preferences_.putString("server", settings.serverBaseUrl);
   preferences_.putString("admin_pw", settings.adminPassword);
-  preferences_.putUShort("station", settings.stationId);
   char key[16];
   for (uint8_t i = 0; i < kMaxWifiProfiles; ++i) {
     const bool used = i < settings.wifiProfileCount && settings.wifiProfiles[i].configured();

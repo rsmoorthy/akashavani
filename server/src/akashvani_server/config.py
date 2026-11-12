@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     max_firmware_bytes: int = Field(default=8 * 1024 * 1024, ge=1024)
     max_future_skew_seconds: int = Field(default=300, ge=0)
     command_default_ttl_seconds: int = Field(default=3600, ge=60)
+    # A delivered command that is not acknowledged in this window is treated as
+    # lost (reboot/crash) and probed/retried, up to three deliveries.
+    command_ack_timeout_seconds: int = Field(default=300, ge=30)
     cors_origins: str = ""
 
     @property
