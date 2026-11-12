@@ -13,8 +13,10 @@ EXAMPLE_DIR = REPO_ROOT / "protocol" / "examples"
 CASES = [
     ("observation.schema.json", "observation.json"),
     ("command.schema.json", "command.json"),
+    ("command.schema.json", "command-download-fw.json"),
     ("command-ack.schema.json", "command-ack.json"),
     ("firmware-check.schema.json", "firmware-check.json"),
+    ("archive.schema.json", "archive.json"),
 ]
 
 

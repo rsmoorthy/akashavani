@@ -8,11 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from .api import admin, commands, firmware, health, observations
+from .api import admin, archive, commands, firmware, health, observations
 from .config import Settings, get_settings
 from .db import Base, create_engine_for, create_session_factory
 from .logging import configure_logging
 from .security import seed_devices
+from .web import router as web_router
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +62,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(observations.router)
+    app.include_router(archive.router)
     app.include_router(commands.router)
     app.include_router(firmware.router)
     app.include_router(admin.router)
+    app.include_router(web_router)
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:

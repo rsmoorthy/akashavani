@@ -55,17 +55,23 @@ make fw-flash BOARD=receiver PORT=/dev/ttyACM0
 make fw-monitor PORT=/dev/ttyACM0 BAUD=115200
 ```
 
-`CDCOnBoot=cdc` is enabled in the default FQBN so `Serial` appears on the native
-USB port. If your board uses a separate UART bridge, change the FQBN or use the
-UART port. Hold the boot button and tap reset if uploads fail.
+`CDCOnBoot=cdc` applies to the ESP32-S3 native USB. The current bench boards are
+ESP32 classic with a CP2102 UART bridge, so the default FQBN is
+`esp32:esp32:esp32`. If the production board becomes an S3, override
+`AKASHVANI_FQBN`.
 
 ## Board options and flash size
 
-The default is a 4 MB ESP32-S3 with the stock `min_spiffs` scheme:
+The default is a 4 MB ESP32 classic with the stock `min_spiffs` scheme:
 
 ```text
-esp32:esp32:esp32s3:FlashSize=4M,PSRAM=disabled,PartitionScheme=min_spiffs,CDCOnBoot=cdc
+esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs
 ```
+
+The receiver sketch also carries `partitions.csv`; the ESP32 core pre-build hook
+copies it into the build directory. It defines two OTA application slots of
+`0x1E0000` bytes (1,966,080 bytes = 1.875 MiB) each, plus 128 KiB SPIFFS and
+64 KiB coredump.
 
 For a 16 MB board:
 
@@ -80,9 +86,10 @@ AKASHVANI_FQBN='esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16
   make fw-build BOARD=receiver
 ```
 
-The receiver currently uses ~1.18 MB of a 1.9 MB OTA slot. See
-`firmware/partitions/README.md` before changing the table. OTA requires two app
-slots; do not trade them away without an ADR.
+The receiver currently uses **1,033,593 bytes** (52%) of the 1.875 MiB OTA slot
+with `kRfTestMode = true`. The full receiver with Wi-Fi, SD, web and OTA enabled
+is about 1.25 MB. See `firmware/partitions/README.md` before changing the table.
+OTA requires two app slots; do not trade them away without an ADR.
 
 ## Version
 
@@ -141,7 +148,7 @@ it by header name; no registration step is required.
 | Symptom | Check |
 | --- | --- |
 | `BitOrder does not name a type` | a build property replaced `build.extra_flags`; use `build.defines` |
-| `RFM95 not found` | SPI pins, 3.3 V, CS/reset wiring, antenna not required for probe |
+| `RFM69 not found` | SPI pins, 3.3 V, CS/DIO0 wiring, module power/reset; antenna not required for a version-register probe |
 | `mount failed` | card format (FAT32), CS pin, 3.3 V-safe breakout |
 | `DS3231 not found` | I²C scan (`make fw-test-hw`), address 0x68, pull-ups |
 | AP not visible | 3.3 V rail, AP password length, serial log |

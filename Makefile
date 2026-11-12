@@ -12,7 +12,7 @@ PYTHON ?= python3
 # ---------------------------------------------------------------------------
 .PHONY: help
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target> [BOARD=receiver|transmitter_sim] [PORT=/dev/ttyACM0]\n\nTargets:\n"} \
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target> [BOARD=receiver|transmitter_sim|bringup|ap_client] [PORT=/dev/ttyACM0]\n\nTargets:\n"} \
 		/^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # ---------------------------------------------------------------------------
@@ -60,6 +60,14 @@ fw-test-hw: ## Build the on-target bring-up sketch
 .PHONY: fw-export
 fw-export: ## Export receiver OTA image + checksum
 	./tools/fw-export-ota.sh
+
+.PHONY: rf-bench
+rf-bench: ## Run Davis RF bench scenarios (SCENARIO=1|2|3|all DURATION=seconds)
+	python3 tools/rf-bench.py --scenario $(or $(SCENARIO),all) --duration $(or $(DURATION),900)
+
+.PHONY: rf-bench-report
+rf-bench-report: ## Summarise the latest rf-bench logs (RX_LOG=... TX_LOG=...)
+	python3 tools/rf-bench-report.py $(RX_LOG) $(TX_LOG)
 
 .PHONY: fw-clean
 fw-clean: ## Remove firmware build artifacts

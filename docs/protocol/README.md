@@ -8,6 +8,7 @@ Normative artifacts:
 | File | Purpose |
 | --- | --- |
 | `protocol/schema/observation.schema.json` | observation envelope and canonical fields |
+| `protocol/schema/archive.schema.json` | five-minute SI archive record (sums/counts) |
 | `protocol/schema/command.schema.json` | command resource returned by lease |
 | `protocol/schema/command-ack.schema.json` | acknowledgement body |
 | `protocol/schema/firmware-check.schema.json` | OTA check response |
@@ -31,12 +32,19 @@ Devices send:
 
 ```http
 X-Device-Token: <per-device token>
-X-Firmware-Version: 0.1.0-dev
+X-Firmware-Version: 0.3.0
+X-Station-Id: 1
+X-Device-Mac: 08:b6:1f:b8:38:50
 Content-Type: application/json
 ```
 
 Commands and admin calls use `Authorization: Bearer <AKASHVANI_ADMIN_TOKEN>` on
 the administrative endpoints. Device tokens are stored as SHA-256 hashes.
+
+The shared `AKASHVANI_API_TOKEN` (default `secret`) is accepted by the archive
+API and the admin API. For device endpoints it can also be used with
+`X-Device-Id` or `X-Station-Id` to identify the device. The receiver stores this
+token on the hotspot page and sends it as a bearer token on all API calls.
 
 ## Observation envelope
 
@@ -102,7 +110,36 @@ new ID creates a duplicate observation.
 Unknown keys are stored by the server for forward compatibility; the firmware
 only emits the fields it actually decoded.
 
+## Archive records
+
+The receiver sends one SI 5-minute collation to:
+
+```http
+POST /api/v1/archive
+Authorization: Bearer <api-token>
+Content-Type: application/json
+```
+
+The body is described by `protocol/schema/archive.schema.json`. The receiver
+sends sums and counts; the server divides them, converts rain tips using the
+site bucket size and calculates the derived values. The shared bearer token is
+configured on the hotspot page (default `secret`) and in the server's
+`AKASHVANI_API_TOKEN`.
+
 ## Commands
+
+Command types are `reboot`, `sync_time`, `set_config`, `check_for_update`,
+`upload_logs`, `self_test`, `get_fw_version`, `download_new_fw` and
+`boot_with_new_fw`. The last three are the OTA flow:
+
+| Type | Payload | Result |
+| --- | --- | --- |
+| `get_fw_version` | `{}` | `version`, `partition`, `build_date`, `build_time`, `free_sketch_bytes`, `station_id`, `mac` |
+| `download_new_fw` | `version`, `url`, `sha256`, `size_bytes` (server fills the last three) | `staged`, `version`, `partition`, `bytes`, `sha256` |
+| `boot_with_new_fw` | `version` | `version`, `partition`, `boot_next` |
+
+Acknowledgements may include a structured `result` object. `download_new_fw`
+does not reboot; `boot_with_new_fw` acknowledges before restarting.
 
 Admin creates a command:
 

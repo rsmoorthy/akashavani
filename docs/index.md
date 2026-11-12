@@ -2,7 +2,8 @@
 
 Akashvani is a weather-data pipeline built around a Davis weather station:
 
-- an **ESP32-S3 receiver** listens to the station's RF transmissions, decodes
+- an **ESP32-S3 receiver** (production target; bench boards are ESP32-D0WD-V3)
+  listens to the station's RF transmissions, decodes
   them, archives every observation to a micro-SD card, and uploads canonical
   JSON/CBOR to a server;
 - a **transmitter simulator** board sends synthetic Davis-shaped observations
@@ -11,11 +12,11 @@ Akashvani is a weather-data pipeline built around a Davis weather station:
   queues commands, and serves firmware releases.
 
 !!! warning "Scaffold status"
-    The build, test and deployment skeleton is in place. The validated
-    prototype's RFM95 driver and Davis frame codec are **not yet ported**; the
-    seams are marked `TODO(port)`. There is no hardware attached to the
-    development machine. Treat every pin assignment and register value as
-    unverified until the bring-up checklist passes.
+    The build, test and deployment skeleton is in place. Command polling and
+    two-step OTA were bench-tested on USB1 on 2026-10-26. The validated
+    prototype's RFM69 driver and Davis frame codec are **not yet ported**; the
+    seams are marked `TODO(port)`. Treat every pin assignment and register value
+    as unverified until the bring-up checklist passes.
 
 ## Start here
 
@@ -59,11 +60,13 @@ tools/      Build, flash, test and export scripts
 
 The scaffold deliberately leaves the following unimplemented:
 
-- Davis RF decoding/encoding and the RFM95 modem configuration.
+- Davis RF decoding/encoding and the RFM69 modem configuration.
 - Real SD-card and display drivers (the SD writer is implemented but untested on
   hardware; the display is a no-op seam).
-- TLS certificate pinning and OTA image signature/hash verification.
+- TLS certificate pinning and OTA image signatures/rollback (streaming SHA-256
+  verification is implemented).
 - RFM69 support and raw/direct-mode reception.
-- Authentication hardening for the local admin UI beyond a shared password.
+- Authentication hardening for the local AP page, which currently relies on the
+  AP WPA2 password and has no separate login.
 
 See [Roadmap](development/roadmap.md) for the proposed order of work.

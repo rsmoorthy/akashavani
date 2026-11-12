@@ -1,5 +1,7 @@
 #include "ApiClient.h"
 
+#include <WiFi.h>
+
 #include <cstdio>
 #include <cstring>
 
@@ -57,7 +59,16 @@ void ApiClient::prepareHttp(HTTPClient& http, const String& url) {
   http.setConnectTimeout(5000);
   http.setTimeout(10000);
   http.addHeader("X-Device-Token", settings_.deviceToken);
+  if (settings_.apiToken[0] != '\0') {
+    http.addHeader("Authorization", String("Bearer ") + settings_.apiToken);
+  }
   http.addHeader("X-Firmware-Version", AKASHVANI_FW_VERSION);
+  char station[12];
+  std::snprintf(station, sizeof(station), "%u", static_cast<unsigned>(settings_.stationId));
+  http.addHeader("X-Station-Id", station);
+  const char* mac = settings_.deviceMac[0] != '\0' ? settings_.deviceMac
+                                                   : WiFi.macAddress().c_str();
+  http.addHeader("X-Device-Mac", mac);
 }
 
 ObservationUpload ApiClient::postObservation(const DavisObservation& observation,
@@ -110,6 +121,51 @@ ObservationUpload ApiClient::postObservation(const DavisObservation& observation
     AK_LOG_INFO("api", "observation already accepted (duplicate)");
   } else if (result.status != Status::Ok) {
     AK_LOG_WARN("api", "upload failed: %s", result.error);
+  }
+  return result;
+}
+
+ArchiveUpload ApiClient::postArchive(const char* payloadJson, const char* messageId) {
+  ArchiveUpload result;
+  if (payloadJson == nullptr || payloadJson[0] == '\0' || messageId == nullptr ||
+      messageId[0] == '\0' || settings_.apiToken[0] == '\0') {
+    result.status = Status::InvalidArgument;
+    std::snprintf(result.error, sizeof(result.error), "missing archive payload or token");
+    return result;
+  }
+
+  HTTPClient http;
+  prepareHttp(http, endpoint("/api/v1/archive"));
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.POST(String(payloadJson));
+  result.httpCode = code;
+
+  if (code == 200 || code == 201 || code == 202) {
+    result.status = Status::Ok;
+    const String response = http.getString();
+    if (response.length() > 0) {
+      JsonDocument responseDoc;
+      if (deserializeJson(responseDoc, response) == DeserializationError::Ok) {
+        result.duplicate = responseDoc["duplicate"] | false;
+      }
+    }
+  } else if (code == 401 || code == 403) {
+    result.status = Status::InvalidArgument;
+    std::snprintf(result.error, sizeof(result.error), "server rejected bearer token");
+  } else if (code == 413 || code == 422) {
+    result.status = Status::InvalidArgument;
+    std::snprintf(result.error, sizeof(result.error), "archive rejected: http %d", code);
+  } else {
+    result.status = Status::IoError;
+    result.retryable = code < 0 || code == 429 || code >= 500;
+    std::snprintf(result.error, sizeof(result.error), "http %d", code);
+  }
+  http.end();
+
+  if (result.status == Status::Ok && result.duplicate) {
+    AK_LOG_INFO("api", "archive already accepted (duplicate)");
+  } else if (result.status != Status::Ok) {
+    AK_LOG_WARN("api", "archive upload failed: %s", result.error);
   }
   return result;
 }
@@ -199,7 +255,7 @@ Status ApiClient::leaseCommands(CommandMessage* output, size_t capacity, size_t&
 }
 
 Status ApiClient::acknowledgeCommand(const char* commandId, bool success,
-                                     const char* error) {
+                                     const char* error, const char* resultJson) {
   if (commandId == nullptr || commandId[0] == '\0') {
     return Status::InvalidArgument;
   }
@@ -207,6 +263,12 @@ Status ApiClient::acknowledgeCommand(const char* commandId, bool success,
   doc["status"] = success ? "ok" : "error";
   if (error != nullptr && error[0] != '\0') {
     doc["error"] = error;
+  }
+  if (resultJson != nullptr && resultJson[0] != '\0') {
+    JsonDocument resultDoc;
+    if (deserializeJson(resultDoc, resultJson) == DeserializationError::Ok) {
+      doc["result"] = resultDoc.as<JsonVariant>();
+    }
   }
   String body;
   serializeJson(doc, body);

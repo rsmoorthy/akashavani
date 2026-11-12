@@ -1,0 +1,13 @@
+# Akashvani 4 MB layout.
+#
+# Two OTA application slots of 0x1E0000 bytes (1,966,080 B = 1.875 MiB) each.
+# The running image is never overwritten by an OTA download. The small SPIFFS
+# partition and the coredump partition are kept deliberately minimal.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xE000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x1E0000,
+app1,       app,  ota_1,    0x1F0000, 0x1E0000,
+spiffs,     data, spiffs,   0x3D0000, 0x20000,
+coredump,   data, coredump, 0x3F0000, 0x10000,

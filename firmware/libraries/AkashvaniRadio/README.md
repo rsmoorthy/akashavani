@@ -4,25 +4,34 @@ Radio hardware is behind `IRadio` so the application never talks to SPI,
 registers or a vendor library directly.
 
 ```text
-sketch/app ──> IRadio ──> Rfm95Radio   (on-target)
+sketch/app ──> IRadio ──> Rfm69Radio   (current bench hardware)
+                    └───> Rfm95Radio   (alternate seam, still a stub)
                     └───> MockRadio    (native tests / bench)
-                    └───> Rfm69Radio   (planned)
 ```
 
-## Porting note
+## RFM69 / Davis
 
-`Rfm95Radio::begin()` currently checks the SPI wiring and the RFM95 version
-register, then returns `Status::Unsupported`. Replace the bodies marked
-`TODO(port)` with the proven prototype implementation. Keep the register-level
-details in this library, not in a sketch.
+`Rfm69Radio` implements the SX1231 packet path validated in
+`prototype/lib2/DavisRFM69`:
 
-Davis reception may require raw/direct mode rather than packet mode. If so,
-extend `IRadio` with a raw-receive method rather than leaking RFM95 registers
-into `AkashvaniDavis`.
+- 19.2 kbps FSK, 4.8 kHz deviation, Gaussian BT=0.5 shaping;
+- `CB 89` sync, fixed eight-byte payload, hardware CRC off;
+- 51-entry US Davis frequency table (`DavisChannels.h`);
+- bit reversal on TX/RX, RSSI sampling, FIFO access and channel selection.
 
-## Planned RFM69 support
+The driver writes the complete configuration on every boot. This is required on
+the USB1 simulator board because its RFM69 RESET pin is not connected and the
+chip retains its previous mode and registers across MCU resets. The SX1231 RESET
+line is active high; drive it low for normal operation.
 
-Add `Rfm69Radio` implementing the same interface. A stub already exists and
-returns `Status::Unsupported`; port the SX1231 configuration there. The board
-configuration is selected per sketch through `RadioConfig::chip`; the Davis
-decoder must not know which radio produced a frame.
+Register values are intentionally centralised in `Rfm69Radio.cpp`. Do not change
+them without repeating the packet-success tests in
+`docs/specs/rf-davis-receive.md`.
+
+## RFM95
+
+`Rfm95Radio::begin()` still checks the SPI wiring and version register and
+returns `Status::Unsupported`. The RFM95 seam is retained for the alternate
+module, but the bench path is RFM69.
+
+Davis frames are decoded in `AkashvaniDavis`, never in this library.

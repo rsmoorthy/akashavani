@@ -5,19 +5,20 @@ archives it locally, and forwards it to a server. It also contains a
 transmitter simulator for bench testing the receiver before deployment.
 
 > **Project status: scaffold.** The repository structure, build, test and
-> deployment machinery are in place. Hardware drivers and the Davis RF protocol
-> implementation are intentionally stubbed; the validated prototype code will be
-> ported into the library seams described below. See
+> deployment machinery are in place. Command polling and two-step OTA have been
+> bench-tested on USB1. Hardware drivers and the Davis RF protocol implementation
+> are intentionally stubbed; the validated prototype code will be ported into the
+> library seams described below. See
 > [`docs/development/roadmap.md`](docs/development/roadmap.md).
 
 ## Repository layout
 
 ```text
 .
-├── firmware/                 ESP32-S3 Arduino code (arduino-cli)
+├── firmware/                 ESP32 Arduino code (S3 target; bench boards classic)
 │   ├── libraries/            reusable components; the bulk of the firmware
 │   │   ├── AkashvaniCore     logging, CRC, time and small utilities
-│   │   ├── AkashvaniRadio    radio abstraction (RFM95 now, RFM69 planned)
+│   │   ├── AkashvaniRadio    radio abstraction (RFM69 current hardware, RFM95 seam retained)
 │   │   ├── AkashvaniDavis    Davis frame decoding/encoding + transmitter simulator
 │   │   ├── AkashvaniProtocol versioned wire contracts (JSON/CBOR)
 │   │   ├── AkashvaniStorage  micro-SD archive writer

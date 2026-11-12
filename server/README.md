@@ -28,7 +28,10 @@ make docker-up           # http://localhost:8000/docs
 | POST | `/api/v1/admin/devices/{id}/commands` | admin bearer | enqueue a command |
 | GET | `/api/v1/admin/observations` | admin bearer | inspect recent data |
 | POST | `/api/v1/admin/firmware` | admin bearer | register an image in `firmware_dir` |
+| POST | `/api/v1/admin/firmware/upload` | admin bearer | upload an image (multipart) |
 | GET | `/api/v1/admin/firmware` | admin bearer | list releases |
+| GET | `/api/v1/admin/devices/{id}/commands` | admin bearer | command history |
+| GET | `/admin` | none (page shell) | admin UI; API calls still need the bearer token |
 
 Device auth uses `X-Device-Token`. Admin auth uses `Authorization: Bearer
 <AKASHVANI_ADMIN_TOKEN>`. Tokens are stored as SHA-256 hashes; the plaintext is
@@ -36,7 +39,7 @@ only known to the device (or to the operator who provisioned it).
 
 ## Data model
 
-- `devices`: identity, token hash, last seen, reported firmware.
+- `devices`: identity, token hash, station ID, MAC, last seen, reported firmware.
 - `observations`: canonical envelope plus source metadata. Unique
   `(device_id, message_id)` makes retries idempotent.
 - `commands`: pending/delivered/acked/failed state with payload, result and

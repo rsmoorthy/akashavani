@@ -1,6 +1,8 @@
 // Hardware bring-up sketch. This is not production firmware.
 //
-// It probes the shared SPI bus, the DS3231, the SD card and the RFM95, then
+// It probes the shared SPI bus, the DS3231, the SD card and the RFM95 seam.
+// The current bench hardware is RFM69 (version 0x24), not RFM95 (0x12); the
+// RFM69 driver is still a stub. It then
 // leaves the board in AP-less Wi-Fi scan mode. Run with `make fw-test-hw`.
 
 #include <Arduino.h>

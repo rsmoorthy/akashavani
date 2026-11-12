@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Akashvani admin</title>
+<style>
+  :root { color-scheme: light dark; --line: #8884; --accent: #0b7285; }
+  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.5rem; max-width: 1100px; }
+  h1 { margin-top: 0; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  code { font-size: 12px; word-break: break-all; }
+  form { display: grid; gap: .6rem; max-width: 640px; }
+  label { display: grid; gap: .2rem; font-weight: 600; }
+  input, select, button { font: inherit; padding: .4rem .5rem; }
+  button { cursor: pointer; background: var(--accent); color: white; border: 0; border-radius: 4px; width: fit-content; }
+  button.secondary { background: #888; }
+  .row { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+  .status { min-height: 1.4em; font-size: 13px; }
+  .error { color: #c92a2a; }
+  .ok { color: #2b8a3e; }
+</style>
+</head>
+<body>
+<h1>Akashvani admin</h1>
+
+<section>
+  <h2>Admin token</h2>
+  <div class="row">
+    <label>Bearer token
+      <input id="token" type="password" autocomplete="off" size="32">
+    </label>
+    <button onclick="saveToken()">Save</button>
+    <button class="secondary" onclick="refreshAll()">Refresh</button>
+  </div>
+  <div id="status" class="status"></div>
+</section>
+
+<section>
+  <h2>Devices</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Station</th><th>MAC</th><th>Firmware</th><th>Last seen</th></tr></thead>
+    <tbody id="devices"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Firmware releases</h2>
+  <table>
+    <thead><tr><th>Version</th><th>Channel</th><th>Size</th><th>SHA-256</th><th>File</th></tr></thead>
+    <tbody id="firmware"></tbody>
+  </table>
+  <h3>Upload a new image</h3>
+  <form id="uploadForm">
+    <label>Version <input name="version" placeholder="0.2.0" required></label>
+    <label>Channel <input name="channel" value="stable" required></label>
+    <label>Notes <input name="notes"></label>
+    <label>Image file <input name="file" type="file" required></label>
+    <label><span><input name="mandatory" type="checkbox"> Mandatory</span></label>
+    <button type="submit">Upload and register</button>
+  </form>
+</section>
+
+<section>
+  <h2>Queue a command</h2>
+  <form id="commandForm">
+    <label>Device <select id="commandDevice" required></select></label>
+    <label>Command
+      <select id="commandType" onchange="updateCommandPayload()">
+        <option value="get_fw_version">get_fw_version</option>
+        <option value="download_new_fw">download_new_fw</option>
+        <option value="boot_with_new_fw">boot_with_new_fw</option>
+        <option value="reboot">reboot</option>
+        <option value="sync_time">sync_time</option>
+        <option value="self_test">self_test</option>
+      </select>
+    </label>
+    <label id="versionField">Firmware version
+      <select id="commandVersion"></select>
+    </label>
+    <button type="submit">Queue command</button>
+  </form>
+  <h3>Commands</h3>
+  <table>
+    <thead><tr><th>Created</th><th>Type</th><th>Status</th><th>Payload</th><th>Result / error</th></tr></thead>
+    <tbody id="commands"></tbody>
+  </table>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let releases = [];
+
+function token() { return localStorage.getItem('akashvaniAdminToken') || ''; }
+
+function setStatus(text, kind = '') {
+  const el = $('status');
+  el.textContent = text;
+  el.className = 'status ' + kind;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+async function api(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', 'Bearer ' + token());
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) {
+    let detail = response.status + ' ' + response.statusText;
+    try { const body = await response.json(); detail = JSON.stringify(body.detail ?? body); } catch (_) {}
+    throw new Error(detail);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+function saveToken() {
+  localStorage.setItem('akashvaniAdminToken', $('token').value.trim());
+  refreshAll();
+}
+
+async function loadDevices() {
+  const devices = await api('/api/v1/admin/devices');
+  $('devices').innerHTML = devices.map((d) => `<tr>
+    <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
+    <td>${escapeHtml(d.station_id ?? '')}</td><td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
+    <td>${escapeHtml(d.firmware_version ?? '')}</td><td>${escapeHtml(d.last_seen_at ?? '')}</td></tr>`).join('');
+  const current = $('commandDevice').value;
+  $('commandDevice').innerHTML = devices.map((d) =>
+    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.station_id ? ' (station ' + d.station_id + ')' : ''}</option>`).join('');
+  if (current) $('commandDevice').value = current;
+  return devices;
+}
+
+async function loadFirmware() {
+  releases = await api('/api/v1/admin/firmware');
+  $('firmware').innerHTML = releases.map((r) => `<tr>
+    <td>${escapeHtml(r.version)}</td><td>${escapeHtml(r.channel)}</td><td>${r.size_bytes}</td>
+    <td><code>${escapeHtml(r.sha256)}</code></td><td><code>${escapeHtml(r.filename)}</code></td></tr>`).join('');
+  const current = $('commandVersion').value;
+  $('commandVersion').innerHTML = releases.map((r) =>
+    `<option value="${escapeHtml(r.version)}">${escapeHtml(r.version)} (${escapeHtml(r.channel)})</option>`).join('');
+  if (current) $('commandVersion').value = current;
+}
+
+async function loadCommands() {
+  const device = $('commandDevice').value;
+  if (!device) { $('commands').innerHTML = ''; return; }
+  const commands = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/commands?limit=50`);
+  $('commands').innerHTML = commands.map((c) => {
+    const detail = c.error ? `<span class="error">${escapeHtml(c.error)}</span>` : escapeHtml(JSON.stringify(c.result ?? ''));
+    return `<tr><td>${escapeHtml(c.created_at)}</td><td>${escapeHtml(c.type)}</td>
+      <td>${escapeHtml(c.status)}</td><td><code>${escapeHtml(JSON.stringify(c.payload))}</code></td>
+      <td><code>${detail}</code></td></tr>`;
+  }).join('');
+}
+
+function updateCommandPayload() {
+  const type = $('commandType').value;
+  $('versionField').style.display = (type === 'download_new_fw' || type === 'boot_with_new_fw') ? '' : 'none';
+}
+
+async function refreshAll() {
+  if (!token()) { setStatus('Enter the admin bearer token.', 'error'); return; }
+  try {
+    await Promise.all([loadDevices(), loadFirmware()]);
+    await loadCommands();
+    setStatus('Loaded ' + new Date().toLocaleTimeString(), 'ok');
+  } catch (error) {
+    setStatus(error.message, 'error');
+  }
+}
+
+$('uploadForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  form.set('mandatory', event.target.mandatory.checked ? 'true' : 'false');
+  try {
+    const release = await api('/api/v1/admin/firmware/upload', { method: 'POST', body: form });
+    setStatus(`Uploaded ${release.version} (${release.size_bytes} bytes, ${release.sha256})`, 'ok');
+    event.target.reset();
+    event.target.channel.value = 'stable';
+    await loadFirmware();
+  } catch (error) {
+    setStatus(error.message, 'error');
+  }
+});
+
+$('commandForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const type = $('commandType').value;
+  const payload = {};
+  if (type === 'download_new_fw' || type === 'boot_with_new_fw') {
+    payload.version = $('commandVersion').value;
+  }
+  try {
+    const command = await api(`/api/v1/admin/devices/${encodeURIComponent($('commandDevice').value)}/commands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload })
+    });
+    setStatus(`Queued ${command.type} (${command.id})`, 'ok');
+    await loadCommands();
+  } catch (error) {
+    setStatus(error.message, 'error');
+  }
+});
+
+$('commandDevice').addEventListener('change', loadCommands);
+$('token').value = token();
+updateCommandPayload();
+refreshAll();
+setInterval(() => { if (token()) { loadCommands(); loadDevices(); } }, 5000);
+</script>
+</body>
+</html>

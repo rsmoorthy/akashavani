@@ -21,7 +21,7 @@ to exercise the receiver's RF path and, through it, the rest of the pipeline.
 | Library | Owns | Does not own |
 | --- | --- | --- |
 | `AkashvaniCore` | status codes, log, CRC, hex, UTC helpers, IDs | hardware buses |
-| `AkashvaniRadio` | `IRadio`, RFM95 registers, mock radio | Davis semantics |
+| `AkashvaniRadio` | `IRadio`, RFM69 registers, mock radio | Davis semantics |
 | `AkashvaniDavis` | observation model, frame codec, simulator | radio configuration |
 | `AkashvaniProtocol` | version, envelope/command types, field names | JSON library details |
 | `AkashvaniStorage` | daily path layout, SD append/flush | cloud policy |
@@ -75,8 +75,8 @@ sequenceDiagram
 
 Leasing marks commands `delivered` so a second poll does not return them
 immediately. Ack is idempotent. Commands have a TTL so a device that was offline
-for a week does not execute stale work. `reboot` and OTA commands are
-acknowledged before the device restarts or downloads.
+for a week does not execute stale work. `download_new_fw` acknowledges after the
+image is staged; `boot_with_new_fw` acknowledges before restarting.
 
 ## Time model
 
@@ -115,8 +115,9 @@ The epoch window accepted by both firmware and server is 2000-01-01 through
 - The RF link is unauthenticated; anyone in range can inject a frame. The
   receiver must validate framing/CRC and plausibility. Cloud authentication is
   per device token, not per frame.
-- The provisioning AP is WPA2-protected but uses a shared default password until
-  changed. Admin mutations require a separate password.
+- The provisioning AP is WPA2-protected but uses a shared default password
+  (`kApPassword`) until changed in firmware. The AP configuration page has no
+  separate login in this phase.
 - The device token is a bearer credential. Lose the board, rotate the token.
 - TLS verification is currently disabled on the device for local development;
   production requires a pinned CA.

@@ -19,6 +19,12 @@ const char* toString(CommandType type) {
       return "upload_logs";
     case CommandType::SelfTest:
       return "self_test";
+    case CommandType::GetFwVersion:
+      return "get_fw_version";
+    case CommandType::DownloadNewFw:
+      return "download_new_fw";
+    case CommandType::BootWithNewFw:
+      return "boot_with_new_fw";
     case CommandType::Unknown:
       return "unknown";
   }
@@ -46,6 +52,15 @@ CommandType commandTypeFromString(const char* value) {
   }
   if (std::strcmp(value, "self_test") == 0) {
     return CommandType::SelfTest;
+  }
+  if (std::strcmp(value, "get_fw_version") == 0) {
+    return CommandType::GetFwVersion;
+  }
+  if (std::strcmp(value, "download_new_fw") == 0) {
+    return CommandType::DownloadNewFw;
+  }
+  if (std::strcmp(value, "boot_with_new_fw") == 0) {
+    return CommandType::BootWithNewFw;
   }
   return CommandType::Unknown;
 }

@@ -21,6 +21,7 @@ add_library(akashvani_logic STATIC
   "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisDecoder.cpp"
   "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisEncoder.cpp"
   "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisSimulator.cpp"
+  "${AKASHVANI_LIB_DIR}/AkashvaniArchive/src/ArchiveCollector.cpp"
   "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/MessageType.cpp"
   "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/CommandType.cpp"
   "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/Envelope.cpp"
@@ -30,6 +31,7 @@ add_library(akashvani_logic STATIC
 target_include_directories(akashvani_logic PUBLIC
   "${AKASHVANI_LIB_DIR}/AkashvaniCore/src"
   "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src"
+  "${AKASHVANI_LIB_DIR}/AkashvaniArchive/src"
   "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src"
   "${AKASHVANI_LIB_DIR}/AkashvaniRadio/src"
   "${AKASHVANI_LIB_DIR}/AkashvaniRtc/src"
@@ -56,6 +58,7 @@ endif()
 
 add_executable(akashvani_tests
   test_core.cpp
+  test_archive.cpp
   test_davis.cpp
   test_protocol.cpp
   test_radio.cpp

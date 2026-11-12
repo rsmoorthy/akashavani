@@ -17,6 +17,7 @@ dependencies = [
   "alembic>=1.13,<2.0",
   "cbor2>=5.6,<6.0",
   "packaging>=24.0,<26",
+  "python-multipart>=0.0.9,<0.1",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,7 @@ postgres = ["psycopg[binary]>=3.2,<4"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/akashvani_server"]
+force-include = { "src/akashvani_server/admin_ui.html" = "akashvani_server/admin_ui.html" }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

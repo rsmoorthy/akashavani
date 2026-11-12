@@ -7,8 +7,7 @@ All notable changes are recorded here. The firmware version lives in
 
 ### Added
 
-- Repository scaffold: firmware libraries and two thin sketches.
-- arduino-cli build/flash/monitor/test/OTA-export scripts.
+- Repository scaffold: firmware libraries and two thin sketches.- arduino-cli build/flash/monitor/test/OTA-export scripts.
 - Native CMake + GoogleTest suite for Arduino-free logic.
 - Hardware bring-up sketch.
 - FastAPI ingest, command lease/ack, firmware release and admin APIs.
@@ -19,8 +18,56 @@ All notable changes are recorded here. The firmware version lives in
 - CI for firmware tests/build, server tests/lint, docs and Docker.
 - Project handoff, current slice plan and agent instructions in `AGENTS.md` and
   `docs/development/handoff.md`.
+- Two-step command-driven OTA: `get_fw_version`, `download_new_fw`
+  (inactive-slot staging with streaming SHA-256) and `boot_with_new_fw`.
+- Admin firmware upload (multipart), command history API and `/admin` UI.
+- Device identity reporting (`X-Station-Id`, `X-Device-Mac`,
+  `X-Firmware-Version`) stored on the device row.
+- Explicit 4 MB receiver partition table with two 1.875 MiB OTA slots.
+- Bench builds target the ESP32 classic boards; pins match the observed wiring.
+- Provisioning AP with a MAC-derived SSID (`akashvani-XX`), fixed address
+  `10.90.0.1` and a configurable `10.90.0.11`-`10.90.0.20` DHCP pool.
+- Mobile-friendly status/config page on port 80, refreshed every 5 s, with
+  station ID, server URL and six site Wi-Fi SSID/password pairs.
+- Up to six ordered site Wi-Fi profiles tried sequentially by the STA side.
+- `ap_client` bench sketch that exercises the AP page from the second board.
+- RFM69 SX1231 driver implementing the validated Davis RF settings, bit order,
+  RSSI, FIFO and 51-channel US hopping table.
+- Davis CRC-16/CCITT decoder and encoder for every message type present in the
+  captured ISS frames, with host tests using captured vectors.
+- Command-driven transmitter simulator (`R1`/`R2`/`R3`, `S`, `X`, `?`) and a
+  receiver RF bench mode with gap/RSSI/resync statistics.
+- `tools/rf-bench.py` and `tools/rf-bench-report.py` for the three 15-minute
+  RF scenarios, plus `make rf-bench`.
+- `Ssd1306Display` I²C status panel driver (Adafruit SSD1306/GFX) showing the
+  connected Wi-Fi SSID, IP/RSSI and application lines; enabled in both sketches.
+- Wi-Fi station link in `transmitter_sim` (SSID display only, no cloud path).
+
+### Changed
+
+- Command/health poll interval is 30 s (was 5 s; stored 60 s values migrate
+  once). The device token is editable on the AP page.
+- Serial log lines are CRLF-terminated, so plain `minicom`/`screen` no longer
+  staircase after the first line.
+- Provisioning docs read the device ID from the board's own status page; the
+  serial console is optional.
+- A blank board keeps its MAC-derived `ak-xxxxxx` device ID: the development
+  seed and the station-ID field no longer rewrite it, and the status page shows
+  the MAC alongside it.
+- `make fw-monitor` supplies the ESP32 FQBN so it works with the unidentified
+  bench ports.
+- Both sketches hold their first log line for 3 s after power-up
+  (`kSerialStartupDelayMs`) so a field console can attach and catch the banner.
+- Command polling no longer requires a valid clock and defaults to 5 s.
+- Command acknowledgements carry a structured `result`.
+- Development identity/credentials are only seeded on a blank device; NVS wins
+  after the first save through the AP page.
+- Firmware version `0.3.0`.
 
 ### Known gaps
 
-- RFM95 modem configuration and Davis frame codec are not ported.
-- Display, RFM69 and TLS/OTA security hardening are not implemented.
+- RFM69 modem configuration and Davis frame codec are not ported.
+- The SSD1306 panel is implemented and visually confirmed on both bench boards;
+  no automated visual test exists.
+- OTA is SHA-256 verified but unsigned; TLS pinning and rollback are still
+  release blockers.

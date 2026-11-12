@@ -92,6 +92,180 @@ class ObservationOut(BaseModel):
     data: dict[str, Any]
 
 
+class ArchiveSums(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    out_temp_c: float | None = None
+    out_humidity_pct: float | None = None
+    pressure_hpa: float | None = None
+    in_temp_c: float | None = None
+    in_humidity_pct: float | None = None
+    wind_speed_m_s: float | None = None
+    uv_index: float | None = None
+    solar_wm2: float | None = None
+
+
+class ArchiveCounts(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    out_temp: int = Field(default=0, ge=0)
+    out_humidity: int = Field(default=0, ge=0)
+    pressure: int = Field(default=0, ge=0)
+    in_temp: int = Field(default=0, ge=0)
+    in_humidity: int = Field(default=0, ge=0)
+    wind_speed: int = Field(default=0, ge=0)
+    wind_dir: int = Field(default=0, ge=0)
+    wind_gust: int = Field(default=0, ge=0)
+    rain: int = Field(default=0, ge=0)
+    solar: int = Field(default=0, ge=0)
+    uv: int = Field(default=0, ge=0)
+    supercap: int = Field(default=0, ge=0)
+
+
+class ArchiveWindDirection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sin_sum: float = 0.0
+    cos_sum: float = 0.0
+    speed_sum: float = 0.0
+
+
+class ArchiveWindGust(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_m_s: float | None = None
+    dir_deg: float | None = None
+
+
+class ArchiveRain(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tips: int = Field(default=0, ge=0)
+    rate_raw: int | None = Field(default=None, ge=0, le=1023)
+    rate_high: bool = False
+    rate_valid: bool = False
+
+
+class ArchiveLatest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    battery_low: bool = False
+    supercap_v: float | None = None
+    supercap_min_v: float | None = None
+
+
+class ArchiveQuality(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    frames_expected: int = Field(default=0, ge=0)
+    frames_valid: int = Field(default=0, ge=0)
+    frames_crc_bad: int = Field(default=0, ge=0)
+    resync_count: int = Field(default=0, ge=0)
+    search_count: int = Field(default=0, ge=0)
+    gap_slots: int = Field(default=0, ge=0)
+    max_gap_slots: int = Field(default=0, ge=0)
+    rssi_avg_dbm: float | None = None
+    rssi_min_dbm: float | None = None
+    rssi_max_dbm: float | None = None
+
+
+class ArchiveEnvelope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    v: Literal[1]
+    type: Literal["archive"] = "archive"
+    device_id: DeviceId
+    message_id: MessageId
+    bucket_end_epoch: int = Field(gt=0)
+    interval_minutes: int = Field(default=5, ge=1, le=60)
+    source: ObservationSource = Field(default_factory=ObservationSource)
+    sums: ArchiveSums = Field(default_factory=ArchiveSums)
+    counts: ArchiveCounts = Field(default_factory=ArchiveCounts)
+    wind_dir: ArchiveWindDirection = Field(default_factory=ArchiveWindDirection)
+    wind_gust: ArchiveWindGust = Field(default_factory=ArchiveWindGust)
+    rain: ArchiveRain = Field(default_factory=ArchiveRain)
+    latest: ArchiveLatest = Field(default_factory=ArchiveLatest)
+    quality: ArchiveQuality = Field(default_factory=ArchiveQuality)
+
+
+class ArchiveAccepted(BaseModel):
+    accepted: bool = True
+    duplicate: bool = False
+    id: int
+    date_time: UtcDateTime
+
+
+class ArchiveOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    device_id: str
+    message_id: str
+    date_time: UtcDateTime
+    received_at: UtcDateTime
+    interval_minutes: int
+    units: str
+    source: dict[str, Any]
+    out_temp_c: float | None
+    out_temp_count: int
+    out_humidity_pct: float | None
+    out_humidity_count: int
+    pressure_hpa: float | None
+    pressure_count: int
+    barometer_hpa: float | None
+    altimeter_hpa: float | None
+    wind_speed_m_s: float | None
+    wind_speed_count: int
+    wind_dir_deg: float | None
+    wind_dir_count: int
+    wind_gust_m_s: float | None
+    wind_gust_dir_deg: float | None
+    wind_gust_count: int
+    rain_tips: int | None
+    rain_count: int
+    rain_mm: float | None
+    rain_in: float | None
+    rain_rate_instant_mm_h: float | None
+    rain_rate_instant_in_h: float | None
+    rain_rate_15m_mm_h: float | None
+    rain_rate_15m_in_h: float | None
+    solar_wm2: float | None
+    solar_count: int
+    uv_index: float | None
+    uv_count: int
+    in_temp_c: float | None
+    in_temp_count: int
+    in_humidity_pct: float | None
+    in_humidity_count: int
+    in_dewpoint_c: float | None
+    dewpoint_c: float | None
+    windchill_c: float | None
+    heatindex_c: float | None
+    humidex_c: float | None
+    app_temp_c: float | None
+    windrun_km: float | None
+    cloudbase_m: float | None
+    max_solar_wm2: float | None
+    et_mm: float | None
+    battery_low: bool
+    supercap_v: float | None
+    supercap_min_v: float | None
+    supercap_count: int
+    rx_check_percent: float | None
+    frames_expected: int
+    frames_valid: int
+    frames_crc_bad: int
+    resync_count: int
+    search_count: int
+    gap_slots: int
+    max_gap_slots: int
+    rssi_avg_dbm: float | None
+    rssi_min_dbm: float | None
+    rssi_max_dbm: float | None
+    quality_flags: dict[str, Any]
+    derived_version: str
+
+
 class DeviceCreate(BaseModel):
     id: DeviceId
     name: str = Field(default="", max_length=80)
@@ -103,6 +277,8 @@ class DeviceOut(BaseModel):
 
     id: str
     name: str
+    station_id: int | None = None
+    mac_address: str | None = None
     firmware_version: str | None
     created_at: UtcDateTime
     last_seen_at: UtcDateTime | None
@@ -115,6 +291,9 @@ class CommandType(str, Enum):
     CHECK_FOR_UPDATE = "check_for_update"
     UPLOAD_LOGS = "upload_logs"
     SELF_TEST = "self_test"
+    GET_FW_VERSION = "get_fw_version"
+    DOWNLOAD_NEW_FW = "download_new_fw"
+    BOOT_WITH_NEW_FW = "boot_with_new_fw"
 
 
 class CommandCreate(BaseModel):

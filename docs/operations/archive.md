@@ -3,6 +3,16 @@
 The SD card is the durable copy of every accepted observation. It is independent
 of cloud connectivity.
 
+## 5-minute archive records
+
+The receiver now collates decoded Davis frames into one SI archive record per
+5-minute bucket and writes that record to the card. The raw per-frame upload path
+remains available for diagnosis, but the durable weather archive is the 5-minute
+record. Each line has `"type": "archive"` and the sums/counts described in
+`docs/specs/davis-archive-collation.md`. The server divides the sums, converts
+rain tips using the configured bucket size and stores the result in the SQLite
+`archive` table.
+
 ## Layout
 
 ```text

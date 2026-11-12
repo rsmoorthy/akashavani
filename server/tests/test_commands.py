@@ -107,3 +107,52 @@ def test_device_identity(client):
     assert response.status_code == 200
     assert response.json()["id"] == DEVICE_ID
     assert response.json()["name"] == "Simulator"
+
+
+def test_device_reports_station_and_mac(client):
+    headers = device_headers() | {"X-Station-Id": "1", "X-Device-Mac": "08:B6:1F:B8:38:50"}
+    response = client.get("/api/v1/devices/me", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["station_id"] == 1
+    assert body["mac_address"] == "08:b6:1f:b8:38:50"
+    assert body["last_seen_at"] is not None
+
+
+def test_enqueue_download_fills_release_details(client, app):
+    from tests.test_firmware import register
+
+    content = b"ota-image"
+    assert register(client, app, version="0.2.0", content=content).status_code == 201
+    created = client.post(
+        f"/api/v1/admin/devices/{DEVICE_ID}/commands",
+        json={"type": "download_new_fw", "payload": {"version": "0.2.0"}},
+        headers=admin_headers(),
+    )
+    assert created.status_code == 200, created.text
+    payload = created.json()["payload"]
+    assert payload["version"] == "0.2.0"
+    assert payload["url"] == "/api/v1/firmware/0.2.0/download"
+    assert payload["size_bytes"] == len(content)
+    assert len(payload["sha256"]) == 64
+
+
+def test_enqueue_download_without_release_is_404(client):
+    response = client.post(
+        f"/api/v1/admin/devices/{DEVICE_ID}/commands",
+        json={"type": "download_new_fw", "payload": {"version": "9.9.9"}},
+        headers=admin_headers(),
+    )
+    assert response.status_code == 404
+
+
+def test_list_commands_after_lease(client):
+    command_id = enqueue(client).json()["id"]
+    client.post("/api/v1/devices/me/commands/lease", headers=device_headers())
+    listed = client.get(
+        f"/api/v1/admin/devices/{DEVICE_ID}/commands",
+        headers=admin_headers(),
+    )
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()] == [command_id]
+    assert listed.json()[0]["status"] == "delivered"

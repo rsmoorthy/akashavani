@@ -22,7 +22,7 @@ firmware/
 | Library | Responsibility | Host-testable |
 | --- | --- | --- |
 | `AkashvaniCore` | status, logging, CRC, hex, UTC time, device IDs | partly |
-| `AkashvaniRadio` | `IRadio`, RFM95 driver seam, mock radio | partly |
+| `AkashvaniRadio` | `IRadio`, RFM69/RFM95 driver seams, mock radio | partly |
 | `AkashvaniDavis` | observation model, codec seams, simulator | yes |
 | `AkashvaniProtocol` | envelope/command contract and validators | yes |
 | `AkashvaniStorage` | daily JSONL archive on micro-SD | partly |
@@ -39,9 +39,10 @@ make fw-build BOARD=transmitter_sim
 make fw-test
 ```
 
-The default target is a 4 MB ESP32-S3 using the stock `min_spiffs` partition
-scheme (1.9 MB app slot with OTA). Set `AKASHVANI_FLASH_SIZE=16M` for the 16 MB
-scheme, or override the whole FQBN with `AKASHVANI_FQBN`.
+The default target is the ESP32 classic bench board with an explicit 4 MB table
+(1.875 MiB app slot with OTA). Set `AKASHVANI_FLASH_SIZE=16M` for the 16 MB
+scheme, or override the whole FQBN with `AKASHVANI_FQBN`. The production board
+may move to ESP32-S3; use the FQBN override for that.
 
 ## Dependency policy
 
@@ -52,7 +53,7 @@ each build, so a checkout is self-contained.
 
 ## Size budget
 
-The receiver currently uses about 1.2 MB of a 1.9 MB OTA slot with the scaffold
-and no TLS pinning. A 4 MB board is viable, but the 3.5" touch UI or certificate
-bundles may force the 16 MB variant. Re-check `make fw-build` output before
-committing to a fleet-wide board.
+The receiver currently uses **1,226,845 bytes** (62%) of the 1,966,080-byte OTA
+slot, leaving about 739 KB free. A 4 MB board remains viable; the 3.5" touch UI
+or certificate bundles may still force the 16 MB variant. Re-check
+`make fw-build` output before committing to a fleet-wide board.

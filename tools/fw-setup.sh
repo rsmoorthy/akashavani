@@ -17,6 +17,8 @@ arduino-cli core install "esp32:esp32@${CORE_VERSION}" --additional-urls "$URL"
 echo "Installing Arduino libraries..."
 arduino-cli lib install "ArduinoJson@7.1.0"
 arduino-cli lib install "RTClib@2.1.4"
+arduino-cli lib install "Adafruit BME280 Library@2.2.4"
+arduino-cli lib install "Adafruit SSD1306@2.5.13"
 
 echo
 echo "Firmware toolchain ready. Local libraries are passed at build time from:"

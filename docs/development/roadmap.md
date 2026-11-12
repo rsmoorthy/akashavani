@@ -12,19 +12,21 @@ once.
 - FastAPI ingest/command/OTA service, Docker, PostgreSQL option.
 - Protocol schemas, operations docs, ADRs.
 
-## Phase 1 — port the RF path
+## Phase 1 — port the RF path (implemented, bench-verified 2026-10-27)
 
-1. Capture raw frames from the prototype with the exact RFM95 settings; store
+1. Capture raw frames from the prototype with the exact RFM69 settings; store
    them as test vectors with the date/station model.
-2. Port receiver configuration into `Rfm95Radio`; keep register access there.
+2. Port receiver configuration into `Rfm69Radio`; keep register access there.
 3. Port frame validation and field extraction into `DavisDecoder`; add
    `TooShort`, `CrcMismatch`, `InvalidValue` tests.
 4. Port the matching encoder into `DavisEncoder`.
-5. Port the transmitter modulation into `Rfm95Radio::transmit`.
+5. Port the transmitter modulation into `Rfm69Radio::transmit`.
 6. Run receiver + simulator on the bench.
 
-**Exit criteria:** a simulator observation appears in the receiver log, on the SD
-card and in the cloud with the same values; injected corrupt frames are rejected.
+All six are done; see `docs/specs/rf-davis-receive.md` and the RF slice in
+`docs/development/handoff.md`. The exit criterion is only partly met: the
+receiver logs the simulated observations, but SD archive and cloud upload were
+not exercised with RF in this slice. Corrupt frames are rejected.
 
 ## Phase 2 — hardware integration
 
@@ -33,13 +35,16 @@ card and in the cloud with the same values; injected corrupt frames are rejected
 - Choose and implement the display driver; keep `NullDisplay` fallback.
 - Measure current draw in AP, STA, RX and OTA modes.
 - Decide 4 MB vs 16 MB from measured image size and UI plans.
-- Add the RFM69 driver behind `IRadio` once the RFM95 path is stable.
+- RFM69 driver behind `IRadio` is ported; remaining RF work is the production
+  channel-sync/restart policy and a wider-bandwidth experiment.
 
 ## Phase 3 — production hardening
 
 - TLS: pin a CA, remove `setInsecure()`, handle clock-before-TLS correctly.
-- OTA: verify SHA-256 while streaming, sign images, enable rollback policy.
-- Provisioning: unique default AP/admin passwords, optional physical reset.
+- OTA: SHA-256 streaming verification and a two-step download/boot command flow
+  are done and bench-tested; still need signing, TLS pinning and rollback policy.
+- Provisioning: unique per-board AP passwords, an authenticated AP page, token
+  editing, optional physical reset.
 - Auth: per-device tokens everywhere, rotation runbook, admin network policy.
 - Observability: structured logs, upload success/failure counters, queue depth.
 - Database: PostgreSQL in production, backups, retention/partitioning.
@@ -58,11 +63,11 @@ card and in the cloud with the same values; injected corrupt frames are rejected
 
 | Component | Gap |
 | --- | --- |
-| `Rfm95Radio` | modem config, FIFO/IRQ, raw mode, transmit |
-| `DavisDecoder/Encoder` | CRC, framing, field extraction, range checks |
+| `Rfm69Radio` | ported; production sync/restart policy and RF bandwidth/power decisions remain |
+| `DavisDecoder/Encoder` | ported for the ISS message set; pressure/UV not in this subset |
 | `SdArchive` | no hardware validation, no retention |
 | `AkashvaniDisplay` | no real driver; touch UI not designed |
-| `AkashvaniNet` | no TLS pinning, no OTA hash, limited command set |
+| `AkashvaniNet` | no TLS pinning, unsigned OTA, limited command set |
 | Server | no upload endpoint for logs, no admin UI, single-region SQLite default |
 | Tests | no automated RF/HIL job |
 
@@ -79,5 +84,5 @@ card and in the cloud with the same values; injected corrupt frames are rejected
 
 ## Next action
 
-Capture the prototype's RFM95 configuration and a handful of raw Davis frames.
+Capture the prototype's RFM69 configuration and a handful of raw Davis frames.
 Everything in Phase 1 depends on those two artifacts.

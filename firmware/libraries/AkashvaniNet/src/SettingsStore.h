@@ -20,6 +20,10 @@ class SettingsStore {
   Status clear();
 
   bool isOpen() const { return open_; }
+  // True once NVS holds values saved through the admin page or a previous
+  // firmware. Used to decide whether development defaults may seed a blank
+  // device.
+  bool configured();
   const char* lastError() const { return lastError_; }
 
  private:

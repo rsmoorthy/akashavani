@@ -33,6 +33,9 @@ firmware/tests/native/build/
 # Docs
 site/
 
+# Local firmware credentials (copy secrets.example.h to secrets.h)
+firmware/sketches/*/secrets.h
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -26,6 +26,13 @@ struct RadioConfig {
   int8_t powerDbm = 17;
   bool payloadCrc = true;
   uint16_t preambleSymbols = 8;
+
+  // RFM69 Davis mode uses a fixed eight-byte payload (six data bytes plus the
+  // two-byte Davis CRC) and the 51-entry US frequency table. `channel` is an
+  // index into that table, not a frequency.
+  bool highPower = true;
+  uint8_t channel = 0;
+  uint8_t fixedPayloadLength = 8;
 };
 
 struct RadioPins {

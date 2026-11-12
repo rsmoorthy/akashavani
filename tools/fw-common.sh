@@ -10,10 +10,12 @@ BUILD_DIR="$ROOT/firmware/build"
 CACHE_DIR="$ROOT/firmware/.cache/arduino"
 VERSION="$(tr -d '[:space:]' < "$ROOT/firmware/VERSION")"
 
-# Stock partition tables. A custom 16 MB table can be injected with
-# AKASHVANI_FQBN once it has been validated on hardware.
-FQBN_4MB="${AKASHVANI_FQBN_4MB:-esp32:esp32:esp32s3:FlashSize=4M,PSRAM=disabled,PartitionScheme=min_spiffs,CDCOnBoot=cdc}"
-FQBN_16MB="${AKASHVANI_FQBN_16MB:-esp32:esp32:esp32s3:FlashSize=16M,PSRAM=disabled,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc}"
+# The two bench boards are ESP32-D0WD-V3 (classic). The production target may
+# move to ESP32-S3 later; override AKASHVANI_FQBN for that. The receiver sketch
+# carries an explicit 4 MB partition table (two 1.875 MiB OTA slots) which the
+# core's pre-build hook copies into the build directory.
+FQBN_4MB="${AKASHVANI_FQBN_4MB:-esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs}"
+FQBN_16MB="${AKASHVANI_FQBN_16MB:-esp32:esp32:esp32:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB}"
 
 select_fqbn() {
   if [[ -n "${AKASHVANI_FQBN:-}" ]]; then
@@ -30,8 +32,9 @@ board_sketch() {
     receiver) printf '%s' "$ROOT/firmware/sketches/receiver" ;;
     transmitter_sim|sim) printf '%s' "$ROOT/firmware/sketches/transmitter_sim" ;;
     bringup) printf '%s' "$ROOT/firmware/tests/hardware/bringup" ;;
+    ap_client) printf '%s' "$ROOT/firmware/tests/hardware/ap_client" ;;
     *)
-      echo "Unknown board '${1:-}'. Use receiver, transmitter_sim or bringup." >&2
+      echo "Unknown board '${1:-}'. Use receiver, transmitter_sim, bringup or ap_client." >&2
       return 2
       ;;
   esac

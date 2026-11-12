@@ -28,10 +28,23 @@ class Settings(BaseSettings):
 
     # Comma-separated `device-id:token:display-name` seeds, applied at startup.
     # Only missing devices are created; existing tokens are never overwritten.
-    device_seeds: str = "sim-001:dev-sim-token:Simulator"
+    device_seeds: str = (
+        "sim-001:dev-sim-token:Simulator," "station-1:dev-station-1-token:Bench station 1"
+    )
     admin_token: str = "dev-admin-token"
+    # Shared bearer token used by the archive API and accepted by the admin API.
+    # The receiver's hotspot page stores the same value.
+    api_token: str = "secret"
+
+    # Site metadata used by the server-side derived calculations.
+    site_latitude: float = 13.4867
+    site_longitude: float = 77.7064
+    site_altitude_m: float = 940.0
+    site_timezone: str = "Asia/Kolkata"
+    rain_bucket_mm: float = Field(default=0.254, gt=0.0)
 
     max_body_bytes: int = Field(default=64 * 1024, ge=1024)
+    max_firmware_bytes: int = Field(default=8 * 1024 * 1024, ge=1024)
     max_future_skew_seconds: int = Field(default=300, ge=0)
     command_default_ttl_seconds: int = Field(default=3600, ge=60)
     cors_origins: str = ""

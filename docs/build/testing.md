@@ -56,14 +56,69 @@ make fw-flash BOARD=bringup PORT=/dev/ttyACM0
 make fw-monitor PORT=/dev/ttyACM0
 ```
 
-The bring-up sketch scans I²C, mounts the SD card, probes the RFM95 version
+`make fw-monitor` passes the ESP32 FQBN because the bench boards report as
+"Unknown" and `arduino-cli monitor` refuses to open an unidentified port.
+Log lines are CRLF-terminated, so plain `minicom -D /dev/ttyUSB0 -b 115200` and
+`screen` render correctly.
+
+To capture the boot banner, press the board's **EN/reset button** rather than
+unplugging USB. A USB power cycle also re-enumerates the CP2102 serial bridge;
+the open monitor then sees a dead/garbled port and must be restarted, by which
+time boot has finished. If you do power-cycle, expect bootloader junk and reopen
+the console.
+
+Both sketches hold their first log line for **3 s** after power-up
+(`config::kSerialStartupDelayMs`) so a console started just after applying power
+still catches the application banner. The ROM bootloader text printed before
+that delay cannot be held.
+
+The bring-up sketch scans I²C, mounts the SD card, probes the RFM69 version
 register and scans Wi-Fi. It does not transmit. Record the output in the hardware
 notes when a board is first assembled.
 
-Once the codec and radio driver are ported, the RF test is:
+The separate bench smoke test under `firmware/tests/hardware/smoke/` discovers
+the actual pins, checks the RFM69/SD/I²C devices and prints a summary. The
+current bench boards are ESP32-D0WD-V3, so build it with
+`esp32:esp32:esp32`, not the S3 FQBN:
+
+```bash
+arduino-cli compile --fqbn 'esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs,PSRAM=disabled' \
+  --output-dir /tmp/smoke firmware/tests/hardware/smoke
+arduino-cli upload --port /dev/ttyUSB0 --fqbn 'esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs,PSRAM=disabled' \
+  --input-dir /tmp/smoke --protocol serial firmware/tests/hardware/smoke
+arduino-cli monitor --port /dev/ttyUSB0 --fqbn esp32:esp32:esp32 --config baudrate=115200
+```
+
+`firmware/tests/hardware/rfm_scan/` is a read-only SPI/CS scanner for when the
+radio does not answer on the expected pins. Neither sketch transmits.
+
+The Davis RFM69 path is now exercised directly, without the server or SD card:
+
+```bash
+# receiver on USB0, simulator on USB1
+make fw-flash BOARD=receiver PORT=/dev/ttyUSB0
+make fw-flash BOARD=transmitter_sim PORT=/dev/ttyUSB1
+
+# 15-minute continuous, random-skip and restart scenarios
+make rf-bench DURATION=900
+
+# or one scenario
+make rf-bench SCENARIO=1 DURATION=900
+
+# summarise the produced logs
+make rf-bench-report RX_LOG=/tmp/opencode/rf-bench/<stamp>-receiver.log \
+  TX_LOG=/tmp/opencode/rf-bench/<stamp>-transmitter.log
+```
+
+The receiver runs `config::kRfTestMode` and logs `RX`, `RX_BAD`, `HOP`,
+`SEARCH`, `RESYNC` and `STATS`. The simulator accepts `R1`/`R2`/`R3`, `S`, `X`
+and `?` over serial. See `specs/rf-davis-receive.md` for acceptance criteria and
+the required evidence.
+
+Once the archive/cloud slice is active, the end-to-end RF test is:
 
 1. flash `transmitter_sim` on the simulator board;
-2. flash `receiver` on the receiver board;
+2. flash `receiver` on the receiver board with `kRfTestMode = false`;
 3. run the local server;
 4. confirm observations appear in `GET /api/v1/admin/observations`;
 5. confirm daily JSONL files appear on the SD card;
@@ -125,7 +180,7 @@ available.
 - RF timing, sensitivity and packet loss.
 - SD wear and power-loss recovery.
 - Display and touch UI.
-- TLS certificate validation and OTA checksum enforcement.
+- TLS certificate validation, OTA signing and rollback drills.
 - Long-duration memory/queue behaviour.
 
 Add these as hardware-in-the-loop tests rather than weakening the host tests.

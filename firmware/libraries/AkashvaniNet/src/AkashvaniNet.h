@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ApiClient.h"
+#include "ArchiveJson.h"
 #include "DeviceSettings.h"
 #include "ObservationJson.h"
 #include "OtaService.h"

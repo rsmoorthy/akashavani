@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fw-common.sh"
+
 PORT="${1:-}"
 BAUD="${2:-115200}"
 
@@ -14,4 +16,8 @@ if [[ ! -e "$PORT" ]]; then
   exit 1
 fi
 
-exec arduino-cli monitor --port "$PORT" --config "baudrate=$BAUD"
+# arduino-cli needs an FQBN to open a port it cannot auto-identify (the bench
+# boards report as "Unknown"). The FQBN does not affect the monitor settings.
+FQBN="$(select_fqbn)"
+
+exec "$ARDUINO_CLI" monitor --port "$PORT" --fqbn "$FQBN" --config "baudrate=$BAUD"

@@ -56,6 +56,14 @@ struct DavisObservation {
   float solarRadiationWm2 = NAN;
   float batteryVoltageV = NAN;
 
+  // Raw rain fields. The receiver sends tip counts and the raw 0x5 click
+  // interval; the server converts both using the configured bucket size.
+  uint8_t rainCounter = 0;
+  bool rainCounterValid = false;
+  uint16_t rainRateRaw = 0;
+  bool rainRateHigh = false;
+  bool rainRateValid = false;
+
   bool has(DavisField field) const {
     return (validFields & static_cast<uint32_t>(field)) != 0;
   }

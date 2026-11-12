@@ -2,11 +2,32 @@
 
 #include <cstring>
 
+#include "DavisChannels.h"
 #include "MockRadio.h"
 
 namespace {
 
 using namespace akashvani;
+
+TEST(DavisChannels, TableMatchesPrototypeAndBand) {
+  EXPECT_EQ(51u, kDavisChannelCount);
+  EXPECT_NEAR(911.4138f, davisChannelFrequencyMhz(0), 0.001f);
+  EXPECT_NEAR(911.9152f, davisChannelFrequencyMhz(2), 0.001f);
+  EXPECT_NEAR(925.4624f, davisChannelFrequencyMhz(50), 0.001f);
+
+  for (size_t channel = 0; channel < kDavisChannelCount; ++channel) {
+    const float frequency = davisChannelFrequencyMhz(static_cast<uint8_t>(channel));
+    EXPECT_GE(frequency, 902.0f);
+    EXPECT_LE(frequency, 928.0f);
+  }
+}
+
+TEST(DavisChannels, HopWrapsInBothDirections) {
+  EXPECT_EQ(0u, static_cast<unsigned>(nextDavisChannel(50)));
+  EXPECT_EQ(50u, static_cast<unsigned>(previousDavisChannel(0)));
+  EXPECT_EQ(17u, static_cast<unsigned>(nextDavisChannel(16)));
+  EXPECT_EQ(16u, static_cast<unsigned>(previousDavisChannel(17)));
+}
 
 TEST(MockRadio, RequiresBegin) {
   MockRadio radio;

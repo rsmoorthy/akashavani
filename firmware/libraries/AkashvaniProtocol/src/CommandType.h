@@ -12,6 +12,9 @@ enum class CommandType : uint8_t {
   CheckForUpdate = 3,
   UploadLogs = 4,
   SelfTest = 5,
+  GetFwVersion = 6,
+  DownloadNewFw = 7,
+  BootWithNewFw = 8,
   Unknown = 255,
 };
 

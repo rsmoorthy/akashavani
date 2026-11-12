@@ -11,6 +11,10 @@ struct DisplayState {
   char line1[32] = {};
   char line2[32] = {};
   char line3[32] = {};
+  // Current station SSID, or the provisioning AP SSID when STA is down.
+  char wifiSsid[33] = {};
+  char apSsid[33] = {};
+  char wifiIp[16] = {};
   bool wifiConnected = false;
   bool radioReady = false;
   bool timeValid = false;

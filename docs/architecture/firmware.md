@@ -21,7 +21,7 @@ flowchart TD
   B --> C[Display begin]
   C --> D[DS3231 + time service]
   D --> E[SD mount]
-  E --> F[RFM95 probe]
+  E --> F[RFM69 probe]
   F --> G[AP + STA Wi-Fi]
   G --> H[Local admin server]
   H --> I[ArduinoOTA]
@@ -43,9 +43,16 @@ OTA. Current sequence:
 5. receive one radio frame with a 100 ms timeout;
 6. retry SNTP if connected and time invalid;
 7. drain at most one queued upload;
-8. poll commands on an interval;
-9. apply a deferred OTA check;
-10. update status/LED (throttled).
+7. poll commands/health on an interval (30 s);
+8. apply a deferred OTA check;
+9. update status/LED (throttled).
+
+Commands are leased without requiring a valid clock, so OTA and diagnostics work
+even when the RTC has not been set. The OTA commands are two-step:
+`download_new_fw` stages into the inactive slot with streaming SHA-256 and leaves
+the boot partition unchanged; `boot_with_new_fw` selects that slot and restarts.
+The staged version is recorded in NVS so a boot command cannot select a different
+image. Command results are returned in the acknowledgement body.
 
 Blocking calls and their bounds:
 
@@ -62,33 +69,35 @@ loops to `loop()`.
 
 ## Radio seam
 
-`IRadio` exposes packet-oriented receive/transmit. The RFM95 implementation
-currently verifies the chip ID and returns `Unsupported` from `begin()` because
-the modem configuration is not ported. The receiver then stays idle but keeps
-its AP/admin path alive.
+`IRadio` exposes packet-oriented receive/transmit. `Rfm69Radio` now implements
+the SX1231 packet path used by the Davis ISS: 19.2 kbps FSK, 4.8 kHz deviation,
+Gaussian BT=0.5 shaping, `CB 89` sync, fixed eight-byte payload, hardware CRC
+off and the 51-entry US frequency table. Register values come from the validated
+prototype in `prototype/lib2/DavisRFM69`; see `docs/specs/rf-davis-receive.md`.
 
-When porting:
+The driver owns bit reversal (the ISS sends least-significant bit first), RSSI
+sampling, FIFO access and channel changes. It does not decode Davis fields.
+`Rfm95Radio` remains the alternate seam. Davis/frame logic must not know which
+chip delivered the frame.
 
-- keep register access inside `Rfm95Radio`;
-- if Davis needs raw/direct mode, add a raw receive method to `IRadio` rather
-  than exposing registers;
-- put the receive timestamp in `RadioFrame` as close to the IRQ as possible;
-- do not decode inside the driver.
-
-RFM69 will be a second implementation. `DavisDecoder` must not know which chip
-delivered the frame.
+The bench transmitter writes the full RFM69 configuration on every boot because
+the USB1 board has no RESET connection and the chip retains its previous state.
 
 ## Davis seam
 
 `DavisObservation` is the canonical in-memory model. It uses a validity mask
 rather than sentinel values, so an absent pressure reading cannot become 0 hPa.
-The decoder must:
+The ported decoder:
 
-1. reject impossible lengths before parsing;
-2. verify CRC/sync;
-3. validate sensor ranges;
-4. set only fields actually present;
-5. never allocate per frame.
+1. rejects impossible lengths before parsing;
+2. verifies the Davis CRC-16/CCITT and rejects corrupt frames;
+3. validates temperature, humidity and wind-direction ranges;
+4. sets only fields actually present;
+5. never allocates per frame.
+
+`DavisEncoder` mirrors the decoder, including the CRC, and can produce every
+ISS message type. The bench simulator adds a wrapping slot sequence in byte 5
+(unused by decoded weather fields) so packet gaps can be measured.
 
 `DavisSimulator` is deterministic given a seed, so test failures reproduce. It
 produces bounded random walks, not RF modulation. `DavisEncoder` is the matching
@@ -97,12 +106,24 @@ seam for the simulator board.
 ## Settings and provisioning
 
 `SettingsStore` uses NVS via `Preferences`. On a blank device it derives a device
-ID `ak-xxxxxx` from the STA MAC and fills development defaults. The AP SSID is
-`Akashvani-<id>`. Settings survive firmware updates unless the NVS partition is
-erased.
+ID `ak-xxxxxx` from the STA MAC and fills development defaults. The bench
+firmware seeds `station-1`, the local server URL and credentials from the
+git-ignored `secrets.h` only until the first save through the AP page; after
+that NVS wins. The AP SSID is `akashvani-<last MAC byte>` and the AP address is
+`10.90.0.1`, with a DHCP pool of `10.90.0.11`-`10.90.0.20`. Settings survive
+firmware updates unless the NVS partition is erased.
 
-Sensitive values (Wi-Fi password, cloud token, admin password) are stored in
-plain NVS. This is acceptable for the scaffold but should be hardened for
+Up to six site Wi-Fi profiles are stored in order and tried sequentially by
+`WifiService`. The AP stays active regardless of STA state.
+
+Devices report `X-Station-Id`, `X-Device-Mac` and `X-Firmware-Version` on every
+API request; the server stores them on the device row.
+
+The receiver uses an explicit 4 MB table with two 1.875 MiB OTA slots. The
+running slot is reported by `get_fw_version`; OTA download never overwrites it.
+
+Sensitive values (Wi-Fi passwords, cloud token, ArduinoOTA password) are stored
+in plain NVS. This is acceptable for the scaffold but should be hardened for
 production (encrypted NVS, per-device tokens, physical access assumptions).
 
 ## Storage policy

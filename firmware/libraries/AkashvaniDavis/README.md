@@ -6,21 +6,28 @@ frame becomes one, and how the simulator produces one.
 | File | Purpose | Host-safe |
 | --- | --- | --- |
 | `DavisObservation.h` | Canonical observation + validity mask | yes |
-| `DavisConstants.h` | Frame and station constants | yes |
-| `DavisDecoder.*` | Radio frame -> observation seam | yes |
-| `DavisEncoder.*` | Observation -> radio frame seam (simulator) | yes |
+| `DavisConstants.h` | Frame length, sync bytes, station constants | yes |
+| `DavisCrc.h` | Davis CRC-16/CCITT | yes |
+| `DavisDecoder.*` | Radio frame -> observation | yes |
+| `DavisEncoder.*` | Observation -> radio frame (simulator) | yes |
 | `DavisSimulator.*` | Deterministic random-walk weather generator | yes |
 
-## Porting the decoder
+## Frame format
 
-`decodeDavisFrame()` validates nothing beyond frame length today and returns
-`DavisDecodeStatus::UnsupportedProtocol`. Port the prototype in one place:
+Davis ISS frames are always eight bytes: six data bytes followed by the
+CRC-16/CCITT (initial value 0, polynomial `0x1021`) over the first six bytes.
+The decoder rejects wrong lengths, CRC errors, unknown message IDs and
+out-of-range temperature, humidity or wind direction. Fields absent from a
+particular ISS message remain unset in `DavisObservation::validFields`.
 
-1. Keep frame validation (length, CRC, sync) separate from field extraction.
-2. Set `DavisObservation::validFields` only for fields actually present.
-3. Never log secrets; frames may contain station IDs but not credentials.
-4. Add vectors captured from the station under `firmware/tests/native/` as
-   soon as they are available, with the RFM95 settings used to capture them.
+The encoder mirrors the decoder for all message types currently known:
+goldcap voltage, rain rate, solar radiation, temperature, gust speed, humidity
+and rain counter. The bench simulator writes a wrapping slot sequence into byte
+5, which is unused by the decoded fields, so the receiver can measure gaps.
+
+Captured vectors used by the native tests include
+`87 05 2D 32 5B 0F B9 91` (temperature, transmitter 7). See
+`prototype/minicom.cap`.
 
 The receiver and transmitter simulator share the same `DavisObservation` model,
 which prevents the two boards from drifting apart.

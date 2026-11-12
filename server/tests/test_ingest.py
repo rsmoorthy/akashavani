@@ -54,6 +54,15 @@ def test_rejects_missing_token(client):
     assert response.status_code == 401
 
 
+def test_shared_bearer_token_can_identify_device(client):
+    response = client.post(
+        "/api/v1/observations",
+        json=observation_payload(),
+        headers={"Authorization": "Bearer secret", "X-Device-Id": DEVICE_ID},
+    )
+    assert response.status_code == 202, response.text
+
+
 def test_rejects_unknown_token(client):
     response = client.post(
         "/api/v1/observations",

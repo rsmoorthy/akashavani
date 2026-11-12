@@ -85,3 +85,56 @@ def test_download_requires_device_token(client, app):
     assert register(client, app).status_code == 201
     response = client.get("/api/v1/firmware/0.2.0/download")
     assert response.status_code == 401
+
+
+def test_admin_upload_registers_firmware(client, app):
+    content = b"uploaded-image-bytes"
+    response = client.post(
+        "/api/v1/admin/firmware/upload",
+        data={"version": "0.3.0", "channel": "stable", "mandatory": "true"},
+        files={"file": ("receiver.bin", content, "application/octet-stream")},
+        headers=admin_headers(),
+    )
+    assert response.status_code == 201, response.text
+    release = response.json()
+    assert release["version"] == "0.3.0"
+    assert release["size_bytes"] == len(content)
+    assert release["sha256"] == hashlib.sha256(content).hexdigest()
+    assert release["mandatory"] is True
+
+    stored = app.state.settings.firmware_dir / release["filename"]
+    assert stored.read_bytes() == content
+
+    check = client.get(
+        "/api/v1/firmware/check?current_version=0.2.0&channel=stable",
+        headers=device_headers(),
+    )
+    assert check.status_code == 200
+    assert check.json()["version"] == "0.3.0"
+
+
+def test_admin_upload_rejects_invalid_version(client):
+    response = client.post(
+        "/api/v1/admin/firmware/upload",
+        data={"version": "not-a-version"},
+        files={"file": ("receiver.bin", b"x", "application/octet-stream")},
+        headers=admin_headers(),
+    )
+    assert response.status_code == 422
+
+
+def test_admin_upload_rejects_duplicate_version(client, app):
+    first = client.post(
+        "/api/v1/admin/firmware/upload",
+        data={"version": "0.3.0"},
+        files={"file": ("receiver.bin", b"one", "application/octet-stream")},
+        headers=admin_headers(),
+    )
+    assert first.status_code == 201, first.text
+    second = client.post(
+        "/api/v1/admin/firmware/upload",
+        data={"version": "0.3.0"},
+        files={"file": ("receiver.bin", b"two", "application/octet-stream")},
+        headers=admin_headers(),
+    )
+    assert second.status_code == 409

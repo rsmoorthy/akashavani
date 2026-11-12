@@ -62,6 +62,10 @@ nav:
       - Contributing: development/contributing.md
       - Roadmap: development/roadmap.md
       - Handoff: development/handoff.md
+      - Next steps: development/nextsteps.md
+  - Specs:
+      - RFM69 + Davis receive: specs/rf-davis-receive.md
+      - 5-minute archive collation: specs/davis-archive-collation.md
   - Reference:
       - Configuration: reference/configuration.md
   - Decisions:

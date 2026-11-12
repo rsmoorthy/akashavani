@@ -40,7 +40,7 @@ void Log::printf(LogLevel level, const char* tag, const char* format, ...) {
   va_start(args, format);
   vsnprintf(message, sizeof(message), format, args);
   va_end(args);
-  Serial.printf("[%8lu] %s %-10s %s\n", static_cast<unsigned long>(millis()),
+  Serial.printf("[%8lu] %s %-10s %s\r\n", static_cast<unsigned long>(millis()),
                 levelName(level), tag == nullptr ? "-" : tag, message);
 }
 

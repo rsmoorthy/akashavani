@@ -1,30 +1,30 @@
 # Partition schemes
 
-The build scripts use stock ESP32 core partition tables so that a checkout
-builds without modifying the installed toolchain:
+The receiver sketch carries its own 4 MB table, which the ESP32 core copies into
+the build directory before compiling:
 
-| Flash | Scheme | App slots | Notes |
+| File | Flash | App slots | Notes |
 | --- | --- | --- | --- |
-| 4 MB | `min_spiffs` | 1.9 MB x2 + 190 KB SPIFFS | default; keeps OTA |
-| 4 MB | `no_fs` | 2.0 MB x2 | alternative if no internal FS is needed |
-| 16 MB | `app3M_fat9M_16MB` | 3 MB x2 + 9.9 MB FATFS | `AKASHVANI_FLASH_SIZE=16M` |
+| `firmware/sketches/receiver/partitions.csv` | 4 MB | `0x1E0000` x2 (1,966,080 B = 1.875 MiB each) | default; 128 KiB SPIFFS + 64 KiB coredump |
+| stock `min_spiffs` | 4 MB | 1,966,080 B x2 | identical layout, used when the sketch has no `partitions.csv` |
+| stock `no_fs` | 4 MB | 2.0 MB x2 | alternative if no internal FS is needed |
+| stock `app3M_fat9M_16MB` | 16 MB | 3 MB x2 + 9.9 MB FATFS | `AKASHVANI_FLASH_SIZE=16M` |
 
-Select with `AKASHVANI_FLASH_SIZE=16M make fw-build`, or override the full FQBN
-with `AKASHVANI_FQBN`.
+`arduino-cli` pre-build hooks look for `partitions.csv` in this order: sketch
+source directory, variant directory, core `tools/partitions`. That is why the
+receiver table does not have to be copied into the installed toolchain.
 
-## Using a custom table
+## Layout
 
-The ESP32 core resolves `build.partitions` from its own `tools/partitions`
-directory. To test a custom CSV, copy it into that directory (or the variant
-directory as `build.custom_partitions=custom`) and pass the matching option:
-
-```bash
-arduino-cli compile \
-  --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=custom" \
-  --build-property "build.custom_partitions=akashvani-16mb" \
-  ...
+```text
+nvs       0x9000   0x5000
+otadata   0xE000   0x2000
+app0      0x10000  0x1E0000   OTA slot 0
+app1      0x1F0000 0x1E0000   OTA slot 1
+spiffs    0x3D0000 0x20000
+coredump  0x3F0000 0x10000
 ```
 
-Keep the production CSV under version control here before relying on it. OTA
-requires two app slots and `otadata`; do not disable OTA to gain application
-space without an explicit decision record.
+The receiver image is currently about 1.23 MB, so the 1.875 MiB slot leaves
+roughly 740 KB for future code. OTA requires two app slots and `otadata`; do not
+disable OTA to gain application space without an explicit decision record.

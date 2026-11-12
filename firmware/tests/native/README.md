@@ -15,10 +15,10 @@ ctest --test-dir firmware/tests/native/build --output-on-failure
 ## What belongs here
 
 - CRC, hex, time and device-ID helpers.
-- Davis frame validation and (once ported) decode vectors.
+- Davis frame validation, CRC, decode/encode round-trip and captured vectors.
 - Protocol envelope/command validation.
 - Archive path layout.
-- The deterministic weather simulator and mock radio.
+- The deterministic weather simulator, channel table and mock radio.
 
 ## What does not
 
@@ -29,5 +29,5 @@ ctest --test-dir firmware/tests/native/build --output-on-failure
 ## Adding captured Davis frames
 
 Put binary vectors under `firmware/tests/native/vectors/` and load them from a
-test. Record the RFM95 settings and the station model in a comment next to the
+test. Record the RFM69 settings and the station model in a comment next to the
 vector. Do not embed credentials or site identifiers.

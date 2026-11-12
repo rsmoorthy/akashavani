@@ -1,0 +1,20 @@
+# Captured Davis ISS frames used by the native tests
+#
+# Source: prototype/minicom.cap, captured from a real Davis ISS with the
+# prototype/lib2/DavisRFM69 receiver (19.2 kbps, 4.8 kHz deviation, CB 89 sync,
+# 8-byte fixed payload, US 51-channel table). Bytes are the logical frame after
+# the driver's bit reversal, i.e. exactly the six data bytes plus the two CRC
+# bytes.
+#
+# CRC is Davis CRC-16/CCITT (init 0, poly 0x1021) over the first six bytes.
+#
+# data bytes                         crc    message / expected values
+87 05 2D 32 5B 0F                    B9 91  msg 8 temperature, tx 7, wind 5 mph,
+                                             direction raw 0x2D, 26.98 C
+E7 05 3E 83 01 0E                    5E 68  msg E rain counter, tx 7, wind 5 mph
+57 04 17 FF 71 0B                    3E 39  msg 5 rain rate, tx 7, no rain
+67 03 57 54 43 0B                    36 67  msg 6 solar radiation, tx 7, raw 337,
+                                            592.4 W/m2 (VPTools x1.757936)
+47 05 15 24 41 00                    42 1F  msg 4 UV index, tx 7, raw 145, 2.90
+A7 04 30 4F 1B 00                    62 93  msg A humidity, tx 7
+37 03 00 FF C1 0E                    02 D7  msg 3 unknown, tx 7

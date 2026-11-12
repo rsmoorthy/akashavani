@@ -4,9 +4,10 @@ Instructions for AI agents and developers resuming work on this repository.
 
 ## Project
 
-Akashvani is an ESP32-S3 system for receiving Davis weather-station RF data,
-archiving it to micro-SD, and uploading it to a Python/FastAPI server. A second
-ESP32-S3 board simulates a Davis transmitter for bench testing.
+Akashvani targets an ESP32-S3 system for receiving Davis weather-station RF
+data, archiving it to micro-SD, and uploading it to a Python/FastAPI server.
+The two current bench boards are ESP32-D0WD-V3 (classic); one acts as the
+receiver and one simulates a Davis transmitter for bench testing.
 
 Read first:
 
@@ -14,21 +15,29 @@ Read first:
 2. `docs/index.md`
 3. `docs/architecture/firmware.md`
 4. `docs/development/handoff.md` — current state and the agreed plan
+5. `docs/development/nextsteps.md` — agreed backlog (owner-observed gaps)
 
 ## Current status
 
-The scaffold is committed and validated **without hardware**. The firmware
-builds, the native and server test suites pass, and the Docker image runs. The
-real RF and Davis implementations are not ported yet; they are explicit stubs:
+The scaffold is committed and validated **without production hardware**. A
+bench smoke test of the two ESP32 dev boards was run on 2026-10-26; see
+`docs/development/handoff.md`. The firmware builds, the native and server test
+suites pass, and the Docker image runs. The real RF and Davis implementations
+are not ported yet; they are explicit stubs:
 
 | Seam | File |
 | --- | --- |
-| RFM95 modem config / FIFO / IRQ / transmit | `firmware/libraries/AkashvaniRadio/src/Rfm95Radio.cpp` |
-| RFM69 driver | `firmware/libraries/AkashvaniRadio/src/Rfm69Radio.cpp` |
+| RFM69 driver (current hardware) | `firmware/libraries/AkashvaniRadio/src/Rfm69Radio.cpp` |
+| RFM95 modem config / FIFO / IRQ / transmit (alternate seam) | `firmware/libraries/AkashvaniRadio/src/Rfm95Radio.cpp` |
 | Davis frame decode | `firmware/libraries/AkashvaniDavis/src/DavisDecoder.cpp` |
 | Davis frame encode | `firmware/libraries/AkashvaniDavis/src/DavisEncoder.cpp` |
 | ST7735 display | `firmware/libraries/AkashvaniDisplay/src/St7735Display.cpp` |
-| TLS pinning / OTA hash + signature | `AkashvaniNet/src/OtaService.cpp`, `ApiClient.cpp` |
+| TLS pinning / OTA signature + rollback | `AkashvaniNet/src/OtaService.cpp`, `ApiClient.cpp` |
+
+OTA download is now a two-step command flow (`download_new_fw` stages into the
+inactive slot and verifies SHA-256; `boot_with_new_fw` selects it and restarts).
+This was exercised end-to-end on USB1. TLS pinning, image signatures and
+bootloader rollback are still not implemented; do not call OTA production-ready.
 
 Do not describe these as working. Do not invent register values, RF parameters,
 Davis framing or pin assignments.
@@ -40,7 +49,7 @@ reference code, test vectors and acceptance criteria before porting begins.
 
 Order:
 
-1. RFM95 receive + Davis decode
+1. RFM69 receive + Davis decode
 2. Davis encode + simulator transmit
 3. RTC/SNTP + SD archive
 4. Wi-Fi AP+STA + local admin
@@ -62,7 +71,7 @@ Do not batch-implement all remaining specs. Do not hide unverified assumptions.
 
 ## Hardware protocol
 
-- The user has a receiver board and a transmitter board (RFM95 only) and will
+- The user has a receiver board and a transmitter board (RFM69) and will
   connect them for bench work.
 - Before flashing, confirm the serial ports and get explicit permission.
 - The agent can run `arduino-cli` build/upload/monitor if ports are reachable,

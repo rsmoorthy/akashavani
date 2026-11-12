@@ -80,20 +80,30 @@ schema errors consistently.
 - Admin enqueues a command with a TTL.
 - Device leases up to `limit` pending, unexpired commands. Leasing marks them
   `delivered` in the same transaction.
-- Device acknowledges with `ok` or `error`; the endpoint is idempotent.
+- Device acknowledges with `ok` or `error` plus a JSON `result`; the endpoint is
+  idempotent.
 - Postgres uses `FOR UPDATE SKIP LOCKED` for concurrent leases. SQLite ignores
   the clause and is intended for a single worker in development.
+- For `download_new_fw`, the admin enqueue endpoint fills `url`, `sha256` and
+  `size_bytes` from the selected firmware release so the device never invents
+  download details. `get_fw_version` and `boot_with_new_fw` carry no payload
+  beyond an optional version.
 
 ## Request flow: OTA
 
-1. Device checks `/api/v1/firmware/check` with its current version and channel.
-2. Server selects the newest release in that channel and compares with
-   `packaging.version.Version`.
-3. Device downloads the image with its token.
-4. Response headers carry the SHA-256 and version.
+1. Admin uploads an image with `POST /api/v1/admin/firmware/upload`
+   (multipart) or registers an existing file; the server computes SHA-256.
+2. Admin queues `download_new_fw` for a device. The server fills the release URL,
+   hash and size.
+3. Device streams the image with its token, verifies SHA-256, and writes the
+   inactive slot. It does not change the boot partition.
+4. Admin queues `boot_with_new_fw`; the device checks the NVS staged version,
+   selects the slot, acknowledges, and restarts.
+5. The next request carries `X-Firmware-Version`, updating the device row.
 
-The device does **not** yet verify the SHA-256 while writing. That is a release
-blocker; see [OTA](../operations/ota.md).
+The `/api/v1/firmware/check` endpoint remains for LAN/legacy use. Devices still
+do not verify a signature, only the SHA-256; TLS pinning and rollback remain
+release blockers. See [OTA](../operations/ota.md).
 
 ## Auth model
 
@@ -101,6 +111,10 @@ blocker; see [OTA](../operations/ota.md).
 | --- | --- | --- |
 | Device | `X-Device-Token` bearer | SHA-256 hash in `devices.token_hash` |
 | Admin | `Authorization: Bearer ...` | `AKASHVANI_ADMIN_TOKEN` environment variable |
+
+Authenticated device requests also carry `X-Station-Id`, `X-Device-Mac` and
+`X-Firmware-Version`. The server records them (and `last_seen_at`) on the device
+row for admin display.
 
 Seed devices are created from `AKASHVANI_DEVICE_SEEDS` on startup only if
 missing. Restarting never rotates a token. Use the admin API to rotate

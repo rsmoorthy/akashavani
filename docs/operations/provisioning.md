@@ -5,8 +5,12 @@ the site network being correct.
 
 ## 1. Create the device on the server
 
-Choose/derive the device ID printed on the serial log (or use the MAC-derived
-`ak-xxxxxx`) and create a token:
+The device ID is shown **on the board's own status page** (header line
+`Device … · MAC …`) and in `GET /api/status` as `device_id`/`mac`, so no serial
+console is needed in the field. A blank board derives it from the MAC as
+`ak-xxxxxx`; the station number is a separate field and does not change it. The
+serial log prints it as `device=ak-xxxxxx` if a console is available. Create a
+token for that ID:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/devices \
@@ -22,40 +26,58 @@ cannot be recovered.
 
 | Setting | Default |
 | --- | --- |
-| SSID | `Akashvani-<device-id>` |
-| Password | `akashvani-setup` |
-| Board address | `http://192.168.4.1/` |
-| Admin password | `akashvani-admin` |
+| SSID | `akashvani-XX` (`XX` = last MAC byte, e.g. `akashvani-e0`) |
+| Password | `doordarshan` |
+| Board address | `http://10.90.0.1/` |
+| DHCP pool | `10.90.0.11` – `10.90.0.20` |
 
 The AP stays active after the site Wi-Fi is configured, so a mistaken site
-credential does not lock you out.
+credential does not lock you out. The AP password and DHCP range are constants
+in `firmware/sketches/receiver/config.h`.
 
 ## 3. Configure site Wi-Fi and cloud
 
-1. Open `http://192.168.4.1/`.
-2. Enter the admin password and unlock settings.
-3. Set:
-   - site Wi-Fi SSID/password;
-   - cloud base URL, e.g. `http://192.168.1.100:8000` during development;
-   - the device token from step 1;
-   - upload interval (default 60 s);
-   - upload/archive toggles.
-4. Save, then reboot from the page.
-5. Watch the serial log at 115200 baud.
+1. Open `http://10.90.0.1/` on a phone or laptop connected to the AP.
+2. Fill in the station ID and the Python server URL (e.g.
+   `http://192.168.1.100:8000` during development).
+3. Paste the **device token** from step 1. This is the credential the board
+   presents to the server; the server maps it to the device record. It is
+   separate from the shared server API token.
+4. Fill in up to six site Wi-Fi SSID/password pairs. They are tried in order.
+   Passwords are hidden until "Show passwords" is pressed.
+5. Save. The page validates SSID lengths, WPA2 password lengths, duplicate
+   SSIDs, the server URL and the tokens in JavaScript before submitting.
+6. If the Wi-Fi list changed, the board restarts automatically to apply it;
+   reconnect to the AP in a few seconds.
+7. Optionally watch the serial log at **115200 8N1** (see the note below).
+
+Serial console note:
+
+- Log lines are CRLF-terminated, so `minicom`/`screen` no longer staircase.
+- The first log line is held for 3 s after power-up
+  (`config::kSerialStartupDelayMs`), so a console started right after applying
+  power still catches the application banner. The ROM bootloader text is
+  printed before that and cannot be held.
+- Power-cycling the board also re-enumerates the CP2102 USB serial port; close
+  and reopen the console (or re-run `arduino-cli monitor`) afterwards. A burst
+  of bootloader characters at the moment of reset is normal.
+- If nothing appears, check the baud rate is 115200 and that another program is
+  not holding the port.
 
 Expected messages:
 
 ```text
-settings device=ak-3f2a1b provisioned=yes
-wifi AP up: Akashvani-ak-3f2a1b (192.168.4.1)
-wifi connecting to <ssid>
-wifi connected: <ip>
-web local admin at http://192.168.4.1/
-boot ready: AP=Akashvani-ak-3f2a1b device=ak-3f2a1b
+settings device=ak-3f2a1b station=1 wifi_profiles=1 provisioned=yes
+wifi AP up: akashvani-1b (10.90.0.1) DHCP 10.90.0.11-10.90.0.20
+wifi connecting to <ssid> (profile 1/1)
+web local admin at http://10.90.0.1/
+boot ready: AP=akashvani-1b device=ak-3f2a1b
 ```
 
 Uploads start only when Wi-Fi is connected, time is valid and the token/URL are
-set. Until the RF driver is ported, the radio remains idle; this is expected.
+set. A blank bench device starts with the development token from `secrets.h`;
+the AP page lets you replace it with the token created in step 1. Until the RF
+driver is ported, the radio remains idle; this is expected.
 
 ## 4. Verify
 
@@ -65,20 +87,22 @@ curl -sS http://127.0.0.1:8000/api/v1/admin/devices \
 ```
 
 Check `last_seen_at` and `firmware_version` after an upload. On the board, the
-local status page shows the AP/STA addresses, time source, radio/archive flags
-and queue depth.
+local status page shows date/time, firmware, STA connection/SSID/IP, AP state,
+radio/archive flags, queue depth and the last weather frame when one exists. It
+refreshes every 5 seconds.
 
 ## Credentials and storage
 
 | Secret | Location | Notes |
 | --- | --- | --- |
-| site Wi-Fi password | NVS | plain text in the scaffold |
-| device token | NVS | bearer credential; rotate if lost |
-| AP password | NVS | default shared password until changed |
-| admin password | NVS | local admin only; separate from token |
+| site Wi-Fi passwords | NVS (`wifi_pass_0`…`wifi_pass_5`) | plain text in the scaffold |
+| device token | NVS (`dev_token`) | edited on the AP page; rotate if lost |
+| AP password | firmware constant (`kApPassword`) | shared bench default, change in code |
+| ArduinoOTA password | NVS (`admin_pw`) | not exposed on the new page |
 
-Change the default AP and admin passwords before deployment. There is no
-per-board unique default yet; that is a hardening task.
+The AP page has no separate login. Anyone who knows the AP password can change
+the station ID, server URL and Wi-Fi profiles. Add authentication and a
+per-board AP password before field deployment.
 
 ## Token rotation
 
@@ -91,9 +115,9 @@ curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/devices \
   -d '{"id":"ak-3f2a1b","name":"Roof receiver","token":"new-token"}'
 ```
 
-Update the device through the local admin page and reboot. The old token stops
-working immediately after the server call. If a later request still uses it, the
-device has not picked up the new setting.
+Enter the new token on the board's AP page (Device token field) and save. The
+old token stops working immediately after the server call. If a later request
+still uses it, the device has not picked up the new setting.
 
 ## Factory reset
 
@@ -109,7 +133,8 @@ before doing it onsite.
 
 ## Site checklist
 
-- [ ] AP and admin passwords changed from defaults.
+- [ ] AP password (`kApPassword`) changed from the shared bench default.
+- [ ] ArduinoOTA password (`admin_pw`) changed from the default.
 - [ ] Device token unique to this board.
 - [ ] Site Wi-Fi uses a dedicated/IoT network where possible.
 - [ ] Time is valid (DS3231 battery fitted, SNTP reachable).
