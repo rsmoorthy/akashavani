@@ -4,7 +4,7 @@
 > point for the next implementation session.
 
 **Date:** 2026-10-26
-**Latest slice:** 2026-11-11, bench re-verification + SSD1306 Wi-Fi status panel (see end)
+**Latest slice:** 2026-11-12, nextsteps implementation (identity, health, catch-up, raw log, commands)
 **Scaffold commit:** `ab8078c` (`Initial Akashvani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
 
@@ -788,3 +788,82 @@ yellow band, hence the title occupies the whole band.
 - `make fw-test`: 50/50 PASS.
 - Build note: upload with 921600 baud failed on USB0 ("No serial data
   received"); `--board-options UploadSpeed=115200` works.
+
+
+# Nextsteps implementation slice
+
+**Date:** 2026-11-12
+**Commits:** `a829086` (identity, health, catch-up, raw log, command lifecycle),
+`566cdac` (device health, MessagePack, raw-data download)
+**Receiver:** USB1 / `cc:7b:5c:27:31:e0` (`ak-2731e0`)
+**Simulator:** USB0 / `08:b6:1f:b8:38:50`
+
+The whole agreed backlog in `docs/development/nextsteps.md` was implemented.
+This section records what changed, what was observed, and the deviations.
+
+## What changed
+
+- **`station_id` removed** end-to-end (migration `7d1c93a5e2b4`). Identity is
+  the device token; the shared-token fallback uses `X-Device-Id`.
+- **Health:** every device request carries `X-Last-Radio-At`, `X-Uptime-Seconds`,
+  `X-Queue-Depth`, `X-Free-Heap`, `X-Wifi-Rssi` and `X-Reset-Reason`
+  (migrations `b6e2f0a91c47`, `d5e9a1c3f720`). The 5-minute archive bucket is
+  emitted even with `frames_valid = 0`, so radio health arrives every 5 min.
+- **Admin:** `/admin` shows online/offline (90 s window), last radio, latest
+  bucket, frames, RSSI, uptime, queue, heap, reset reason and Wi-Fi RSSI. CSV
+  export for archive (`/api/v1/admin/archive.csv`) and raw frames
+  (`/api/v1/admin/raw.csv`), both IST and one-week limited.
+- **Offline catch-up:** SD `last_sent` marker; replay oldest-first in
+  **MessagePack** batches of 20 through `POST /api/v1/archive/batch` (server
+  also accepts JSON/CBOR); live uploads are paused during replay; 3-year
+  retention prunes day files at boot; `last_sent` is on the AP page.
+- **Raw log:** `/raw/raw-data-<weekday>`, seven rolling files truncated weekly,
+  buffered and flushed every 5 min (or when 48 frames accumulate).
+- **Command lifecycle:** one command in flight (lease `limit=1`, server holds
+  the queue head), `attempts`/`last_attempt_at` (migration
+  `c4d81f2a6b09`), 5-minute ACK timeout -> `timed_out` + `get_pending_commands`
+  probe -> requeue, three deliveries maximum, no retry after an explicit error.
+- **New commands:** `get_pending_commands`, `get_data_again` (bounded SD replay,
+  upsert by `message_id`), `download_raw_data` (device uploads raw frames for a
+  range, server stores a CSV).
+
+## Verified on the bench
+
+| Check | Result |
+| --- | --- |
+| Station removal | Boot/API/AP page/admin have no `station_id`; `ak-2731e0` polls every 30 s |
+| Empty 5-minute bucket | 06:40 bucket `0/100`, `rx_check_percent=0`, no means |
+| Radio health | Simulator `R1`: 06:45 bucket `54/100`, RSSI -40; `last_radio_at` advances |
+| Health headers | uptime 30 s, queue 0, heap 140 348, reset `poweron`, Wi-Fi -51 dBm |
+| One command in flight | `get_fw_version` acked before `self_test` was delivered |
+| `get_data_again` | `{"records": 1}` |
+| Raw log | `raw_frames=48` after a simulator run (buffer-full flush) |
+| `download_raw_data` | `{"records": 57, "truncated": false}`; CSV sorted with IST stamps and raw hex |
+| Archive CSV | `date_time_ist,...` rows for the range |
+
+Checks: `make fw-build-all` (receiver 1,302,861 B = 66 %, simulator 932,861 B),
+`make fw-test` 50/50, `make server-test` 64/64, `make lint` and
+`make docs-build` pass.
+
+## Deviations / limitations
+
+- Bulk archive batches are MessagePack (ArduinoJson encoder); no custom CBOR
+  encoder. The server accepts MessagePack, CBOR and JSON.
+- `download_data` is an admin CSV endpoint, not a device command; the device
+  does not need to carry the data back through the command channel.
+- `get_data_again` runs synchronously in the command handler (bounded to one
+  week and 4 minutes) and blocks RF receive while running. `download_raw_data`
+  is likewise synchronous and capped at 20 000 frames (ack reports
+  `truncated`).
+- `set_config` and `upload_logs` remain stubs; owner will decide separately.
+- Receiver SSD1306 top rows are still ghosted (accepted limitation).
+
+## How to resume
+
+```bash
+# ports: USB0 = simulator, USB1 = receiver (verify with esptool read_mac)
+./tools/fw-flash.sh receiver /dev/ttyUSB1
+./tools/fw-flash.sh transmitter_sim /dev/ttyUSB0
+cd server && setsid nohup ../.venv/bin/uvicorn akashvani_server.main:app \
+  --host 0.0.0.0 --port 8000 > /tmp/opencode/akashvani-server.log 2>&1 &
+```

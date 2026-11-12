@@ -14,7 +14,7 @@ the rest are work items.
 | 2. Server per-device status data | **done** (online, last radio, latest bucket/frames/RSSI, uptime, queue depth, heap, reset reason, Wi-Fi RSSI) |
 | 3. Admin console (no login, 50 commands) | unchanged by decision; extra status data added |
 | 4. Command set | unchanged plus `get_pending_commands`, `get_data_again` |
-| 5. `last_sent` + SD catch-up + 3-year retention + AP page | **done** (firmware sends JSON batches; server also accepts CBOR) |
+| 5. `last_sent` + SD catch-up + 3-year retention + AP page | **done** (MessagePack batches; server also accepts JSON/CBOR) |
 | 6. Troubleshooting commands | **done** (`get_data_again`, server `download_data` CSV, `download_raw_data` + raw CSV) |
 | 7. Raw 8-byte weekday log | **done** (weekly truncate, 5-minute flush) |
 | 8. One command in flight, async ack, timeout/probe/3 retries | **done** |
@@ -44,17 +44,24 @@ Implemented deviations to be aware of:
    commit. Run `make fw-build-all`, `make fw-test`, `make server-test`,
    `make lint`, `make docs-build`.
 
-Bench state at handoff (2026-11-11, verified):
+Bench state at handoff (2026-11-12, verified):
 
-- USB0 receiver `ak-2731e0` (MAC `cc:7b:5c:27:31:e0`), device token `secret123`,
-  shared API token `secret`, server `http://192.168.29.31:8000`, AP
-  `akashvani-e0` / `doordarshan`, STA `Advaita` (`192.168.29.84`).
-- USB1 simulator on `192.168.29.144`, idle; use `R1`/`R2`/`R3` to transmit.
+- **USB0 = simulator** (`08:b6:1f:b8:38:50`), **USB1 = receiver** (`cc:7b:5c:27:31:e0`).
+  Check MACs with `esptool read_mac` before flashing — `arduino-cli board list`
+  does not show them and the ports have swapped once.
+- Receiver `ak-2731e0`, device token `secret123`, shared API token `secret`,
+  server `http://192.168.29.31:8000`, AP `akashvani-e0` / `doordarshan`, STA
+  `Advaita` (`192.168.29.84`), simulator `192.168.29.144` (idle).
 - Server DB: `server/data/akashvani.db`; admin token `dev-admin-token`;
-  `/admin` at `http://127.0.0.1:8000/admin`.
-- USB0's SSD1306 top rows are ghosted (accepted limitation); USB1 is clean.
-- `station_id` has been removed from the firmware, server API/UI and DB
-  (migration `7d1c93a5e2b4`); identity is the device token plus `X-Device-Id`.
+  `/admin` at `http://127.0.0.1:8000/admin`. The dev server is currently run
+  without `--reload` (`setsid nohup uvicorn ... :8000`), so restart it after
+  server code changes.
+- Migrations applied: `7d1c93a5e2b4` (station_id dropped),
+  `b6e2f0a91c47` (last_radio_at), `c4d81f2a6b09` (command attempts),
+  `d5e9a1c3f720` (device health).
+- Receiver SSD1306 top rows are still ghosted (accepted); the simulator panel is
+  clean.
+- Obsolete device row `station-1` (from an accidental flash) can be deleted.
 
 Suggested implementation order:
 
@@ -318,4 +325,5 @@ Current behaviour to change:
 
 ## Open questions for the owner
 
-None outstanding for this backlog; the items above are ready to schedule.
+None outstanding for this backlog. `set_config` and `upload_logs` remain
+unimplemented stubs; the owner will decide on them separately.
