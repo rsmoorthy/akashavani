@@ -11,16 +11,16 @@ CACHE_DIR="$ROOT/firmware/.cache/arduino"
 VERSION="$(tr -d '[:space:]' < "$ROOT/firmware/VERSION")"
 
 # The two bench boards are ESP32-D0WD-V3 (classic). The production target may
-# move to ESP32-S3 later; override AKASHVANI_FQBN for that. The receiver sketch
+# move to ESP32-S3 later; override AKASHAVANI_FQBN for that. The receiver sketch
 # carries an explicit 4 MB partition table (two 1.875 MiB OTA slots) which the
 # core's pre-build hook copies into the build directory.
-FQBN_4MB="${AKASHVANI_FQBN_4MB:-esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs}"
-FQBN_16MB="${AKASHVANI_FQBN_16MB:-esp32:esp32:esp32:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB}"
+FQBN_4MB="${AKASHAVANI_FQBN_4MB:-esp32:esp32:esp32:FlashSize=4M,PartitionScheme=min_spiffs}"
+FQBN_16MB="${AKASHAVANI_FQBN_16MB:-esp32:esp32:esp32:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB}"
 
 select_fqbn() {
-  if [[ -n "${AKASHVANI_FQBN:-}" ]]; then
-    printf '%s' "$AKASHVANI_FQBN"
-  elif [[ "${AKASHVANI_FLASH_SIZE:-4M}" == "16M" ]]; then
+  if [[ -n "${AKASHAVANI_FQBN:-}" ]]; then
+    printf '%s' "$AKASHAVANI_FQBN"
+  elif [[ "${AKASHAVANI_FLASH_SIZE:-4M}" == "16M" ]]; then
     printf '%s' "$FQBN_16MB"
   else
     printf '%s' "$FQBN_4MB"

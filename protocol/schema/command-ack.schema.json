@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/command-ack.schema.json",
+  "$id": "https://akashavani.local/schema/command-ack.schema.json",
   "title": "Command acknowledgement",
   "description": "Body sent by a device to POST /api/v1/devices/me/commands/{id}/ack.",
   "type": "object",

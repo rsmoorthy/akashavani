@@ -15,7 +15,7 @@ OTA_DIR="$BUILD_DIR/ota"
 SERVER_FW_DIR="$ROOT/server/data/firmware"
 mkdir -p "$OTA_DIR" "$SERVER_FW_DIR"
 
-ARTIFACT="akashvani-receiver-${VERSION}.bin"
+ARTIFACT="akashavani-receiver-${VERSION}.bin"
 cp "$BIN" "$OTA_DIR/$ARTIFACT"
 cp "$BIN" "$SERVER_FW_DIR/$ARTIFACT"
 (

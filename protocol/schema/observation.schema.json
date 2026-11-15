@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/observation.schema.json",
+  "$id": "https://akashavani.local/schema/observation.schema.json",
   "title": "Observation envelope",
   "description": "One weather observation sent by a receiver to POST /api/v1/observations. CBOR uses the same map keys and structure.",
   "type": "object",

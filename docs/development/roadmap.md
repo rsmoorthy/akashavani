@@ -66,8 +66,8 @@ not exercised with RF in this slice. Corrupt frames are rejected.
 | `Rfm69Radio` | ported; production sync/restart policy and RF bandwidth/power decisions remain |
 | `DavisDecoder/Encoder` | ported for the ISS message set; pressure/UV not in this subset |
 | `SdArchive` | no hardware validation, no retention |
-| `AkashvaniDisplay` | no real driver; touch UI not designed |
-| `AkashvaniNet` | no TLS pinning, unsigned OTA, limited command set |
+| `AkashavaniDisplay` | no real driver; touch UI not designed |
+| `AkashavaniNet` | no TLS pinning, unsigned OTA, limited command set |
 | Server | no upload endpoint for logs, no admin UI, single-region SQLite default |
 | Tests | no automated RF/HIL job |
 

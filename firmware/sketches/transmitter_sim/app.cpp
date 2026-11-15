@@ -8,14 +8,14 @@
 #include <cstdio>
 #include <cstring>
 
-#include "AkashvaniCore.h"
-#include "AkashvaniDavis.h"
-#include "AkashvaniDisplay.h"
-#include "AkashvaniRadio.h"
+#include "AkashavaniCore.h"
+#include "AkashavaniDavis.h"
+#include "AkashavaniDisplay.h"
+#include "AkashavaniRadio.h"
 #include "DavisChannels.h"
 #include "config.h"
 
-namespace akashvani {
+namespace akashavani {
 namespace transmitter_sim_app {
 namespace {
 
@@ -415,7 +415,7 @@ void setup() {
   Log::setLevel(LogLevel::Info);
   // Give a laptop time to attach a console after power-up (see the receiver).
   delay(config::kSerialStartupDelayMs);
-  AK_LOG_INFO("boot", "%s simulator %s", AKASHVANI_PRODUCT_NAME, AKASHVANI_FW_VERSION);
+  AK_LOG_INFO("boot", "%s simulator %s", AKASHAVANI_PRODUCT_NAME, AKASHAVANI_FW_VERSION);
 
   pinMode(config::kStatusLedPin, OUTPUT);
   digitalWrite(config::kStatusLedPin, LOW);
@@ -464,4 +464,4 @@ void loop() {
 }
 
 }  // namespace transmitter_sim_app
-}  // namespace akashvani
+}  // namespace akashavani

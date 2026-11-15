@@ -1,6 +1,6 @@
-# Akashvani
+# Akashavani
 
-Akashvani receives weather data broadcast by a Davis weather station over RF,
+Akashavani receives weather data broadcast by a Davis weather station over RF,
 archives it locally, and forwards it to a server. It also contains a
 transmitter simulator for bench testing the receiver before deployment.
 
@@ -17,14 +17,14 @@ transmitter simulator for bench testing the receiver before deployment.
 .
 ├── firmware/                 ESP32 Arduino code (S3 target; bench boards classic)
 │   ├── libraries/            reusable components; the bulk of the firmware
-│   │   ├── AkashvaniCore     logging, CRC, time and small utilities
-│   │   ├── AkashvaniRadio    radio abstraction (RFM69 current hardware, RFM95 seam retained)
-│   │   ├── AkashvaniDavis    Davis frame decoding/encoding + transmitter simulator
-│   │   ├── AkashvaniProtocol versioned wire contracts (JSON/CBOR)
-│   │   ├── AkashvaniStorage  micro-SD archive writer
-│   │   ├── AkashvaniNet      Wi-Fi AP+STA, HTTP API, local admin, OTA
-│   │   ├── AkashvaniRtc      DS3231 + NTP timekeeping
-│   │   └── AkashvaniDisplay  display abstraction (1" LCD now, larger panel later)
+│   │   ├── AkashavaniCore     logging, CRC, time and small utilities
+│   │   ├── AkashavaniRadio    radio abstraction (RFM69 current hardware, RFM95 seam retained)
+│   │   ├── AkashavaniDavis    Davis frame decoding/encoding + transmitter simulator
+│   │   ├── AkashavaniProtocol versioned wire contracts (JSON/CBOR)
+│   │   ├── AkashavaniStorage  micro-SD archive writer
+│   │   ├── AkashavaniNet      Wi-Fi AP+STA, HTTP API, local admin, OTA
+│   │   ├── AkashavaniRtc      DS3231 + NTP timekeeping
+│   │   └── AkashavaniDisplay  display abstraction (1" LCD now, larger panel later)
 │   ├── sketches/
 │   │   ├── receiver/         production receiver firmware (thin .ino)
 │   │   └── transmitter_sim/  Davis transmitter simulator (thin .ino)

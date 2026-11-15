@@ -4,7 +4,7 @@ Instructions for AI agents and developers resuming work on this repository.
 
 ## Project
 
-Akashvani targets an ESP32-S3 system for receiving Davis weather-station RF
+Akashavani targets an ESP32-S3 system for receiving Davis weather-station RF
 data, archiving it to micro-SD, and uploading it to a Python/FastAPI server.
 The two current bench boards are ESP32-D0WD-V3 (classic); one acts as the
 receiver and one simulates a Davis transmitter for bench testing.
@@ -27,12 +27,12 @@ are not ported yet; they are explicit stubs:
 
 | Seam | File |
 | --- | --- |
-| RFM69 driver (current hardware) | `firmware/libraries/AkashvaniRadio/src/Rfm69Radio.cpp` |
-| RFM95 modem config / FIFO / IRQ / transmit (alternate seam) | `firmware/libraries/AkashvaniRadio/src/Rfm95Radio.cpp` |
-| Davis frame decode | `firmware/libraries/AkashvaniDavis/src/DavisDecoder.cpp` |
-| Davis frame encode | `firmware/libraries/AkashvaniDavis/src/DavisEncoder.cpp` |
-| ST7735 display | `firmware/libraries/AkashvaniDisplay/src/St7735Display.cpp` |
-| TLS pinning / OTA signature + rollback | `AkashvaniNet/src/OtaService.cpp`, `ApiClient.cpp` |
+| RFM69 driver (current hardware) | `firmware/libraries/AkashavaniRadio/src/Rfm69Radio.cpp` |
+| RFM95 modem config / FIFO / IRQ / transmit (alternate seam) | `firmware/libraries/AkashavaniRadio/src/Rfm95Radio.cpp` |
+| Davis frame decode | `firmware/libraries/AkashavaniDavis/src/DavisDecoder.cpp` |
+| Davis frame encode | `firmware/libraries/AkashavaniDavis/src/DavisEncoder.cpp` |
+| ST7735 display | `firmware/libraries/AkashavaniDisplay/src/St7735Display.cpp` |
+| TLS pinning / OTA signature + rollback | `AkashavaniNet/src/OtaService.cpp`, `ApiClient.cpp` |
 
 OTA download is now a two-step command flow (`download_new_fw` stages into the
 inactive slot and verifies SHA-256; `boot_with_new_fw` selects it and restarts).
@@ -114,9 +114,9 @@ Firmware build notes:
   removes ESP32 core defines and breaks libraries.
 - Local libraries are supplied with `--libraries firmware/libraries`; sketch
   profiles cannot be combined with that flag.
-- Default target is 4 MB / `min_spiffs`; `AKASHVANI_FLASH_SIZE=16M` selects the
+- Default target is 4 MB / `min_spiffs`; `AKASHAVANI_FLASH_SIZE=16M` selects the
   16 MB scheme.
-- `firmware/VERSION` is injected as `AKASHVANI_FW_VERSION` by the build script.
+- `firmware/VERSION` is injected as `AKASHAVANI_FW_VERSION` by the build script.
 
 ## Where to change what
 
@@ -125,7 +125,7 @@ Firmware build notes:
 - Reusable firmware logic: `firmware/libraries/`.
 - Sketch composition/policy only: `firmware/sketches/*/app.cpp`.
 - Host-safe logic tests: `firmware/tests/native/`.
-- Server routes: `server/src/akashvani_server/api/`; schema in `schemas.py`,
+- Server routes: `server/src/akashavani_server/api/`; schema in `schemas.py`,
   tables in `models.py`, migration required for schema changes.
 - Wire contract: `protocol/schema/` and `docs/protocol/README.md`.
 - Architecture decisions: `docs/adr/`; supersede rather than rewrite.

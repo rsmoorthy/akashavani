@@ -122,7 +122,7 @@ seam for the simulator board.
 ID `ak-xxxxxx` from the STA MAC and fills development defaults. The bench
 firmware seeds `station-1`, the local server URL and credentials from the
 git-ignored `secrets.h` only until the first save through the AP page; after
-that NVS wins. The AP SSID is `akashvani-<last MAC byte>` and the AP address is
+that NVS wins. The AP SSID is `akashavani-<last MAC byte>` and the AP address is
 `10.90.0.1`, with a DHCP pool of `10.90.0.11`-`10.90.0.20`. Settings survive
 firmware updates unless the NVS partition is erased.
 
@@ -156,7 +156,7 @@ change.
 
 ## Firmware versioning
 
-`firmware/VERSION` is passed to the compiler as `AKASHVANI_FW_VERSION` by
+`firmware/VERSION` is passed to the compiler as `AKASHAVANI_FW_VERSION` by
 `tools/fw-build.sh`. The same version is used by OTA tooling and embedded in
 `X-Firmware-Version` on uploads. Bump it once per release; do not derive it from
 git state on the device.

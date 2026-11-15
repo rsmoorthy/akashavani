@@ -22,7 +22,7 @@ echo "Building $BOARD with $FQBN"
   --build-cache-path "$CACHE_DIR" \
   --output-dir "$OUT" \
   --warnings default \
-  --build-property "build.defines=-DAKASHVANI_FW_VERSION=\"${VERSION}\"" \
+  --build-property "build.defines=-DAKASHAVANI_FW_VERSION=\"${VERSION}\"" \
   "$SKETCH"
 
 echo

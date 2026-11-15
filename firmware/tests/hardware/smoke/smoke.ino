@@ -425,25 +425,25 @@ void probeRfm69() {
 // ---------------------------------------------------------------------------
 
 bool sdWriteReadTest() {
-  File file = SD.open("/akashvani_smoke.txt", FILE_WRITE);
+  File file = SD.open("/akashavani_smoke.txt", FILE_WRITE);
   if (!file) {
     Serial.println("SD open-for-write FAILED");
     return false;
   }
-  file.printf("Akashvani smoke test millis=%lu\n", millis());
+  file.printf("Akashavani smoke test millis=%lu\n", millis());
   file.close();
 
-  file = SD.open("/akashvani_smoke.txt", FILE_READ);
+  file = SD.open("/akashavani_smoke.txt", FILE_READ);
   if (!file) {
     Serial.println("SD open-for-read FAILED");
     return false;
   }
   String line = file.readStringUntil('\n');
   file.close();
-  SD.remove("/akashvani_smoke.txt");
+  SD.remove("/akashavani_smoke.txt");
   Serial.printf("SD write/read: '%s' %s\n", line.c_str(),
-                line.startsWith("Akashvani smoke test") ? "PASS" : "FAIL");
-  return line.startsWith("Akashvani smoke test");
+                line.startsWith("Akashavani smoke test") ? "PASS" : "FAIL");
+  return line.startsWith("Akashavani smoke test");
 }
 
 void probeSd() {
@@ -858,7 +858,7 @@ void setup() {
   delay(2500);
   Serial.println();
   Serial.println("==================================================");
-  Serial.println("Akashvani component smoke test");
+  Serial.println("Akashavani component smoke test");
   Serial.printf("Chip: %s rev %u, flash %u MB, PSRAM %u MB\n",
                 ESP.getChipModel(), ESP.getChipRevision(),
                 ESP.getFlashChipSize() / (1024U * 1024U),

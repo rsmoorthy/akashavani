@@ -58,7 +58,7 @@ make fw-monitor PORT=/dev/ttyACM0 BAUD=115200
 `CDCOnBoot=cdc` applies to the ESP32-S3 native USB. The current bench boards are
 ESP32 classic with a CP2102 UART bridge, so the default FQBN is
 `esp32:esp32:esp32`. If the production board becomes an S3, override
-`AKASHVANI_FQBN`.
+`AKASHAVANI_FQBN`.
 
 ## Board options and flash size
 
@@ -76,13 +76,13 @@ copies it into the build directory. It defines two OTA application slots of
 For a 16 MB board:
 
 ```bash
-AKASHVANI_FLASH_SIZE=16M make fw-build BOARD=receiver
+AKASHAVANI_FLASH_SIZE=16M make fw-build BOARD=receiver
 ```
 
 This selects `app3M_fat9M_16MB`. To use an exact FQBN:
 
 ```bash
-AKASHVANI_FQBN='esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc' \
+AKASHAVANI_FQBN='esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc' \
   make fw-build BOARD=receiver
 ```
 
@@ -94,7 +94,7 @@ OTA requires two app slots; do not trade them away without an ADR.
 ## Version
 
 `firmware/VERSION` is read by `tools/fw-build.sh` and passed as
-`AKASHVANI_FW_VERSION` (`build.defines`), so the binary, the `X-Firmware-Version`
+`AKASHAVANI_FW_VERSION` (`build.defines`), so the binary, the `X-Firmware-Version`
 header and the OTA release name agree.
 
 ```bash
@@ -113,7 +113,7 @@ make fw-export
 ```
 
 Builds the receiver, copies
-`akashvani-receiver-<version>.bin` into `firmware/build/ota/` and
+`akashavani-receiver-<version>.bin` into `firmware/build/ota/` and
 `server/data/firmware/`, and writes a `.sha256` file. The script prints the
 `curl` command to register the release with a local server.
 

@@ -25,7 +25,7 @@ cannot be recovered.
 
 | Setting | Default |
 | --- | --- |
-| SSID | `akashvani-XX` (`XX` = last MAC byte, e.g. `akashvani-e0`) |
+| SSID | `akashavani-XX` (`XX` = last MAC byte, e.g. `akashavani-e0`) |
 | Password | `doordarshan` |
 | Board address | `http://10.90.0.1/` |
 | DHCP pool | `10.90.0.11` – `10.90.0.20` |
@@ -70,10 +70,10 @@ Expected messages:
 
 ```text
 settings device=ak-3f2a1b station=1 wifi_profiles=1 provisioned=yes
-wifi AP up: akashvani-1b (10.90.0.1) DHCP 10.90.0.11-10.90.0.20
+wifi AP up: akashavani-1b (10.90.0.1) DHCP 10.90.0.11-10.90.0.20
 wifi connecting to <ssid> (profile 1/1)
 web local admin at http://10.90.0.1/
-boot ready: AP=akashvani-1b device=ak-3f2a1b
+boot ready: AP=akashavani-1b device=ak-3f2a1b
 ```
 
 Uploads start only when Wi-Fi is connected, time is valid and the token/URL are

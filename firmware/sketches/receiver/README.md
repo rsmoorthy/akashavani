@@ -59,7 +59,7 @@ device token. `secrets.h` is git-ignored.
 
 ## Local admin
 
-Connect to `akashvani-<last MAC byte>` (default password `doordarshan`), open
+Connect to `akashavani-<last MAC byte>` (default password `doordarshan`), open
 `http://10.90.0.1/`. The page refreshes status every 5 s and lets you save the
 station ID, the Python server URL and up to six site Wi-Fi networks. Changing a
 Wi-Fi network restarts the board. The AP password and DHCP range are constants

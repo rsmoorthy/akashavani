@@ -372,7 +372,7 @@ def main() -> int:
     parser.add_argument("--server", default="http://127.0.0.1:8000")
     parser.add_argument(
         "--admin-token",
-        default=os.environ.get("AKASHVANI_ADMIN_TOKEN", "dev-admin-token"),
+        default=os.environ.get("AKASHAVANI_ADMIN_TOKEN", "dev-admin-token"),
     )
     parser.add_argument("--device-id", required=True)
     parser.add_argument(

@@ -4,9 +4,9 @@
 
 ```text
 server/
-├── src/akashvani_server/
+├── src/akashavani_server/
 │   ├── main.py          app factory, lifespan, router wiring
-│   ├── config.py        pydantic-settings (AKASHVANI_*)
+│   ├── config.py        pydantic-settings (AKASHAVANI_*)
 │   ├── db.py            engine/session, Base
 │   ├── models.py        SQLAlchemy tables
 │   ├── schemas.py       Pydantic request/response contracts
@@ -111,7 +111,7 @@ release blockers. See [OTA](../operations/ota.md).
 | Principal | Credential | Storage |
 | --- | --- | --- |
 | Device | `X-Device-Token` bearer | SHA-256 hash in `devices.token_hash` |
-| Admin | `Authorization: Bearer ...` | `AKASHVANI_ADMIN_TOKEN` environment variable |
+| Admin | `Authorization: Bearer ...` | `AKASHAVANI_ADMIN_TOKEN` environment variable |
 
 Authenticated device requests also carry `X-Device-Mac`,
 `X-Firmware-Version`, `X-Last-Radio-At` and health headers (`X-Uptime-Seconds`,
@@ -120,14 +120,14 @@ records them (and `last_seen_at`) on the device row for admin display. A device 
 *online* when `last_seen_at` is within 90 s (three 30 s poll intervals);
 `last_radio_at` is independent and stays old when RF is lost.
 
-Seed devices are created from `AKASHVANI_DEVICE_SEEDS` on startup only if
+Seed devices are created from `AKASHAVANI_DEVICE_SEEDS` on startup only if
 missing. Restarting never rotates a token. Use the admin API to rotate
 explicitly.
 
 ## Database
 
-- Development default: SQLite at `data/akashvani.db`, one worker.
-- Production: PostgreSQL via `AKASHVANI_DATABASE_URL`, run multiple workers only
+- Development default: SQLite at `data/akashavani.db`, one worker.
+- Production: PostgreSQL via `AKASHAVANI_DATABASE_URL`, run multiple workers only
   after validating command leasing against Postgres.
 - Alembic is the schema mechanism. The application creates tables automatically
   only when `environment=test`.

@@ -7,7 +7,7 @@
 
 namespace {
 
-using namespace akashvani;
+using namespace akashavani;
 
 DavisObservation makeObservation(float windSpeedMs, float windDirDeg) {
   DavisObservation observation;

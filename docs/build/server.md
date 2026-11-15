@@ -8,30 +8,30 @@ make server-dev         # http://127.0.0.1:8000/docs
 ```
 
 `make server-dev` runs Alembic, then Uvicorn with autoreload. The default
-database is SQLite at `server/data/akashvani.db`.
+database is SQLite at `server/data/akashavani.db`.
 
 To start from a clean database:
 
 ```bash
-rm -f server/data/akashvani.db
+rm -f server/data/akashavani.db
 cd server && ../.venv/bin/alembic upgrade head
 ```
 
 ## Configuration
 
 Copy `server/.env.example` to `server/.env` when running from `server/`, or export
-`AKASHVANI_*` variables. Full reference: [Configuration](../reference/configuration.md).
+`AKASHAVANI_*` variables. Full reference: [Configuration](../reference/configuration.md).
 
 Minimum development variables:
 
 ```dotenv
-AKASHVANI_ENVIRONMENT=development
-AKASHVANI_DATABASE_URL=sqlite:///./data/akashvani.db
-AKASHVANI_DEVICE_SEEDS=sim-001:dev-sim-token:Simulator
-AKASHVANI_ADMIN_TOKEN=dev-admin-token
+AKASHAVANI_ENVIRONMENT=development
+AKASHAVANI_DATABASE_URL=sqlite:///./data/akashavani.db
+AKASHAVANI_DEVICE_SEEDS=sim-001:dev-sim-token:Simulator
+AKASHAVANI_ADMIN_TOKEN=dev-admin-token
 ```
 
-`AKASHVANI_DEVICE_SEEDS` is `id:token:display-name` separated by commas. Seeds
+`AKASHAVANI_DEVICE_SEEDS` is `id:token:display-name` separated by commas. Seeds
 only create missing devices; a restart never rotates an existing token.
 
 ## Migrations
@@ -72,7 +72,7 @@ docker compose -f server/docker-compose.yml \
   -f server/docker-compose.postgres.yml up -d --build
 ```
 
-The override sets `AKASHVANI_DATABASE_URL` to the `db` service and waits for its
+The override sets `AKASHAVANI_DATABASE_URL` to the `db` service and waits for its
 health check. The image installs `psycopg[binary]` for this path. Use a real
 password and a managed database in production; the compose credentials are for
 local use only.
@@ -89,7 +89,7 @@ The binary and checksum are copied to `server/data/firmware/`. Register it:
 curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/firmware \
   -H 'Authorization: Bearer dev-admin-token' \
   -H 'Content-Type: application/json' \
-  -d '{"version":"0.1.0-dev","channel":"stable","filename":"akashvani-receiver-0.1.0-dev.bin"}'
+  -d '{"version":"0.1.0-dev","channel":"stable","filename":"akashavani-receiver-0.1.0-dev.bin"}'
 ```
 
 Check what a device sees:
@@ -138,7 +138,7 @@ make server-format
 ## Production notes
 
 - Put the API behind a TLS reverse proxy; do not expose Uvicorn directly.
-- Set a strong `AKASHVANI_ADMIN_TOKEN` and per-device tokens.
+- Set a strong `AKASHAVANI_ADMIN_TOKEN` and per-device tokens.
 - Use PostgreSQL for multiple workers; validate command leasing under load.
 - Persist `/data` or move firmware to object storage.
 - Restrict `/api/v1/admin/*` by network policy as well as token.

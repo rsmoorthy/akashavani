@@ -7,7 +7,7 @@ Production needs concurrent writers, backups and operational maturity.
 
 ## Decision
 
-- Default `AKASHVANI_DATABASE_URL` to a local SQLite file.
+- Default `AKASHAVANI_DATABASE_URL` to a local SQLite file.
 - Support PostgreSQL through the same SQLAlchemy models and an optional compose
   override.
 - Use Alembic as the only production schema mechanism.

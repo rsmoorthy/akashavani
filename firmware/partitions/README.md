@@ -8,7 +8,7 @@ the build directory before compiling:
 | `firmware/sketches/receiver/partitions.csv` | 4 MB | `0x1E0000` x2 (1,966,080 B = 1.875 MiB each) | default; 128 KiB SPIFFS + 64 KiB coredump |
 | stock `min_spiffs` | 4 MB | 1,966,080 B x2 | identical layout, used when the sketch has no `partitions.csv` |
 | stock `no_fs` | 4 MB | 2.0 MB x2 | alternative if no internal FS is needed |
-| stock `app3M_fat9M_16MB` | 16 MB | 3 MB x2 + 9.9 MB FATFS | `AKASHVANI_FLASH_SIZE=16M` |
+| stock `app3M_fat9M_16MB` | 16 MB | 3 MB x2 + 9.9 MB FATFS | `AKASHAVANI_FLASH_SIZE=16M` |
 
 `arduino-cli` pre-build hooks look for `partitions.csv` in this order: sketch
 source directory, variant directory, core `tools/partitions`. That is why the

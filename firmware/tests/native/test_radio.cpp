@@ -7,7 +7,7 @@
 
 namespace {
 
-using namespace akashvani;
+using namespace akashavani;
 
 TEST(DavisChannels, TableMatchesPrototypeAndBand) {
   EXPECT_EQ(51u, kDavisChannelCount);

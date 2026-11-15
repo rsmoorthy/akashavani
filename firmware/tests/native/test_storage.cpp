@@ -6,7 +6,7 @@
 
 namespace {
 
-using namespace akashvani;
+using namespace akashavani;
 
 TEST(ArchivePath, BuildsDailyJsonLinesPath) {
   char path[kArchivePathMax];

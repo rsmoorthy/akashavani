@@ -4,12 +4,12 @@
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AKASHVANI_FLASH_SIZE` | `4M` | `16M` selects the 16 MB partition scheme |
-| `AKASHVANI_FQBN` | unset | full FQBN override; wins over flash size |
-| `AKASHVANI_FQBN_4MB` | `esp32:esp32:esp32:...min_spiffs` | replace the 4 MB default |
-| `AKASHVANI_FQBN_16MB` | `esp32:esp32:esp32:...app3M_fat9M_16MB` | replace the 16 MB default |
-| `AKASHVANI_ESP32_CORE` | `3.0.2` | core version installed by `fw-setup` |
-| `AKASHVANI_HOST` / `PORT` | `127.0.0.1` / `8000` | local server binding |
+| `AKASHAVANI_FLASH_SIZE` | `4M` | `16M` selects the 16 MB partition scheme |
+| `AKASHAVANI_FQBN` | unset | full FQBN override; wins over flash size |
+| `AKASHAVANI_FQBN_4MB` | `esp32:esp32:esp32:...min_spiffs` | replace the 4 MB default |
+| `AKASHAVANI_FQBN_16MB` | `esp32:esp32:esp32:...app3M_fat9M_16MB` | replace the 16 MB default |
+| `AKASHAVANI_ESP32_CORE` | `3.0.2` | core version installed by `fw-setup` |
+| `AKASHAVANI_HOST` / `PORT` | `127.0.0.1` / `8000` | local server binding |
 
 The default target is the ESP32 classic bench board. The receiver sketch carries
 `partitions.csv` with two 1.875 MiB OTA slots; see
@@ -32,7 +32,7 @@ OTA tooling.
 | `kDisplayAddress` | `0x3C` | SSD1306-class 128x64 I²C status panel on the shared bus |
 | `kDisplayCsPin` / `kDisplayDcPin` / `kDisplayResetPin` | 8 / 7 / 6 | unused ST7735 seam; the bench panel is I²C |
 | `kStatusLedPin` | 2 | |
-| `kApSsidPrefix` | `akashvani-` | last MAC byte is appended, e.g. `akashvani-e0` |
+| `kApSsidPrefix` | `akashavani-` | last MAC byte is appended, e.g. `akashavani-e0` |
 | `kApPassword` | `doordarshan` | WPA2 password for the provisioning AP |
 | `kApChannel` | 6 | AP channel; STA may override when both are active |
 | `kApMaxClients` | 4 | simultaneous AP clients |
@@ -56,7 +56,7 @@ The bench boards are ESP32-D0WD-V3 and use the pins above. See
 
 ## NVS settings
 
-Namespace `akashvani`, written by the local AP page.
+Namespace `akashavani`, written by the local AP page.
 
 | Key | Default | Secret |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ Namespace `akashvani`, written by the local AP page.
 | `cfg_ver` | `1` | no |
 | `wifi_ssid_0` … `wifi_ssid_5` | empty | no |
 | `wifi_pass_0` … `wifi_pass_5` | empty | yes |
-| `admin_pw` | `akashvani-admin` | yes (OTA password over Wi-Fi) |
+| `admin_pw` | `akashavani-admin` | yes (OTA password over Wi-Fi) |
 | `upload` / `archive` | true / true | no |
 | `upl_int` / `cmd_int` | 60 / 30 seconds | no |
 | `configured` | set by the first save | no |
@@ -90,7 +90,7 @@ The OTA staged release is stored in NVS namespace `ota_meta` under
 
 | Setting | Value |
 | --- | --- |
-| AP SSID | `akashvani-XX`, where `XX` is the last MAC byte in hex |
+| AP SSID | `akashavani-XX`, where `XX` is the last MAC byte in hex |
 | AP password | `doordarshan` (`kApPassword`) |
 | AP address | `http://10.90.0.1/` |
 | DHCP pool | `10.90.0.11` – `10.90.0.20` |
@@ -128,26 +128,26 @@ flag.
 
 ## Server environment
 
-All variables use the `AKASHVANI_` prefix. Values can also be placed in
+All variables use the `AKASHAVANI_` prefix. Values can also be placed in
 `server/.env`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AKASHVANI_ENVIRONMENT` | `development` | `test` auto-creates tables |
-| `AKASHVANI_DEBUG` | `false` | |
-| `AKASHVANI_LOG_LEVEL` | `INFO` | |
-| `AKASHVANI_DATABASE_URL` | `sqlite:///./data/akashvani.db` | SQLAlchemy URL |
-| `AKASHVANI_DATA_DIR` | `./data` | runtime directory |
-| `AKASHVANI_FIRMWARE_DIR` | `./data/firmware` | OTA image directory |
-| `AKASHVANI_DEVICE_SEEDS` | `sim-001:dev-sim-token:Simulator,station-1:dev-station-1-token:Bench station 1` | comma-separated seeds |
-| `AKASHVANI_ADMIN_TOKEN` | `dev-admin-token` | admin bearer token |
-| `AKASHVANI_API_TOKEN` | `secret` | shared archive bearer token; also accepted by the admin API |
-| `AKASHVANI_RAIN_BUCKET_MM` | `0.254` | rain collector tip size (0.01 in) |
-| `AKASHVANI_MAX_BODY_BYTES` | 65536 | ingest limit |
-| `AKASHVANI_MAX_FIRMWARE_BYTES` | 8388608 | admin upload limit |
-| `AKASHVANI_MAX_FUTURE_SKEW_SECONDS` | 300 | timestamp tolerance |
-| `AKASHVANI_COMMAND_DEFAULT_TTL_SECONDS` | 3600 | default command expiry |
-| `AKASHVANI_CORS_ORIGINS` | empty | comma-separated allowed origins |
+| `AKASHAVANI_ENVIRONMENT` | `development` | `test` auto-creates tables |
+| `AKASHAVANI_DEBUG` | `false` | |
+| `AKASHAVANI_LOG_LEVEL` | `INFO` | |
+| `AKASHAVANI_DATABASE_URL` | `sqlite:///./data/akashavani.db` | SQLAlchemy URL |
+| `AKASHAVANI_DATA_DIR` | `./data` | runtime directory |
+| `AKASHAVANI_FIRMWARE_DIR` | `./data/firmware` | OTA image directory |
+| `AKASHAVANI_DEVICE_SEEDS` | `sim-001:dev-sim-token:Simulator,station-1:dev-station-1-token:Bench station 1` | comma-separated seeds |
+| `AKASHAVANI_ADMIN_TOKEN` | `dev-admin-token` | admin bearer token |
+| `AKASHAVANI_API_TOKEN` | `secret` | shared archive bearer token; also accepted by the admin API |
+| `AKASHAVANI_RAIN_BUCKET_MM` | `0.254` | rain collector tip size (0.01 in) |
+| `AKASHAVANI_MAX_BODY_BYTES` | 65536 | ingest limit |
+| `AKASHAVANI_MAX_FIRMWARE_BYTES` | 8388608 | admin upload limit |
+| `AKASHAVANI_MAX_FUTURE_SKEW_SECONDS` | 300 | timestamp tolerance |
+| `AKASHAVANI_COMMAND_DEFAULT_TTL_SECONDS` | 3600 | default command expiry |
+| `AKASHAVANI_CORS_ORIGINS` | empty | comma-separated allowed origins |
 
 Production must override the admin token and device seeds; defaults are for
 local development only.

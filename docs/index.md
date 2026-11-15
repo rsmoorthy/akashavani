@@ -1,6 +1,6 @@
-# Akashvani
+# Akashavani
 
-Akashvani is a weather-data pipeline built around a Davis weather station:
+Akashavani is a weather-data pipeline built around a Davis weather station:
 
 - an **ESP32-S3 receiver** (production target; bench boards are ESP32-D0WD-V3)
   listens to the station's RF transmissions, decodes

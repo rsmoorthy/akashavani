@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/archive.schema.json",
+  "$id": "https://akashavani.local/schema/archive.schema.json",
   "title": "Five-minute archive record",
   "description": "One SI 5-minute collation sent by the receiver to POST /api/v1/archive. The server divides sums by counts and computes the derived Weewx-compatible values.",
   "type": "object",

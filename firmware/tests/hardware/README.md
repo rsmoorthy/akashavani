@@ -24,7 +24,7 @@ wiring (SPI 18/19/23, CS 5, RESET 17, DIO0 13); it accepts either reset defaults
 or a configured module that passes a register write/read. `rfm_scan` is a
 read-only SPI/CS scanner for a radio that does not answer on the expected pins.
 `ap_client` runs on the second board and exercises the receiver's provisioning
-AP and HTTP page: it scans for `akashvani-*`, connects with the bench AP
+AP and HTTP page: it scans for `akashavani-*`, connects with the bench AP
 password, checks the DHCP address, reads status/settings, performs a Wi-Fi
 profile change that must trigger a reboot, verifies persistence, restores the
 original list and spot-checks server-side validation. None of these sketches

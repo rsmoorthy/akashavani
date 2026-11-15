@@ -26,7 +26,7 @@ Before opening a pull request:
 
 - C++17, no exceptions/RTTI, no dynamic allocation in the receive path.
 - 2-space indent, 100-column limit; see `.clang-format`.
-- `akashvani` namespace; files under a library's `src/`.
+- `akashavani` namespace; files under a library's `src/`.
 - Drivers return `Status`; reserve `bool` for predicates.
 - Keep host-safe files free of `Arduino.h`.
 - Fixed-size buffers for anything that runs per frame.
@@ -47,9 +47,9 @@ Before opening a pull request:
 
 ## Adding a firmware library
 
-1. Create `firmware/libraries/AkashvaniXxx/` with `library.properties`, `README.md`
+1. Create `firmware/libraries/AkashavaniXxx/` with `library.properties`, `README.md`
    and `src/`.
-2. Keep the dependency direction acyclic; do not make `AkashvaniDavis` depend on
+2. Keep the dependency direction acyclic; do not make `AkashavaniDavis` depend on
    Wi-Fi.
 3. Put pure logic in files listed in `firmware/tests/native/CMakeLists.txt` and
    add tests.
@@ -60,8 +60,8 @@ Before opening a pull request:
 
 1. Change the JSON Schema in `protocol/schema/`.
 2. Update the example and the schema test.
-3. Update `server/src/akashvani_server/schemas.py`.
-4. Update `firmware/libraries/AkashvaniProtocol` if constants/validators change.
+3. Update `server/src/akashavani_server/schemas.py`.
+4. Update `firmware/libraries/AkashavaniProtocol` if constants/validators change.
 5. Update `ObservationJson` or the API client if fields move.
 6. Decide: is this additive (same `v`) or breaking (new `v`)?
 7. Update `docs/protocol/README.md`.

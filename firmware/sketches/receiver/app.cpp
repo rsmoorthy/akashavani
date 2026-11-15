@@ -13,21 +13,21 @@
 #include <cstring>
 #include <memory>
 
-#include "AkashvaniArchive.h"
-#include "AkashvaniCore.h"
-#include "AkashvaniDavis.h"
-#include "AkashvaniDisplay.h"
-#include "AkashvaniNet.h"
-#include "AkashvaniProtocol.h"
-#include "AkashvaniRadio.h"
-#include "AkashvaniRtc.h"
-#include "AkashvaniStorage.h"
+#include "AkashavaniArchive.h"
+#include "AkashavaniCore.h"
+#include "AkashavaniDavis.h"
+#include "AkashavaniDisplay.h"
+#include "AkashavaniNet.h"
+#include "AkashavaniProtocol.h"
+#include "AkashavaniRadio.h"
+#include "AkashavaniRtc.h"
+#include "AkashavaniStorage.h"
 #include "ArchiveJson.h"
 #include "DavisChannels.h"
 #include "Rfm69Radio.h"
 #include "config.h"
 
-namespace akashvani {
+namespace akashavani {
 namespace receiver_app {
 namespace {
 
@@ -1316,8 +1316,8 @@ void updateDisplay() {
 }
 
 void logBanner() {
-  AK_LOG_INFO("boot", "%s %s | protocol v%d", AKASHVANI_PRODUCT_NAME, AKASHVANI_FW_VERSION,
-              AKASHVANI_PROTOCOL_VERSION);
+  AK_LOG_INFO("boot", "%s %s | protocol v%d", AKASHAVANI_PRODUCT_NAME, AKASHAVANI_FW_VERSION,
+              AKASHAVANI_PROTOCOL_VERSION);
 }
 
 }  // namespace
@@ -1510,4 +1510,4 @@ void loop() {
 }
 
 }  // namespace receiver_app
-}  // namespace akashvani
+}  // namespace akashavani

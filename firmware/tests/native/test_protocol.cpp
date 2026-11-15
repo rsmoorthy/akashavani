@@ -2,11 +2,11 @@
 
 #include <cstring>
 
-#include "AkashvaniProtocol.h"
+#include "AkashavaniProtocol.h"
 
 namespace {
 
-using namespace akashvani::protocol;
+using namespace akashavani::protocol;
 
 Envelope validEnvelope() {
   Envelope envelope;

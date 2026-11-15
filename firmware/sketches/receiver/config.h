@@ -65,8 +65,8 @@ constexpr uint8_t kDisplayAddress = 0x3C;
 constexpr uint8_t kStatusLedPin = 2;
 
 // Provisioning access point. The SSID is the prefix plus the last MAC byte,
-// e.g. "akashvani-e0". Change the password, IP address and DHCP pool here.
-constexpr const char* kApSsidPrefix = "akashvani-";
+// e.g. "akashavani-e0". Change the password, IP address and DHCP pool here.
+constexpr const char* kApSsidPrefix = "akashavani-";
 constexpr const char* kApPassword = "doordarshan";
 constexpr uint8_t kApChannel = 6;
 constexpr uint8_t kApMaxClients = 4;

@@ -11,7 +11,7 @@ fi
 
 cd "$ROOT/server"
 "$VENV/bin/alembic" upgrade head
-exec "$VENV/bin/uvicorn" akashvani_server.main:app \
+exec "$VENV/bin/uvicorn" akashavani_server.main:app \
   --reload \
-  --host "${AKASHVANI_HOST:-127.0.0.1}" \
-  --port "${AKASHVANI_PORT:-8000}"
+  --host "${AKASHAVANI_HOST:-127.0.0.1}" \
+  --port "${AKASHAVANI_PORT:-8000}"

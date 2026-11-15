@@ -10,7 +10,7 @@ which need a board.
 
 Keep domain logic free of Arduino headers wherever practical:
 
-- `AkashvaniCore`, `AkashvaniDavis`, `AkashvaniProtocol` and `ArchivePath` are
+- `AkashavaniCore`, `AkashavaniDavis`, `AkashavaniProtocol` and `ArchivePath` are
   compiled into a native CMake/GoogleTest target.
 - Hardware wrappers (`Rfm95Radio`, `SdArchive`, `WifiService`, `Ds3231Clock`,
   real displays) stay thin and are exercised by the bring-up sketch and later HIL
