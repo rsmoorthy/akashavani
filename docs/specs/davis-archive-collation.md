@@ -16,7 +16,7 @@ These decisions supersede the options in the earlier draft:
 | Conversions and derived values | **Python server only.** The ESP32 decodes the Davis bit fields to SI values and aggregates the 5-minute bucket; it does not convert to US units or compute Weewx derived fields. |
 | Mean transport and storage | The receiver sends **sum + count** for scalar fields and **vector sums + count** for wind direction. The server divides. SQLite stores the resulting **mean + sample count** for each measured field, plus overall frame counters. |
 | AP status page | Shows the latest decoded values in SI. This is the only place the receiver needs current values rather than bucket aggregates. |
-| Site configuration | Server-side, with defaults: latitude 13.4867 N, longitude 77.7064 E, altitude 940 m, timezone Asia/Kolkata (IST, UTC+05:30). |
+| Site configuration | Per device and reported with the configuration document: latitude, longitude, altitude and time zone. The server keeps a mirror; there is no site-wide location or altitude fallback. |
 | Pressure | BME280 supplies **station pressure**. The server derives `barometer` and `altimeter` from station pressure, site altitude and temperature. The ISS does not send pressure. |
 | BME280 indoor values | BME280 temperature and humidity populate `in_temp_c` and `in_humidity_pct`; `in_dewpoint_c` is derived server-side. |
 | Rain | Store both units: `rain_mm` and `rain_in`. The receiver sends tip counts, not converted distances, so the bucket size is a server setting. |
@@ -142,7 +142,7 @@ and similar data that the ISS RF stream does not provide.
 | --- | --- | --- |
 | The database is US customary | `usUnits = 1`; `outTemp` 48.9-99.9, `pressure` 26.46-26.97 inHg, `rain` 0-0.5 in, `windSpeed` 0-20 mph | Define explicit SI-to-US conversion; do not mix units in one row |
 | `pressure` is station pressure, not sea-level | `pressure` ~26.9 inHg while `barometer` ~29.8 inHg | Use BME280 station pressure for `pressure`; derive `barometer`/`altimeter` with site altitude |
-| Site altitude is around 910-940 m | `cloudbase` and `altimeter` are consistent with about 910 m; the configured default is 940 m; the bench BME280 reads about 910.7 hPa | Use the configured 940 m default and validate the derived pressure fields against a reference |
+| Site altitude is around 910-940 m | `cloudbase` and `altimeter` are consistent with about 910 m; the bench BME280 reads about 910.7 hPa | Report the bench altitude with the device configuration and validate the derived pressure fields against a reference |
 | Rain tips are 0.01 inch (0.254 mm) | 1,997 of 2,000 positive `rain` values are exact multiples of 0.01 in; the remainder are 0.2 mm values | Make the rain bucket size configurable; do not use the decoder's hardcoded 0.2 mm |
 | `rainRate` is a 15-minute trailing rate | Recomputing `sum(rain over previous 900 s) * 4` matches `rainRate` on 295,594 of 303,559 rows; the non-sentinel differences have a median of about 0.04 in/h, and 648 rows are the 655.35 in/h sentinel | Implement Weewx-style `RainRater`, not raw message `0x5` |
 | `windrun` is average wind speed x interval | `windSpeed * interval / 60` reproduces the stored miles | Compute from the 5-minute mean wind speed |
@@ -246,7 +246,7 @@ The `0xE` field is a 7-bit rolling tip counter (0-127). The collector must:
 5. send the **tip delta**, not a distance. The server converts it to mm and
    inches using the configured bucket size;
 6. keep the daily total on the server from the stored per-bucket rain, using
-   the site timezone (Asia/Kolkata) for the midnight boundary.
+   the device's configured time zone for the midnight boundary.
 
 The raw `0x5` rain-rate message is **not** an accumulation. It is the
 instantaneous rate implied by the time between the most recent tips (the
@@ -345,6 +345,9 @@ heat index in the new archive are **C**, while the Weewx source was F.
 | `frames_expected` | receiver | count | expected slots |
 | `frames_valid` | receiver | count | valid CRC frames |
 | `frames_crc_bad` | receiver | count | bad CRC frames |
+| `crc_bad_rssi_min_dbm` | receiver | dBm | minimum RSSI of bad-CRC frames |
+| `crc_bad_rssi_avg_dbm` | receiver | dBm | mean RSSI of bad-CRC frames |
+| `crc_bad_rssi_max_dbm` | receiver | dBm | maximum RSSI of bad-CRC frames |
 | `resync_count` | receiver | count | times silence after lock exceeded the resync threshold |
 | `search_count` | receiver | count | times the receiver entered reverse-scan/search mode |
 | `gap_slots` | receiver | count | total missed slots inferred from sequence gaps |
@@ -507,6 +510,9 @@ weather_archive
   frames_expected
   frames_valid
   frames_crc_bad
+  crc_bad_rssi_min_dbm
+  crc_bad_rssi_avg_dbm
+  crc_bad_rssi_max_dbm
   resync_count
   search_count
   gap_slots
@@ -521,10 +527,10 @@ weather_archive
 Site metadata is server-side configuration, not a per-row field:
 
 ```text
-site_latitude      13.4867 N
-site_longitude     77.7064 E
-site_altitude_m    940
-site_timezone      Asia/Kolkata (UTC+05:30)
+site_latitude      per device (reported config)
+site_longitude     per device (reported config)
+site_altitude_m    per device (reported config; required for derived pressure)
+device_timezone    per device (IANA name; default UTC; display only)
 rain_bucket_mm     0.254 (pending confirmation)
 ```
 
@@ -658,7 +664,8 @@ Resolved on 2026-11-01:
 - Rain stored in both mm and inches; tip counts sent by the receiver.
 - Both rain-rate definitions stored.
 - UV and solar sensors present; `0x6` assumed for solar until confirmed.
-- Site defaults: 13.4867 N, 77.7064 E, 940 m, Asia/Kolkata.
+- Site values: per-device latitude, longitude, altitude and time zone, reported
+  with the device configuration; no server-wide defaults.
 - ET and maxSolarRad deferred; `maxSolarRad` is theoretical, ET needs a
   one-hour radiation window.
 

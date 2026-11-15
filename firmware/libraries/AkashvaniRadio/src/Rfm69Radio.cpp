@@ -1,5 +1,9 @@
 #include "Rfm69Radio.h"
 
+#include <cstdio>
+#include <ctime>
+#include <cstring>
+
 #include "DavisChannels.h"
 #include "Log.h"
 
@@ -65,6 +69,11 @@ constexpr uint8_t kPa2On = 0x20;
 constexpr uint32_t kModeReadyTimeoutMs = 50;
 constexpr uint32_t kPacketSentTimeoutMs = 1000;
 
+uint32_t currentEpochSeconds() {
+  const time_t now = time(nullptr);
+  return now > 946684800 ? static_cast<uint32_t>(now) : 0;
+}
+
 constexpr uint8_t kConfig[][2] = {
     // Standby, packet sequencer on, listen mode off.
     {kRegOpMode, kModeStandby},
@@ -118,7 +127,32 @@ constexpr uint8_t kConfig[][2] = {
 
 }  // namespace
 
-Rfm69Radio::Rfm69Radio(SPIClass& spi, const RadioPins& pins) : spi_(spi), pins_(pins) {}
+Rfm69Radio* Rfm69Radio::instance_ = nullptr;
+
+Rfm69Radio::Rfm69Radio(SPIClass& spi, const RadioPins& pins) : spi_(spi), pins_(pins) {
+  instance_ = this;
+}
+
+Rfm69Radio::~Rfm69Radio() {
+  if (backgroundRx_) {
+    detachInterrupt(digitalPinToInterrupt(pins_.dio0));
+  }
+  if (rxTask_ != nullptr) {
+    vTaskDelete(rxTask_);
+    rxTask_ = nullptr;
+  }
+  if (rxQueue_ != nullptr) {
+    vQueueDelete(rxQueue_);
+    rxQueue_ = nullptr;
+  }
+  if (radioMutex_ != nullptr) {
+    vSemaphoreDelete(radioMutex_);
+    radioMutex_ = nullptr;
+  }
+  if (instance_ == this) {
+    instance_ = nullptr;
+  }
+}
 
 uint8_t Rfm69Radio::reverseBits(uint8_t value) {
   value = static_cast<uint8_t>(((value & 0xF0u) >> 4) | ((value & 0x0Fu) << 4));
@@ -316,12 +350,58 @@ Status Rfm69Radio::begin(const RadioConfig& config) {
   const uint8_t version = readReg(kRegVersion);
   ready_ = true;
   restartRx();
+  lastHopMs_ = millis();
+  lastValidMs_ = 0;
+  missStreak_ = 0;
+  searchMode_ = false;
+  if (config_.backgroundRx && !startBackgroundRx()) {
+    AK_LOG_WARN("radio", "interrupt RX unavailable; using polling receive");
+  }
   AK_LOG_INFO("radio",
               "RFM69 ready: version=0x%02X ch=%u freq=%.3fMHz bitrate=19.2k dev=4.8k "
-              "sync=CB89 power=%ddBm%s",
+              "sync=CB89 power=%ddBm%s rx=%s",
               version, static_cast<unsigned>(channel_), davisChannelFrequencyMhz(channel_),
-              static_cast<int>(powerDbm_), highPower_ ? " high-power" : "");
+              static_cast<int>(powerDbm_), highPower_ ? " high-power" : "",
+              backgroundRx_ ? "interrupt-task" : "polling");
   return Status::Ok;
+}
+
+bool Rfm69Radio::startBackgroundRx() {
+  if (payloadLength_ > 8) {
+    AK_LOG_WARN("radio", "payload length %u exceeds RX queue record; polling",
+                static_cast<unsigned>(payloadLength_));
+    return false;
+  }
+  const int interrupt = digitalPinToInterrupt(pins_.dio0);
+  if (interrupt < 0) {
+    return false;
+  }
+  radioMutex_ = xSemaphoreCreateMutex();
+  rxQueue_ = xQueueCreate(kRxQueueDepth, sizeof(RxRecord));
+  if (radioMutex_ == nullptr || rxQueue_ == nullptr) {
+    if (radioMutex_ != nullptr) {
+      vSemaphoreDelete(radioMutex_);
+      radioMutex_ = nullptr;
+    }
+    if (rxQueue_ != nullptr) {
+      vQueueDelete(rxQueue_);
+      rxQueue_ = nullptr;
+    }
+    return false;
+  }
+  if (xTaskCreatePinnedToCore(taskEntry, "rfm69-rx", 3072, this, 10, &rxTask_, 1) != pdPASS) {
+    rxTask_ = nullptr;
+    vQueueDelete(rxQueue_);
+    rxQueue_ = nullptr;
+    vSemaphoreDelete(radioMutex_);
+    radioMutex_ = nullptr;
+    return false;
+  }
+  attachInterrupt(static_cast<uint8_t>(interrupt), isrTrampoline, RISING);
+  backgroundRx_ = true;
+  // Drain anything already waiting in the FIFO.
+  xTaskNotifyGive(rxTask_);
+  return true;
 }
 
 Status Rfm69Radio::setChannel(uint8_t channel) {
@@ -331,9 +411,14 @@ Status Rfm69Radio::setChannel(uint8_t channel) {
   if (channel >= kDavisChannelCount) {
     return Status::InvalidArgument;
   }
+  lockRadio();
   channel_ = channel;
+  lastHopMs_ = millis();
+  missStreak_ = 0;
+  searchMode_ = false;
   applyChannel(channel_);
   restartRx();
+  unlockRadio();
   return Status::Ok;
 }
 
@@ -345,7 +430,23 @@ Status Rfm69Radio::receive(RadioFrame& frame, uint32_t timeoutMs) {
   if (!ready_) {
     return Status::NotReady;
   }
+  if (backgroundRx_ && rxQueue_ != nullptr) {
+    RxRecord record;
+    if (xQueueReceive(rxQueue_, &record, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+      return Status::Timeout;
+    }
+    std::memcpy(frame.data, record.data, record.length);
+    frame.length = record.length;
+    frame.rssiDbm = record.rssiDbm;
+    frame.receivedAtMs = millis();
+    frame.receivedAtEpoch = record.receivedAtEpoch;
+    frame.channel = record.channel;
+    return Status::Ok;
+  }
+  return pollReceive(frame, timeoutMs);
+}
 
+Status Rfm69Radio::pollReceive(RadioFrame& frame, uint32_t timeoutMs) {
   const uint32_t start = millis();
   do {
     if ((readReg(kRegIrqFlags2) & kIrq2PayloadReady) != 0) {
@@ -362,6 +463,8 @@ Status Rfm69Radio::receive(RadioFrame& frame, uint32_t timeoutMs) {
       frame.length = payloadLength_;
       frame.rssiDbm = rssi;
       frame.receivedAtMs = millis();
+      frame.receivedAtEpoch = currentEpochSeconds();
+      frame.channel = channel_;
       restartRx();
       return Status::Ok;
     }
@@ -369,6 +472,228 @@ Status Rfm69Radio::receive(RadioFrame& frame, uint32_t timeoutMs) {
   } while (millis() - start < timeoutMs);
 
   return Status::Timeout;
+}
+
+void Rfm69Radio::taskEntry(void* context) {
+  static_cast<Rfm69Radio*>(context)->taskLoop();
+}
+
+void IRAM_ATTR Rfm69Radio::isrTrampoline() {
+  if (instance_ == nullptr || instance_->rxTask_ == nullptr) {
+    return;
+  }
+  BaseType_t woken = pdFALSE;
+  vTaskNotifyGiveFromISR(instance_->rxTask_, &woken);
+  portYIELD_FROM_ISR(woken);
+}
+
+void Rfm69Radio::taskLoop() {
+  for (;;) {
+    const uint32_t now = millis();
+    const uint32_t interval =
+        searchMode_ ? config_.searchHopIntervalMs : config_.hopIntervalMs;
+    const uint32_t elapsed = now - lastHopMs_;
+    uint32_t waitMs = 0;
+    if (interval == 0) {
+      waitMs = portMAX_DELAY;
+    } else if (elapsed < interval) {
+      waitMs = interval - elapsed;
+    }
+    const uint32_t notified =
+        ulTaskNotifyTake(pdTRUE, waitMs == portMAX_DELAY ? portMAX_DELAY
+                                                         : pdMS_TO_TICKS(waitMs));
+    if (!ready_) {
+      continue;
+    }
+    if (notified > 0) {
+      drainFifo();
+    }
+    handleHopTimer();
+  }
+}
+
+void Rfm69Radio::drainFifo() {
+  if (rxQueue_ == nullptr) {
+    return;
+  }
+  lockRadio();
+  // Usually one packet per interrupt. If the task was delayed by the shared
+  // SPI bus, keep reading whole packets until the FIFO is empty (bounded).
+  const uint8_t first = readReg(kRegIrqFlags2);
+  if ((first & kIrq2PayloadReady) == 0) {
+    unlockRadio();
+    return;
+  }
+  setModeStandby();
+  const uint8_t rxChannel = channel_;
+  RxRecord record;
+  record.rssiDbm = readRssiDbm();
+  record.receivedAtEpoch = currentEpochSeconds();
+  record.channel = rxChannel;
+  record.length = payloadLength_;
+
+  select();
+  spi_.transfer(kRegFifo & 0x7F);
+  for (uint8_t i = 0; i < payloadLength_; ++i) {
+    record.data[i] = reverseBits(spi_.transfer(0));
+  }
+  unselect();
+
+  const bool valid =
+      config_.frameValidator == nullptr ||
+      config_.frameValidator(record.data, payloadLength_);
+  if (valid) {
+    const uint32_t now = millis();
+    if (lastValidMs_ != 0 && now - lastValidMs_ > 6000) {
+      resyncCount_ = resyncCount_ + 1;
+      AK_LOG_WARN("sync", "RESYNC silence_ms=%lu ch=%u",
+                  static_cast<unsigned long>(now - lastValidMs_),
+                  static_cast<unsigned>(rxChannel));
+    }
+    lastValidMs_ = now;
+    validFrames_ = validFrames_ + 1;
+    missStreak_ = 0;
+    searchMode_ = false;
+  } else {
+    badFrames_ = badFrames_ + 1;
+    badRssiSum_ = badRssiSum_ + record.rssiDbm;
+    badDeltaCount_ = badDeltaCount_ + 1;
+    badDeltaRssiSum_ = badDeltaRssiSum_ + record.rssiDbm;
+    if (badDeltaCount_ == 1 || record.rssiDbm < badDeltaRssiMin_) {
+      badDeltaRssiMin_ = record.rssiDbm;
+    }
+    if (badDeltaCount_ == 1 || record.rssiDbm > badDeltaRssiMax_) {
+      badDeltaRssiMax_ = record.rssiDbm;
+    }
+    if (badFrames_ == 1 || record.rssiDbm < badRssiMin_) {
+      badRssiMin_ = record.rssiDbm;
+    }
+    if (badFrames_ == 1 || record.rssiDbm > badRssiMax_) {
+      badRssiMax_ = record.rssiDbm;
+    }
+    if (record.rssiDbm >= config_.badFrameLogRssi) {
+      char raw[3 * sizeof(record.data) + 1] = {};
+      size_t used = 0;
+      for (uint8_t i = 0; i < record.length && used + 4 <= sizeof(raw); ++i) {
+        const int written = std::snprintf(raw + used, sizeof(raw) - used, "%02X%s",
+                                          record.data[i],
+                                          i + 1 == record.length ? "" : " ");
+        if (written > 0) {
+          used += static_cast<size_t>(written);
+        }
+      }
+      AK_LOG_WARN("rx", "RX_BAD epoch=%lu ch=%u rssi=%d raw=%s",
+                  static_cast<unsigned long>(record.receivedAtEpoch),
+                  static_cast<unsigned>(record.channel), static_cast<int>(record.rssiDbm),
+                  raw);
+    }
+  }
+
+  if (valid && xQueueSend(rxQueue_, &record, 0) != pdTRUE) {
+    droppedFrames_ = droppedFrames_ + 1;
+    if (droppedFrames_ == 1 || (droppedFrames_ % 50U) == 0) {
+      AK_LOG_WARN("radio", "RX queue full; dropped=%lu",
+                  static_cast<unsigned long>(droppedFrames_));
+    }
+  }
+  if (valid) {
+    hopLocked(false, "rx");
+  } else {
+    restartRx();
+  }
+  unlockRadio();
+}
+
+void Rfm69Radio::handleHopTimer() {
+  lockRadio();
+  const uint32_t interval =
+      searchMode_ ? config_.searchHopIntervalMs : config_.hopIntervalMs;
+  if (!ready_ || interval == 0) {
+    unlockRadio();
+    return;
+  }
+  const uint32_t now = millis();
+  if (now - lastHopMs_ < interval) {
+    unlockRadio();
+    return;
+  }
+  if (!searchMode_) {
+    missStreak_ = static_cast<uint8_t>(missStreak_ + 1);
+    missedSlots_ = missedSlots_ + 1;
+    if (missStreak_ >= config_.searchAfterMisses) {
+      searchMode_ = true;
+      searchCount_ = searchCount_ + 1;
+      AK_LOG_WARN("sync", "SEARCH after %u missed slots; reverse scan from ch=%u",
+                  static_cast<unsigned>(missStreak_),
+                  static_cast<unsigned>(channel_));
+    }
+  }
+  hopLocked(searchMode_, searchMode_ ? "search" : "timeout");
+  unlockRadio();
+}
+
+void Rfm69Radio::hopLocked(bool backwards, const char* reason) {
+  const uint8_t from = channel_;
+  channel_ = backwards ? previousDavisChannel(channel_) : nextDavisChannel(channel_);
+  applyChannel(channel_);
+  restartRx();
+  lastHopMs_ = millis();
+  AK_LOG_INFO("hop", "HOP ch=%u from=%u reason=%s miss=%u search=%u",
+              static_cast<unsigned>(channel_), static_cast<unsigned>(from),
+              reason == nullptr ? "-" : reason, static_cast<unsigned>(missStreak_),
+              searchMode_ ? 1u : 0u);
+}
+
+Rfm69Radio::RadioStats Rfm69Radio::stats() const {
+  RadioStats snapshot;
+  snapshot.validFrames = validFrames_;
+  snapshot.missedSlots = missedSlots_;
+  snapshot.resyncCount = resyncCount_;
+  snapshot.searchCount = searchCount_;
+  snapshot.badFrames = badFrames_;
+  snapshot.badRssiMin = badRssiMin_;
+  snapshot.badRssiMax = badRssiMax_;
+  snapshot.badRssiAvg = badFrames_ > 0
+                            ? static_cast<int16_t>(badRssiSum_ / static_cast<int32_t>(badFrames_))
+                            : 0;
+  snapshot.droppedFrames = droppedFrames_;
+  snapshot.channel = channel_;
+  snapshot.searchMode = searchMode_;
+  return snapshot;
+}
+
+Rfm69Radio::BadStats Rfm69Radio::takeBadStats() {
+  BadStats snapshot;
+  lockRadio();
+  snapshot.count = badDeltaCount_;
+  snapshot.rssiMin = badDeltaRssiMin_;
+  snapshot.rssiSum = badDeltaRssiSum_;
+  snapshot.rssiMax = badDeltaRssiMax_;
+  badDeltaCount_ = 0;
+  badDeltaRssiMin_ = 0;
+  badDeltaRssiSum_ = 0;
+  badDeltaRssiMax_ = 0;
+  unlockRadio();
+  return snapshot;
+}
+
+uint16_t Rfm69Radio::pendingFrames() const {
+  if (rxQueue_ == nullptr) {
+    return 0;
+  }
+  return static_cast<uint16_t>(uxQueueMessagesWaiting(rxQueue_));
+}
+
+void Rfm69Radio::lockRadio() {
+  if (radioMutex_ != nullptr) {
+    xSemaphoreTake(radioMutex_, portMAX_DELAY);
+  }
+}
+
+void Rfm69Radio::unlockRadio() {
+  if (radioMutex_ != nullptr) {
+    xSemaphoreGive(radioMutex_);
+  }
 }
 
 Status Rfm69Radio::transmit(const uint8_t* data, size_t length) {
@@ -379,6 +704,7 @@ Status Rfm69Radio::transmit(const uint8_t* data, size_t length) {
     return Status::InvalidArgument;
   }
 
+  lockRadio();
   setModeStandby();
   const uint32_t modeStart = millis();
   while ((readReg(kRegIrqFlags1) & kIrq1ModeReady) == 0 &&
@@ -402,6 +728,7 @@ Status Rfm69Radio::transmit(const uint8_t* data, size_t length) {
   const bool sent = (readReg(kRegIrqFlags2) & kIrq2PacketSent) != 0;
   setModeStandby();
   restartRx();
+  unlockRadio();
   return sent ? Status::Ok : Status::Timeout;
 }
 

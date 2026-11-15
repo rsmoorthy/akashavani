@@ -42,13 +42,16 @@ in `firmware/sketches/receiver/config.h`.
 3. Paste the **device token** from step 1. This is the credential the board
    presents to the server; the server maps it to the device record. It is
    separate from the shared server API token.
-4. Fill in up to six site Wi-Fi SSID/password pairs. They are tried in order.
+4. Choose the device's **time zone** and, if known, latitude, longitude and
+   altitude. Altitude is required for derived sea-level pressure and cloud base.
+5. Fill in up to six site Wi-Fi SSID/password pairs. They are tried in order.
    Passwords are hidden until "Show passwords" is pressed.
-5. Save. The page validates SSID lengths, WPA2 password lengths, duplicate
-   SSIDs, the server URL and the tokens in JavaScript before submitting.
-6. If the Wi-Fi list changed, the board restarts automatically to apply it;
+6. Save. The page validates SSID lengths, WPA2 password lengths, duplicate
+   SSIDs, the server URL, the tokens and the site coordinates in JavaScript
+   before submitting.
+7. If the Wi-Fi list changed, the board restarts automatically to apply it;
    reconnect to the AP in a few seconds.
-7. Optionally watch the serial log at **115200 8N1** (see the note below).
+8. Optionally watch the serial log at **115200 8N1** (see the note below).
 
 Serial console note:
 
@@ -86,9 +89,10 @@ curl -sS http://127.0.0.1:8000/api/v1/admin/devices \
 ```
 
 Check `last_seen_at` and `firmware_version` after an upload. On the board, the
-local status page shows date/time, firmware, STA connection/SSID/IP, AP state,
-radio/archive flags, queue depth and the last weather frame when one exists. It
-refreshes every 5 seconds.
+local status page has Status and Configuration tabs. The Status tab shows
+date/time, firmware, STA connection/SSID/IP, AP state, radio/archive flags,
+queue depth and last-known weather readings with current-bucket frame counts.
+It refreshes every 5 seconds.
 
 ## Credentials and storage
 
@@ -97,7 +101,7 @@ refreshes every 5 seconds.
 | site Wi-Fi passwords | NVS (`wifi_pass_0`…`wifi_pass_5`) | plain text in the scaffold |
 | device token | NVS (`dev_token`) | edited on the AP page; rotate if lost |
 | AP password | firmware constant (`kApPassword`) | shared bench default, change in code |
-| ArduinoOTA password | NVS (`admin_pw`) | not exposed on the new page |
+| ArduinoOTA password | NVS (`admin_pw`) | editable in admin Site Settings |
 
 The AP page has no separate login. Anyone who knows the AP password can change
 the server URL, device token and Wi-Fi profiles. Add authentication and a

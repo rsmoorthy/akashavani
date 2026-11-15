@@ -127,6 +127,22 @@ TEST(ArchiveCollector, BmeOnlyBucketIsEmitted) {
   ASSERT_EQ(record.framesExpected, 100u);
 }
 
+TEST(ArchiveCollector, CurrentBucketExposesFrameQuality) {
+  ArchiveCollector collector(300, 3000);
+  const int64_t start = 1793547000;
+
+  EXPECT_EQ(100u, collector.expectedFrames());
+  EXPECT_EQ(0u, collector.current().framesValid);
+  EXPECT_EQ(0u, collector.current().framesCrcBad);
+
+  ASSERT_TRUE(collector.add(makeObservation(1.0f, 10.0f), -50, false, start));
+  collector.noteBadFrames(2, -80, -160, -80);
+
+  EXPECT_EQ(1u, collector.current().framesValid);
+  EXPECT_EQ(100u, collector.current().framesExpected);
+  EXPECT_EQ(2u, collector.current().framesCrcBad);
+}
+
 TEST(ArchiveCollector, EmptyBucketIsEmitted) {
   ArchiveCollector collector(300, 3000);
   const int64_t start = 1793547000;

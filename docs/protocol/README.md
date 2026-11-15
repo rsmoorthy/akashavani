@@ -46,6 +46,8 @@ Content-Type: application/json
 `X-Last-Radio-At` is the epoch of the last CRC-valid Davis frame (0 when none
 has been seen). The other headers are device health (uptime, pending uploads,
 free heap, Wi-Fi RSSI and the reset reason) and are stored on the device row.
+Time zone and site settings are not sent as headers; they travel in the
+configuration document.
 
 Commands and admin calls use `Authorization: Bearer <AKASHVANI_ADMIN_TOKEN>` on
 the administrative endpoints. Device tokens are stored as SHA-256 hashes.
@@ -135,10 +137,21 @@ site bucket size and calculates the derived values. The shared bearer token is
 configured on the hotspot page (default `secret`) and in the server's
 `AKASHVANI_API_TOKEN`.
 
+## Device configuration
+
+The device owns its site configuration and reports the full document with
+`PUT /api/v1/devices/me/config` on boot, after an AP-page save and daily. The
+same document is the payload of the `push_config` command. See
+`protocol/schema/device-config.schema.json` and
+`docs/specs/device-config.md`.
+
+The server URL, server API token and device token are deliberately **not** part
+of the document; they are local provisioning values.
+
 ## Commands
 
 Command types are `reboot`, `sync_time`, `set_config`, `check_for_update`,
-`upload_logs`, `self_test`, `get_fw_version`, `download_new_fw`,
+`upload_logs`, `self_test`, `get_config`, `push_config`, `download_new_fw`,
 `boot_with_new_fw`, `get_pending_commands`, `get_data_again` and
 `download_raw_data`. Only one
 command is in flight per device; the next is delivered after the previous one is
@@ -149,7 +162,8 @@ The OTA commands:
 
 | Type | Payload | Result |
 | --- | --- | --- |
-| `get_fw_version` | `{}` | `version`, `partition`, `build_date`, `build_time`, `free_sketch_bytes`, `mac` |
+| `get_config` | `{}` | `reported`; the document itself is sent with `PUT /api/v1/devices/me/config` |
+| `push_config` | full configuration document | `applied`, `reboot_required` |
 | `download_new_fw` | `version`, `url`, `sha256`, `size_bytes` (server fills the last three) | `staged`, `version`, `partition`, `bytes`, `sha256` |
 | `boot_with_new_fw` | `version` | `version`, `partition`, `boot_next` |
 | `get_pending_commands` | `{}` | `pending` (command ids the device still has in flight) |

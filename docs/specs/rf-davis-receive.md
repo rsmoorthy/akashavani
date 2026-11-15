@@ -61,7 +61,7 @@ later controlled experiment:
   the cost of selectivity.
 - `REG_RSSITHRESH = 0xA5` (-82.5 dBm) is not a packet filter in normal RX mode,
   but it is marginal for the bench RSSI seen here. It matters for listen-mode
-  and RSSI interrupt use, not for the current polling receiver.
+  and RSSI interrupt use, not for the packet-ready interrupt path.
 
 Do not change these values without repeating the packet-success test.
 

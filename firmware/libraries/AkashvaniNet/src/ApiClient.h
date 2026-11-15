@@ -60,7 +60,7 @@ struct ArchiveBatchResult {
 struct CommandMessage {
   char id[37] = {};
   char type[32] = {};
-  char payloadJson[512] = "{}";
+  char payloadJson[4096] = "{}";
 };
 
 class ApiClient {
@@ -85,6 +85,9 @@ class ApiClient {
 
   Status checkForUpdate(const char* currentVersion, const char* channel,
                         FirmwareInfo& info);
+
+  // Reports the full device-owned configuration document.
+  Status putDeviceConfig();
 
   Status leaseCommands(CommandMessage* output, size_t capacity, size_t& count);
   Status acknowledgeCommand(const char* commandId, bool success, const char* error = nullptr,

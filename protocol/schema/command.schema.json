@@ -19,9 +19,13 @@
         "check_for_update",
         "upload_logs",
         "self_test",
-        "get_fw_version",
+        "get_config",
+        "push_config",
         "download_new_fw",
-        "boot_with_new_fw"
+        "boot_with_new_fw",
+        "get_pending_commands",
+        "get_data_again",
+        "download_raw_data"
       ]
     },
     "payload": {

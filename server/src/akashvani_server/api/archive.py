@@ -109,9 +109,20 @@ def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAcc
     humidex = weather.humidex_c(out_temp, out_humidity)
     app_temp = weather.apptemp_c(out_temp, out_humidity, wind_speed)
     in_dewpoint = weather.dewpoint_c(in_temp, in_humidity)
-    barometer = weather.sealevel_pressure_hpa(pressure, settings.site_altitude_m, out_temp)
-    altimeter = weather.altimeter_hpa(pressure, settings.site_altitude_m)
-    cloudbase = weather.cloudbase_m(out_temp, out_humidity, settings.site_altitude_m)
+    site_altitude = device.altitude_m
+    barometer = (
+        weather.sealevel_pressure_hpa(pressure, site_altitude, out_temp)
+        if site_altitude is not None
+        else None
+    )
+    altimeter = (
+        weather.altimeter_hpa(pressure, site_altitude) if site_altitude is not None else None
+    )
+    cloudbase = (
+        weather.cloudbase_m(out_temp, out_humidity, site_altitude)
+        if site_altitude is not None
+        else None
+    )
     windrun = weather.windrun_km(wind_speed, body.interval_minutes)
     rx_check = (
         100.0 * body.quality.frames_valid / body.quality.frames_expected
@@ -137,8 +148,10 @@ def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAcc
     quality_flags = {
         "missing": missing,
         "derived": "weewx-compatible-v1",
-        "site_altitude_m": settings.site_altitude_m,
+        "site_altitude_m": site_altitude,
     }
+    if site_altitude is None:
+        quality_flags["missing_site_altitude"] = True
 
     record = ArchiveRecord(
         device_id=body.device_id,
@@ -196,6 +209,9 @@ def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAcc
         frames_expected=body.quality.frames_expected,
         frames_valid=body.quality.frames_valid,
         frames_crc_bad=body.quality.frames_crc_bad,
+        crc_bad_rssi_min_dbm=body.quality.crc_bad_rssi_min_dbm,
+        crc_bad_rssi_avg_dbm=body.quality.crc_bad_rssi_avg_dbm,
+        crc_bad_rssi_max_dbm=body.quality.crc_bad_rssi_max_dbm,
         resync_count=body.quality.resync_count,
         search_count=body.quality.search_count,
         gap_slots=body.quality.gap_slots,

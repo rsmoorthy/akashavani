@@ -69,6 +69,15 @@ rf-bench: ## Run Davis RF bench scenarios (SCENARIO=1|2|3|all DURATION=seconds)
 rf-bench-report: ## Summarise the latest rf-bench logs (RX_LOG=... TX_LOG=...)
 	python3 tools/rf-bench-report.py $(RX_LOG) $(TX_LOG)
 
+.PHONY: rf-soak
+rf-soak: ## Production-mode RF soak + Markdown report (RX_PORT, TX_PORT, DEVICE_ID, DURATION)
+	python3 tools/rf-soak.py \
+		--rx-port $(or $(RX_PORT),/dev/ttyUSB1) \
+		--tx-port $(or $(TX_PORT),/dev/ttyUSB0) \
+		--device-id $(or $(DEVICE_ID),ak-2731e0) \
+		--duration $(or $(DURATION),600) \
+		$(if $(OTA_VERSION),--ota-version $(OTA_VERSION),)
+
 .PHONY: fw-clean
 fw-clean: ## Remove firmware build artifacts
 	rm -rf firmware/build firmware/.cache firmware/tests/native/build

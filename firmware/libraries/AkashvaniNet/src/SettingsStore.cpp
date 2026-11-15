@@ -65,6 +65,12 @@ void SettingsStore::applyDefaults(DeviceSettings& settings) {
   if (settings.apiToken[0] == '\0') {
     std::snprintf(settings.apiToken, sizeof(settings.apiToken), "secret");
   }
+  if (settings.timezone[0] == '\0') {
+    std::snprintf(settings.timezone, sizeof(settings.timezone), "UTC");
+  }
+  if (settings.configVersion == 0) {
+    settings.configVersion = 1;
+  }
   if (settings.uploadIntervalSeconds < 10) {
     settings.uploadIntervalSeconds = 60;
   }
@@ -94,6 +100,13 @@ Status SettingsStore::load(DeviceSettings& settings) {
              preferences_.getString("api_token", ""), "");
   copyString(loaded.serverBaseUrl, sizeof(loaded.serverBaseUrl),
              preferences_.getString("server", ""), "");
+  copyString(loaded.timezone, sizeof(loaded.timezone), preferences_.getString("tz", ""),
+             "UTC");
+  loaded.siteConfigured = preferences_.getBool("site_ok", false);
+  loaded.latitude = preferences_.getFloat("lat", 0.0f);
+  loaded.longitude = preferences_.getFloat("lon", 0.0f);
+  loaded.altitudeM = preferences_.getFloat("alt", 0.0f);
+  loaded.configVersion = preferences_.getUInt("cfg_ver", 1);
   copyString(loaded.adminPassword, sizeof(loaded.adminPassword),
              preferences_.getString("admin_pw", ""), "");
 
@@ -119,7 +132,7 @@ Status SettingsStore::load(DeviceSettings& settings) {
 
   loaded.uploadEnabled = preferences_.getBool("upload", true);
   loaded.archiveEnabled = preferences_.getBool("archive", true);
-  loaded.uploadIntervalSeconds = preferences_.getUShort("upl_int", 60);
+  loaded.uploadIntervalSeconds = preferences_.getUInt("upl_int", 60);
   loaded.commandPollIntervalSeconds = preferences_.getUShort("cmd_int", 30);
   // Migration: earlier firmware used a 60 s poll default with no UI to change
   // it. Move those devices to the 30 s cadence once.
@@ -148,6 +161,12 @@ Status SettingsStore::save(const DeviceSettings& settings) {
   preferences_.putString("token", settings.deviceToken);
   preferences_.putString("api_token", settings.apiToken);
   preferences_.putString("server", settings.serverBaseUrl);
+  preferences_.putString("tz", settings.timezone);
+  preferences_.putBool("site_ok", settings.siteConfigured);
+  preferences_.putFloat("lat", settings.latitude);
+  preferences_.putFloat("lon", settings.longitude);
+  preferences_.putFloat("alt", settings.altitudeM);
+  preferences_.putUInt("cfg_ver", settings.configVersion);
   preferences_.putString("admin_pw", settings.adminPassword);
   char key[16];
   for (uint8_t i = 0; i < kMaxWifiProfiles; ++i) {
@@ -161,7 +180,7 @@ Status SettingsStore::save(const DeviceSettings& settings) {
   preferences_.remove("wifi_pass");
   preferences_.putBool("upload", settings.uploadEnabled);
   preferences_.putBool("archive", settings.archiveEnabled);
-  preferences_.putUShort("upl_int", settings.uploadIntervalSeconds);
+  preferences_.putUInt("upl_int", settings.uploadIntervalSeconds);
   preferences_.putUShort("cmd_int", settings.commandPollIntervalSeconds);
   preferences_.putBool("configured", true);
   AK_LOG_INFO("settings", "saved");

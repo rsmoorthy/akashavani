@@ -13,11 +13,22 @@
 
 namespace akashvani {
 
-// Last decoded weather frame, surfaced on the local status page. The Davis
-// decoder is still a stub, so this stays unavailable until it is ported.
+// One last-known weather reading. `updatedAtMs` is a millis() timestamp so the
+// page can show relative ages without depending on a valid wall clock.
+struct WeatherReading {
+  bool valid = false;
+  float value = 0.0f;
+  uint32_t updatedAtMs = 0;
+};
+
+// Last known weather values, surfaced on the local status page. The flat fields
+// describe the most recent frame; the `WeatherReading` members cache the latest
+// value of each parameter because Davis frames carry one message-specific field
+// at a time.
 struct WeatherSnapshot {
   bool available = false;
   int64_t observedAtEpoch = 0;
+  uint32_t observedAtMs = 0;
   float temperatureC = 0.0f;
   float humidityPct = 0.0f;
   float pressureHpa = 0.0f;
@@ -26,7 +37,14 @@ struct WeatherSnapshot {
   float windSpeedMs = 0.0f;
   float windDirectionDeg = 0.0f;
   float windGustMs = 0.0f;
-  float rainDayMm = 0.0f;
+  float rainRateMmH = 0.0f;
+  WeatherReading temperature;
+  WeatherReading inTemperature;
+  WeatherReading windSpeed;
+  WeatherReading rainRate;
+  uint32_t framesExpected = 0;
+  uint32_t framesValid = 0;
+  uint32_t framesInvalid = 0;
 };
 
 // Local admin surface, reachable on the provisioning AP. The AP is the

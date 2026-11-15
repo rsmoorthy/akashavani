@@ -123,7 +123,10 @@
         "max_gap_slots": { "type": "integer", "minimum": 0 },
         "rssi_avg_dbm": { "type": ["number", "null"] },
         "rssi_min_dbm": { "type": ["number", "null"] },
-        "rssi_max_dbm": { "type": ["number", "null"] }
+        "rssi_max_dbm": { "type": ["number", "null"] },
+        "crc_bad_rssi_min_dbm": { "type": ["number", "null"] },
+        "crc_bad_rssi_avg_dbm": { "type": ["number", "null"] },
+        "crc_bad_rssi_max_dbm": { "type": ["number", "null"] }
       }
     }
   }

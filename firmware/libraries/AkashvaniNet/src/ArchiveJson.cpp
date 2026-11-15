@@ -89,6 +89,16 @@ bool serializeArchiveJson(const char* deviceId, const ArchiveRecord& record,
   quality["frames_expected"] = record.framesExpected;
   quality["frames_valid"] = record.framesValid;
   quality["frames_crc_bad"] = record.framesCrcBad;
+  if (record.framesCrcBad > 0) {
+    quality["crc_bad_rssi_min_dbm"] = record.crcBadRssiMin;
+    quality["crc_bad_rssi_avg_dbm"] =
+        static_cast<double>(record.crcBadRssiSum) / static_cast<double>(record.framesCrcBad);
+    quality["crc_bad_rssi_max_dbm"] = record.crcBadRssiMax;
+  } else {
+    quality["crc_bad_rssi_min_dbm"] = nullptr;
+    quality["crc_bad_rssi_avg_dbm"] = nullptr;
+    quality["crc_bad_rssi_max_dbm"] = nullptr;
+  }
   quality["resync_count"] = record.resyncCount;
   quality["search_count"] = record.searchCount;
   quality["gap_slots"] = record.gapSlots;

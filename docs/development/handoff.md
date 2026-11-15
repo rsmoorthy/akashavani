@@ -4,7 +4,7 @@
 > point for the next implementation session.
 
 **Date:** 2026-10-26
-**Latest slice:** 2026-11-12, nextsteps implementation (identity, health, catch-up, raw log, commands)
+**Latest slice:** 2026-11-13, interrupt-driven RFM69 receive + channel scan task, bench soak
 **Scaffold commit:** `ab8078c` (`Initial Akashvani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
 
@@ -845,6 +845,140 @@ Checks: `make fw-build-all` (receiver 1,302,861 B = 66 %, simulator 932,861 B),
 `make fw-test` 50/50, `make server-test` 64/64, `make lint` and
 `make docs-build` pass.
 
+## Time-zone slice (2026-11-12)
+
+No hardware was used; this is a build/test slice.
+
+- `AKASHVANI_SITE_TIMEZONE` was removed. There is no site-wide zone.
+- Each device stores an IANA zone name in NVS (`tz`, default `UTC`) and exposes
+  it on its AP page. The firmware validates only length/characters; the server
+  validates the name with `zoneinfo`.
+- The device reports the zone with its configuration document; the server
+  stores it in `devices.timezone` (Alembic revision `e2c7b5a41f90`).
+- Storage and transport remain UTC: archive paths, archive JSON, raw logs,
+  observations, archive batches, commands and API responses. The SD raw log is
+  now `...Z` with UTC weekday filenames (it was IST before).
+- `/admin` has a Site TZ / UTC / Browser time selector (default Site TZ).
+  Last Seen and Last Radio render relative times; all API timestamps are
+  second-resolution. CSV exports carry `date_time_utc` + `date_time_site`
+  (archive) or `timestamp_utc` + `timestamp_site` (raw).
+- Download and command range inputs are interpreted in the selected zone and
+  converted to UTC epochs before the request.
+
+Verified: `make fw-build-all`, `make fw-test` (50/50), `make server-test`
+(69/69), Ruff and mypy clean.
+
+## Device-config slice (2026-11-12)
+
+No hardware was used; this is a build/test slice.
+
+- Device configuration document and `PUT /api/v1/devices/me/config`
+  (`docs/specs/device-config.md`, `protocol/schema/device-config.schema.json`).
+  Reported on boot, after AP-page saves and daily; server mirror in
+  `devices.config` plus extracted time zone and site coordinates (migration
+  `f3d18c6b2a70`).
+- `get_config` replaces `get_fw_version`; `push_config` applies the admin copy,
+  saves it to NVS and reboots when the Wi-Fi list changes. Command payloads are
+  now 4 KiB.
+- Per-device latitude, longitude and altitude on the AP page and in NVS;
+  `AKASHVANI_SITE_LATITUDE`, `AKASHVANI_SITE_LONGITUDE` and
+  `AKASHVANI_SITE_ALTITUDE_M` are removed. Archive derivations store `NULL` and
+  set `missing_site_altitude` until altitude is known.
+- `/admin` has five tabs (Devices, Download CSV, Firmware, Commands, Site
+  Settings), a mobile-friendly layout and a full config editor with Save, Push
+  and Get actions. Server URL, server API token and device token are local-only
+  and are not part of the document.
+
+Verified: `make fw-build-all`, `make fw-test` (50/50), `make server-test`
+(77/77), Ruff and mypy clean.
+
+## Interrupt RX slice (2026-11-12)
+
+No hardware was used; this is a build/test slice.
+
+- `Rfm69Radio` now attaches the DIO0 `PayloadReady` interrupt on GPIO 13. The
+  ISR only notifies a high-priority FreeRTOS task; it does not touch SPI.
+- The task owns the RFM69 receive loop: FIFO drain, receive timestamp/channel,
+  channel-hop timer and sync/search policy. Only CRC-valid frames enter the
+  128-entry RAM queue; invalid noise is counted, not queued, so it cannot crowd
+  out valid frames during a blocking command.
+- Frames carry their receive epoch and Davis channel through the queue. The
+  archive collector does not advance its window while frames are still queued,
+  so replayed frames stay in the correct 5-minute bucket.
+- Queue overflow is counted and logged. The transmitter simulator disables the
+  background task (`RadioConfig::backgroundRx = false`).
+- Builds: receiver 1,323,509 B, simulator 938,193 B. Hardware soak below.
+
+### 10-minute RF soak (2026-11-13)
+
+Both bench boards were reflashed with the interrupt-RX build:
+
+- receiver `:e0` on the e0 board (SD mounted, 29,557 MB card);
+- `transmitter_sim` on the other board, started with `R1` (3 s slots).
+
+The receiver ran for 10 minutes while writing the SD archive, pushing the
+5-minute archive buckets and staging a `download_new_fw` (1,329,040 bytes,
+SHA-256 verified, `app1`). The simulator sent 200 slots in the window.
+
+Server archive buckets (pre-filter build):
+
+| Bucket end (UTC) | frames_valid / expected | crc_bad | gap_slots | resync | search | queue drops |
+| --- | --- | --- | --- | --- | --- | --- |
+| 07:40 | 86 / 100 | 9,936 | 8 | 4 | 0 | 0 |
+| 07:45 | 94 / 100 | 9,594 | 5 | 1 | 0 | 0 |
+
+The 07:40 bucket contained the OTA staging download; there was no queue
+overflow and no reboot. The receiver continued to hop and scan from the
+high-priority task throughout.
+
+Misses are expected from independent channel scanning (the simulator advances
+one channel per 3 s while the receiver dwells ~3.2 s per channel), not from the
+main loop being blocked. The high `frames_crc_bad` in this early run was later
+traced to a driver bug (below), not to the bench noise floor.
+
+`make fw-build-all`, `make fw-test` (50/50), `make server-test` (77/77), Ruff,
+mypy and `make docs-build` pass.
+
+### Invalid-frame handling, standby fix and final run (2026-11-13)
+
+Two follow-ups came out of the first soak:
+
+1. The RX task now validates each frame and only queues valid Davis frames.
+   Invalid packets increment `RadioStats::badFrames` and the archive
+   `frames_crc_bad` counter without consuming queue slots.
+2. The task must put the RFM69 into standby **before** reading FIFO bytes. It
+   was initially reading while the receiver was still active, which produced
+   partial/garbage payloads at strong RSSI. That was the source of most of the
+   apparent “noise”; the standby step fixed it.
+
+The final 6-minute run, after both fixes:
+
+| Bucket end (UTC) | Overlap | Valid | Effective expected | Valid % | CRC bad | Gap | Resync | Search | Queue drops |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 09:40 | 138 s | 47 | 46 | ~100% | 2 | 0 | 0 | 0 | 0 |
+
+Serial capture saw **118 valid frame lines for 121 transmitter slots**, only
+13 invalid frames in the whole run (4 at or above -85 dBm), and no queue drops.
+The 102% window-adjusted figure reflects a frame received just outside the
+nominal slot accounting.
+
+The receiver now logs invalid frames individually only when RSSI is at or above
+-85 dBm (epoch, channel, RSSI, raw bytes). Weaker noise is aggregated and
+reported once a minute as `RX_BAD total=... rssi_min/avg/max=...`.
+
+Per 5-minute archive bucket, the device now also sends the invalid-frame RSSI
+summary. The server stores `crc_bad_rssi_min_dbm`, `crc_bad_rssi_avg_dbm` and
+`crc_bad_rssi_max_dbm` on the `archive` row (migration `9c4e7a2b5d10`). A live
+bucket from the CRC-RSSI build showed:
+
+```text
+2026-11-13T12:25:00Z valid=76 crc_bad=53
+crc_bad_rssi min/avg/max = -108.0 / -95.2 / -69.0 dBm
+```
+
+Use `tools/rf-soak.py` / `make rf-soak` to repeat the measurement; see
+`docs/operations/rf-soak.md`.
+
 ## Deviations / limitations
 
 - Bulk archive batches are MessagePack (ArduinoJson encoder); no custom CBOR
@@ -852,9 +986,10 @@ Checks: `make fw-build-all` (receiver 1,302,861 B = 66 %, simulator 932,861 B),
 - `download_data` is an admin CSV endpoint, not a device command; the device
   does not need to carry the data back through the command channel.
 - `get_data_again` runs synchronously in the command handler (bounded to one
-  week and 4 minutes) and blocks RF receive while running. `download_raw_data`
-  is likewise synchronous and capped at 20 000 frames (ack reports
-  `truncated`).
+  week and 4 minutes); the RF interrupt task keeps receiving into its
+  128-frame queue while it blocks the main loop (about 5 minutes at the normal
+  frame rate). `download_raw_data` is likewise synchronous and capped at
+  20 000 frames (ack reports `truncated`).
 - `set_config` and `upload_logs` remain stubs; owner will decide separately.
 - Receiver SSD1306 top rows are still ghosted (accepted limitation).
 

@@ -194,6 +194,26 @@ void ArchiveCollector::finalize() {
 
 void ArchiveCollector::noteBadFrame() { ++current_.framesCrcBad; }
 
+void ArchiveCollector::noteBadFrames(uint32_t count, int16_t rssiMin, int32_t rssiSum,
+                                     int16_t rssiMax) {
+  if (count == 0) {
+    return;
+  }
+  if (current_.framesCrcBad == 0) {
+    current_.crcBadRssiMin = rssiMin;
+    current_.crcBadRssiMax = rssiMax;
+  } else {
+    if (rssiMin < current_.crcBadRssiMin) {
+      current_.crcBadRssiMin = rssiMin;
+    }
+    if (rssiMax > current_.crcBadRssiMax) {
+      current_.crcBadRssiMax = rssiMax;
+    }
+  }
+  current_.framesCrcBad += count;
+  current_.crcBadRssiSum += rssiSum;
+}
+
 void ArchiveCollector::noteResync() { ++current_.resyncCount; }
 
 void ArchiveCollector::noteSearch() { ++current_.searchCount; }

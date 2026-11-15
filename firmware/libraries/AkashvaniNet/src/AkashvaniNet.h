@@ -2,6 +2,7 @@
 
 #include "ApiClient.h"
 #include "ArchiveJson.h"
+#include "ConfigJson.h"
 #include "DeviceSettings.h"
 #include "ObservationJson.h"
 #include "OtaService.h"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..device_config import device_config_out, store_device_config
 from ..models import ArchiveRecord, Command, Device, FirmwareRelease, Observation
 from ..schemas import (
     ArchiveOut,
@@ -32,6 +33,8 @@ from ..schemas import (
     CommandOut,
     CommandType,
     DeviceAdminOut,
+    DeviceConfig,
+    DeviceConfigOut,
     DeviceCreate,
     DeviceOut,
     FirmwareRegister,
@@ -39,6 +42,7 @@ from ..schemas import (
     ObservationOut,
 )
 from ..security import hash_token, require_admin
+from ..timezones import DEFAULT_DEVICE_TIMEZONE, format_in_zone, format_utc
 from .raw import raw_csv_path
 
 # A device counts as online when seen within three 30-second poll intervals.
@@ -66,11 +70,18 @@ def create_or_rotate_device(
 
     device = db.get(Device, body.id)
     if device is None:
-        device = Device(id=body.id, name=body.name, token_hash=token_hash)
+        device = Device(
+            id=body.id,
+            name=body.name,
+            token_hash=token_hash,
+            timezone=body.timezone or DEFAULT_DEVICE_TIMEZONE,
+        )
         db.add(device)
     else:
         device.name = body.name or device.name
         device.token_hash = token_hash
+        if body.timezone is not None:
+            device.timezone = body.timezone
     db.commit()
     db.refresh(device)
     return device
@@ -97,6 +108,10 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
             DeviceAdminOut(
                 id=device.id,
                 name=device.name,
+                timezone=device.timezone,
+                latitude=device.latitude,
+                longitude=device.longitude,
+                altitude_m=device.altitude_m,
                 mac_address=device.mac_address,
                 firmware_version=device.firmware_version,
                 created_at=device.created_at,
@@ -116,6 +131,30 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
             )
         )
     return result
+
+
+@router.get("/devices/{device_id}/config", response_model=DeviceConfigOut)
+def get_device_config(device_id: str, db: Session = Depends(get_db)) -> DeviceConfigOut:
+    device = db.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    return device_config_out(device)
+
+
+@router.put("/devices/{device_id}/config", response_model=DeviceConfigOut)
+def save_device_config(
+    device_id: str,
+    body: DeviceConfig,
+    db: Session = Depends(get_db),
+) -> DeviceConfigOut:
+    """Save the admin copy only; the device is unchanged until push_config."""
+    device = db.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="device not found")
+    store_device_config(device, body)
+    db.commit()
+    db.refresh(device)
+    return device_config_out(device)
 
 
 @router.post("/devices/{device_id}/commands", response_model=CommandOut)
@@ -164,6 +203,26 @@ def enqueue_command(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"unknown firmware version {version}",
             )
+    elif body.type == CommandType.PUSH_CONFIG:
+        if payload:
+            try:
+                config = DeviceConfig.model_validate(payload)
+            except ValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=exc.errors(include_url=False),
+                ) from exc
+        elif device.config:
+            config = DeviceConfig.model_validate(device.config)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="no saved configuration for this device",
+            )
+        store_device_config(device, config)
+        payload = config.model_dump(mode="json")
+    elif body.type == CommandType.GET_CONFIG:
+        payload = {}
 
     command = Command(
         id=str(uuid4()),
@@ -197,9 +256,6 @@ def list_commands(
     )
 
 
-IST = timezone(timedelta(hours=5, minutes=30))
-
-
 @router.get("/archive.csv", response_class=PlainTextResponse)
 def download_archive_csv(
     device_id: str,
@@ -207,10 +263,15 @@ def download_archive_csv(
     end: int,
     db: Session = Depends(get_db),
 ) -> PlainTextResponse:
-    """CSV export of stored archive buckets for a device (max one week)."""
+    """CSV export of stored archive buckets for a device (max one week).
+
+    ``start``/``end`` are Unix epochs in UTC. Each row carries the bucket end
+    twice: once in UTC and once in the device's configured time zone.
+    """
     if end <= start or end - start > 7 * 86400:
         raise HTTPException(status_code=422, detail="range must be positive and at most one week")
-    if db.get(Device, device_id) is None:
+    device = db.get(Device, device_id)
+    if device is None:
         raise HTTPException(status_code=404, detail="device not found")
     start_dt = datetime.fromtimestamp(start, UTC)
     end_dt = datetime.fromtimestamp(end, UTC)
@@ -227,7 +288,8 @@ def download_archive_csv(
     writer = csv.writer(buffer)
     writer.writerow(
         [
-            "date_time_ist",
+            "date_time_utc",
+            "date_time_site",
             "out_temp_c",
             "out_humidity_pct",
             "pressure_hpa",
@@ -242,12 +304,10 @@ def download_archive_csv(
         ]
     )
     for row in rows:
-        when = row.date_time
-        if when.tzinfo is None:
-            when = when.replace(tzinfo=UTC)
         writer.writerow(
             [
-                when.astimezone(IST).isoformat(),
+                format_utc(row.date_time),
+                format_in_zone(row.date_time, device.timezone),
                 row.out_temp_c,
                 row.out_humidity_pct,
                 row.pressure_hpa,
@@ -276,8 +336,13 @@ def download_raw_csv(
     request: Request,
     db: Session = Depends(get_db),
 ) -> PlainTextResponse:
-    """Download a raw-frame CSV produced by the download_raw_data command."""
-    if db.get(Device, device_id) is None:
+    """Download a raw-frame CSV produced by the download_raw_data command.
+
+    The stored file is UTC-only. The download adds a second timestamp column in
+    the device's configured time zone.
+    """
+    device = db.get(Device, device_id)
+    if device is None:
         raise HTTPException(status_code=404, detail="device not found")
     path = raw_csv_path(request.app.state.settings.data_dir, device_id, start, end)
     if not path.exists():
@@ -285,9 +350,23 @@ def download_raw_csv(
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines:
         raise HTTPException(status_code=404, detail="raw file is empty")
-    body = "\n".join([lines[0], *sorted(lines[1:])]) + "\n"
+
+    records: list[tuple[datetime, str]] = []
+    for line in lines[1:]:
+        stamp, _, rest = line.partition(",")
+        try:
+            when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        records.append((when, rest))
+    records.sort(key=lambda item: item[0])
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["timestamp_utc", "timestamp_site", "raw", "rssi", "channel"])
+    for when, rest in records:
+        writer.writerow([format_utc(when), format_in_zone(when, device.timezone), *rest.split(",")])
     return PlainTextResponse(
-        body,
+        output.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{device_id}-raw.csv"'},
     )

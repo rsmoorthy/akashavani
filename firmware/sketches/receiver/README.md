@@ -39,7 +39,7 @@ lines. See [`docs/specs/rf-davis-receive.md`](../../../docs/specs/rf-davis-recei
 
 ## OTA commands
 
-The receiver handles `get_fw_version`, `download_new_fw` and
+The receiver handles `get_config`, `push_config`, `download_new_fw` and
 `boot_with_new_fw`. Download stages into the inactive slot and verifies SHA-256;
 boot selects the staged slot and restarts. See
 [`docs/operations/ota.md`](../../../docs/operations/ota.md).

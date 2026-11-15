@@ -109,6 +109,64 @@ def test_device_identity(client):
     assert response.json()["name"] == "Simulator"
 
 
+def test_push_config_uses_saved_copy(client):
+    created = enqueue(client, "push_config")
+    assert created.status_code == 200, created.text
+    command_id = created.json()["id"]
+
+    lease = client.post("/api/v1/devices/me/commands/lease", headers=device_headers())
+    assert lease.status_code == 200
+    commands = lease.json()
+    assert len(commands) == 1
+    assert commands[0]["type"] == "push_config"
+    assert commands[0]["payload"]["timezone"] == "UTC"
+    assert commands[0]["payload"]["site"]["altitude_m"] == 940.0
+    assert commands[0]["payload"]["wifi"][0]["ssid"] == "bench-net"
+
+    ack = client.post(
+        f"/api/v1/devices/me/commands/{command_id}/ack",
+        json={"status": "ok", "result": {"applied": True, "reboot_required": True}},
+        headers=device_headers(),
+    )
+    assert ack.status_code == 200
+
+
+def test_push_config_requires_a_saved_copy(client):
+    client.post(
+        "/api/v1/admin/devices",
+        json={"id": "sim-007", "token": "no-config-token"},
+        headers=admin_headers(),
+    )
+    response = client.post(
+        "/api/v1/admin/devices/sim-007/commands",
+        json={"type": "push_config", "payload": {}},
+        headers=admin_headers(),
+    )
+    assert response.status_code == 409
+
+
+def test_push_config_accepts_explicit_document(client):
+    payload = {
+        "version": 1,
+        "timezone": "Asia/Kolkata",
+        "site": {"latitude": 10.0, "longitude": 76.0, "altitude_m": 500.0},
+        "wifi": [],
+    }
+    response = enqueue(client, "push_config", payload)
+    assert response.status_code == 200, response.text
+    assert response.json()["payload"]["site"]["altitude_m"] == 500.0
+
+    stored = client.get(f"/api/v1/admin/devices/{DEVICE_ID}/config", headers=admin_headers()).json()
+    assert stored["config"]["timezone"] == "Asia/Kolkata"
+
+
+def test_get_config_carries_no_payload(client):
+    response = enqueue(client, "get_config")
+    assert response.status_code == 200, response.text
+    assert response.json()["type"] == "get_config"
+    assert response.json()["payload"] == {}
+
+
 def test_device_reports_mac(client):
     headers = device_headers() | {"X-Device-Mac": "08:B6:1F:B8:38:50"}
     response = client.get("/api/v1/devices/me", headers=headers)

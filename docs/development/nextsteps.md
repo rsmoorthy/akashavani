@@ -180,7 +180,8 @@ structured result):
 | `reboot` | Replies, then `ESP.restart()` |
 | `sync_time` | Forces an SNTP sync; reports failure if SNTP is unreachable |
 | `check_for_update` | Schedules an OTA check on the next loop |
-| `get_fw_version` | Version, partition, build date/time, free sketch, MAC |
+| `get_config` | Reports the configuration document with `PUT /devices/me/config` |
+| `push_config` | Applies a configuration document and saves it to NVS |
 | `download_new_fw` | Stages the image in the inactive slot, verifies SHA-256 |
 | `boot_with_new_fw` | Boots the staged image only if the requested version matches |
 | `self_test` | Uptime, Wi-Fi, radio, archive and time-valid flags |
@@ -239,10 +240,11 @@ the normal upload path.
 
 Open design points to settle before implementing:
 
-- Date/time format in the payload: **local IST** (owner decision) for all
-  operator-facing times and CSV output. Practical implementation: keep epoch
-  seconds/UTC internally and convert to IST (+05:30, no DST) at the edges
-  (raw log lines, CSV, admin page) so comparisons stay unambiguous.
+- Date/time format in the payload: **UTC** (epoch seconds) everywhere. Storage,
+  APIs and device/server messages are UTC-only. Operator-facing rendering uses
+  a per-device IANA time zone configured on the AP page; `/admin` lets the
+  operator view Site TZ, UTC or browser time. CSV exports carry both UTC and
+  Site TZ columns.
 - Maximum range for these troubleshooting commands: **one week** (automatic
   catch-up has no cap; these manual tools do).
 - Transport for the returned data: new device endpoints (e.g.
@@ -260,7 +262,7 @@ Open design points to settle before implementing:
 - Append every **CRC-valid** 8-byte frame to SD together with its receive
   timestamp. File per weekday: `raw-data-monday`, … `raw-data-sunday` (owner
   naming; decide extension, e.g. `.csv`/`.jsonl`).
-- Record at least: receive time (**local IST**, owner decision), the 8 bytes,
+- Record at least: receive time (**UTC**, ISO-8601 with `Z`), the 8 bytes,
   RSSI and RF channel would also help diagnose new message types.
 - Each weekday file is **overwritten when that weekday comes round again**, so
   there are exactly seven rolling files (the previous week's data for that day
@@ -269,7 +271,7 @@ Open design points to settle before implementing:
   frame.
 - Not uploaded as part of normal operation; only exposed by
   `download_raw_data`.
-- Timestamps are IST in the file; keep epoch comparisons internally.
+- Timestamps are UTC in the file; keep epoch comparisons internally.
 - Sizing: at one ISS frame every 3 s, ~28.8k frames/day. A line like
   `2026-11-11T16:25:03Z,81 06 01 2B EE 00 6F 3B` (~45 bytes) is ~1.3 MB/day,
   so the seven weekly files hold at most ~9 MB — no retention problem.
@@ -278,7 +280,7 @@ Open design points to settle before implementing:
 
 New global rule from the owner: the server sends **at most one command at a time
 to a device**. The next command is only queued/delivered after the previous one
-is completed. Completion may be immediate (reboot, get_fw_version, sync_time) or
+is completed. Completion may be immediate (reboot, get_config, sync_time) or
 take minutes (data replay, OTA download).
 
 Current behaviour to change:

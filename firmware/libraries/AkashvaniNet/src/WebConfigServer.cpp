@@ -2,9 +2,11 @@
 
 #include <ArduinoJson.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
+#include "ConfigJson.h"
 #include "Log.h"
 #include "TimeUtils.h"
 #include "Version.h"
@@ -34,8 +36,8 @@ h3{font-size:.95rem;margin:1rem 0 .4rem}
 .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:#98a2b3;margin-left:.35rem;vertical-align:middle}
 .dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
 label{display:block;font-weight:600;font-size:.9rem;margin:.7rem 0 .25rem}
-input{width:100%;padding:.62rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
-input:focus{outline:2px solid #b7d1ff;border-color:var(--accent)}
+input,select{width:100%;padding:.62rem .7rem;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+input:focus,select:focus{outline:2px solid #b7d1ff;border-color:var(--accent)}
 .wifi-row{display:grid;grid-template-columns:1.6rem 1fr;gap:.45rem;align-items:center;margin:.55rem 0}
 .wifi-row .num{color:var(--muted);font-size:.82rem;text-align:center}
 .wifi-row .fields{display:grid;gap:.4rem}
@@ -45,11 +47,22 @@ button:disabled{opacity:.6}
 .msg{min-height:1.2rem;font-size:.9rem;margin:.7rem 0 0;word-break:break-word}
 .msg.err{color:var(--bad)}.msg.ok{color:var(--ok)}
 .muted{color:var(--muted);font-size:.88rem}
+.age{color:var(--muted);font-weight:400}
+.tabs{display:flex;gap:.25rem;background:#dfe6ef;border:1px solid var(--line);border-radius:12px;padding:.25rem;margin:0 0 1rem}
+.tabs button{flex:1;margin:0;padding:.6rem .75rem;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-weight:600}
+.tabs button.active{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tab-panel[hidden]{display:none}
 </style></head><body><main>
 <header><h1>Akashvani</h1>
 <div class="sub">Device <b id="device">-</b> &middot; MAC <span id="mac">-</span> &middot; firmware <b id="fw">-</b></div></header>
 
-<section class="card">
+<nav class="tabs" role="tablist" aria-label="Sections">
+<button type="button" id="tab-status" class="active" role="tab" aria-selected="true" aria-controls="panel-status">Status</button>
+<button type="button" id="tab-config" role="tab" aria-selected="false" aria-controls="panel-config">Configuration</button>
+</nav>
+
+<section id="panel-status" class="card tab-panel" role="tabpanel" aria-labelledby="tab-status">
 <h2>Status <span id="live" class="dot" title="status"></span></h2>
 <div class="row"><span>Date &amp; time</span><b id="time">-</b></div>
 <div class="row"><span>Uptime</span><b id="uptime">-</b></div>
@@ -64,10 +77,16 @@ button:disabled{opacity:.6}
 <div class="row"><span>Queued uploads</span><b id="queue">-</b></div>
 <div class="row"><span>Last sent</span><b id="lastsent">-</b></div>
 <h3>Weather station</h3>
-<div id="weather" class="muted">No weather frame decoded yet.</div>
+<div class="row"><span>Temp</span><b id="w-temp">-</b></div>
+<div class="row"><span>Int Temp</span><b id="w-int-temp">-</b></div>
+<div class="row"><span>Wind</span><b id="w-wind">-</b></div>
+<div class="row"><span>Rain</span><b id="w-rain">-</b></div>
+<div class="row"><span>Valid frames</span><b id="w-valid">-</b></div>
+<div class="row"><span>Invalid frames</span><b id="w-invalid">-</b></div>
+<div class="row"><span>Last frame</span><b id="w-last">No weather frame decoded yet.</b></div>
 </section>
 
-<section class="card">
+<section id="panel-config" class="card tab-panel" role="tabpanel" aria-labelledby="tab-config" hidden>
 <h2>Configuration</h2>
 <form id="cfg" novalidate>
 <label for="serverInput">Server URL</label>
@@ -77,6 +96,17 @@ button:disabled{opacity:.6}
 <label for="deviceTokenInput">Device token</label>
 <input id="deviceTokenInput" type="password" maxlength="64" placeholder="token assigned to this device" required>
 <p class="muted">Bearer token used for archive and admin API calls. Default: secret.</p>
+<label for="tzInput">Time zone</label>
+<select id="tzInput"></select>
+<p class="muted">Display only. Archives, raw logs and all uploads stay in UTC.</p>
+<h3>Site coordinates</h3>
+<p class="muted">Leave all three blank until the site position is known. The server uses altitude for derived pressure values.</p>
+<label for="latInput">Latitude</label>
+<input id="latInput" type="number" step="any" min="-90" max="90" placeholder="13.4867">
+<label for="lonInput">Longitude</label>
+<input id="lonInput" type="number" step="any" min="-180" max="180" placeholder="77.7064">
+<label for="altInput">Altitude (m)</label>
+<input id="altInput" type="number" step="any" min="-500" max="9000" placeholder="940">
 <h3>Site Wi-Fi</h3>
 <p class="muted">Up to six networks, tried in order. Leave a row blank to skip it.</p>
 <div id="wifiRows"></div>
@@ -89,6 +119,27 @@ button:disabled{opacity:.6}
 <script>
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '');
+let deviceTimezone = 'UTC';
+const timezoneNames = (() => {
+  try {
+    const all = Intl.supportedValuesOf('timeZone');
+    if (all && all.length) return all;
+  } catch (_) {}
+  return ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'Australia/Sydney'];
+})();
+function buildTimezones(selected){
+  const zone = selected || 'UTC';
+  const options = timezoneNames.includes(zone) ? timezoneNames.slice() : [zone, ...timezoneNames];
+  const select = $('tzInput');
+  select.innerHTML = '';
+  for(const name of options){
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  }
+  select.value = zone;
+}
 function show(text, kind){
   const el = $('msg');
   el.textContent = text;
@@ -99,9 +150,50 @@ function formatUptime(seconds){
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   return (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + (s % 60) + 's';
 }
-function formatTime(epoch){
+function formatTime(epoch, zone){
   if(!epoch) return '-';
-  try { return new Date(epoch * 1000).toLocaleString(); } catch(_) { return String(epoch); }
+  try {
+    return new Date(epoch * 1000).toLocaleString(undefined, {timeZone: zone || 'UTC', timeZoneName: 'short'});
+  } catch(_) { return new Date(epoch * 1000).toUTCString(); }
+}
+function hasNumber(value){ return typeof value === 'number' && Number.isFinite(value); }
+function ago(seconds){
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  if(s < 60) return s + 's ago';
+  const m = Math.floor(s / 60);
+  if(m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if(h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+function setReading(id, text, ageSeconds){
+  const el = $(id);
+  el.textContent = text;
+  if(hasNumber(ageSeconds)){
+    const age = document.createElement('span');
+    age.className = 'age';
+    age.textContent = ' · ' + ago(ageSeconds);
+    el.appendChild(age);
+  }
+}
+function lastFrameText(w){
+  const parts = [];
+  if(hasNumber(w.temperature_c)) parts.push('T ' + w.temperature_c.toFixed(1) + ' C');
+  if(hasNumber(w.humidity_pct)) parts.push('RH ' + w.humidity_pct.toFixed(0) + ' %');
+  if(hasNumber(w.pressure_hpa)) parts.push('P ' + w.pressure_hpa.toFixed(1) + ' hPa');
+  if(hasNumber(w.in_temperature_c) || hasNumber(w.in_humidity_pct)){
+    const inTemp = hasNumber(w.in_temperature_c) ? w.in_temperature_c.toFixed(1) + ' C' : '-';
+    const inHumidity = hasNumber(w.in_humidity_pct) ? w.in_humidity_pct.toFixed(0) + ' %' : '-';
+    parts.push('in ' + inTemp + ' / ' + inHumidity);
+  }
+  if(hasNumber(w.wind_speed_ms)){
+    let wind = 'wind ' + w.wind_speed_ms.toFixed(1) + ' m/s';
+    if(hasNumber(w.wind_direction_deg)) wind += ' at ' + w.wind_direction_deg.toFixed(0) + '°';
+    parts.push(wind);
+  }
+  if(hasNumber(w.wind_gust_ms)) parts.push('gust ' + w.wind_gust_ms.toFixed(1) + ' m/s');
+  if(hasNumber(w.rain_rate_mm_h)) parts.push('rain ' + w.rain_rate_mm_h.toFixed(1) + ' mm/h');
+  return parts.join(', ');
 }
 async function refresh(){
   try {
@@ -113,7 +205,10 @@ async function refresh(){
     $('fw').textContent = j.firmware || '-';
     $('uptime').textContent = formatUptime(j.uptime_s);
     const t = j.time || {};
-    $('time').textContent = t.valid ? formatTime(t.epoch) : 'invalid - waiting for SNTP';
+    deviceTimezone = t.timezone || 'UTC';
+    $('time').textContent = t.valid
+      ? formatTime(t.epoch, deviceTimezone) + ' (' + deviceTimezone + ')'
+      : 'invalid - waiting for SNTP';
     const w = j.wifi || {};
     $('wifi').textContent = w.sta_connected
       ? 'connected' + (w.rssi_dbm ? ' (' + w.rssi_dbm + ' dBm)' : '')
@@ -126,15 +221,36 @@ async function refresh(){
     $('radio').textContent = j.radio_ready ? 'ready' : 'not ready';
     $('sd').textContent = j.archive_ready ? 'mounted' : 'not mounted';
     $('queue').textContent = j.queued_uploads ?? '-';
-    $('lastsent').textContent = j.last_sent_epoch ? formatTime(j.last_sent_epoch) : '-';
+    $('lastsent').textContent = j.last_sent_epoch ? formatTime(j.last_sent_epoch, deviceTimezone) : '-';
     $('live').className = 'dot ' + (w.sta_connected ? 'ok' : 'bad');
     const weather = j.weather || {};
-    $('weather').textContent = weather.available
-      ? 'T ' + Number(weather.temperature_c).toFixed(1) + ' C, RH ' + Number(weather.humidity_pct).toFixed(0) +
-        ' %, P ' + Number(weather.pressure_hpa).toFixed(1) + ' hPa, in ' + Number(weather.in_temperature_c).toFixed(1) +
-        ' C / ' + Number(weather.in_humidity_pct).toFixed(0) + ' %, wind ' + Number(weather.wind_speed_ms).toFixed(1) +
-        ' m/s, rain ' + Number(weather.rain_day_mm).toFixed(1) + ' mm, frame ' + formatTime(weather.observed_at_epoch)
-      : 'No weather frame decoded yet.';
+    const readings = weather.readings || {};
+    const frames = weather.frames || {};
+    const temperature = readings.temperature;
+    setReading('w-temp',
+      temperature && hasNumber(temperature.value_c) ? temperature.value_c.toFixed(1) + ' °C' : '-',
+      temperature && hasNumber(temperature.age_s) ? temperature.age_s : null);
+    const inTemperature = readings.in_temperature;
+    setReading('w-int-temp',
+      inTemperature && hasNumber(inTemperature.value_c) ? inTemperature.value_c.toFixed(1) + ' °C' : '-',
+      inTemperature && hasNumber(inTemperature.age_s) ? inTemperature.age_s : null);
+    const wind = readings.wind;
+    let windText = '-';
+    if(wind && hasNumber(wind.speed_ms)){
+      windText = wind.speed_ms.toFixed(1) + ' m/s';
+      if(hasNumber(wind.direction_deg)) windText += ' · ' + wind.direction_deg.toFixed(0) + '°';
+    }
+    setReading('w-wind', windText, wind && hasNumber(wind.age_s) ? wind.age_s : null);
+    const rain = readings.rain;
+    setReading('w-rain',
+      rain && hasNumber(rain.rate_mm_h) ? rain.rate_mm_h.toFixed(1) + ' mm/h' : '-',
+      rain && hasNumber(rain.age_s) ? rain.age_s : null);
+    $('w-valid').textContent = hasNumber(frames.valid) && hasNumber(frames.expected)
+      ? frames.valid + '/' + frames.expected : '-';
+    $('w-invalid').textContent = hasNumber(frames.invalid) ? String(frames.invalid) : '-';
+    const frameText = weather.available ? lastFrameText(weather) : '';
+    setReading('w-last', frameText || 'No weather frame decoded yet.',
+      frameText && hasNumber(weather.last_frame_age_s) ? weather.last_frame_age_s : null);
   } catch(e) {
     $('live').className = 'dot bad';
     $('wifi').textContent = 'status unavailable';
@@ -179,6 +295,10 @@ async function loadSettings(){
     $('serverInput').value = j.server_url || '';
     $('apiTokenInput').value = j.api_token || '';
     $('deviceTokenInput').value = j.device_token || '';
+    buildTimezones(j.timezone || 'UTC');
+    $('latInput').value = j.site_configured ? j.latitude : '';
+    $('lonInput').value = j.site_configured ? j.longitude : '';
+    $('altInput').value = j.site_configured ? j.altitude_m : '';
     buildRows(j.wifi || []);
   } catch(e) {
     show('Could not load settings: ' + e.message, 'err');
@@ -224,6 +344,20 @@ $('cfg').addEventListener('submit', async ev => {
     show('Device token must be 3-64 characters.', 'err');
     return;
   }
+  const latRaw = $('latInput').value.trim();
+  const lonRaw = $('lonInput').value.trim();
+  const altRaw = $('altInput').value.trim();
+  const siteFields = [latRaw, lonRaw, altRaw];
+  const filled = siteFields.filter(value => value !== '').length;
+  let site = {site_configured: false, latitude: 0, longitude: 0, altitude_m: 0};
+  if(filled > 0){
+    if(filled !== 3){ show('Enter latitude, longitude and altitude together, or leave all three blank.', 'err'); return; }
+    const latitude = Number(latRaw), longitude = Number(lonRaw), altitude = Number(altRaw);
+    if(!Number.isFinite(latitude) || latitude < -90 || latitude > 90){ show('Latitude must be between -90 and 90.', 'err'); return; }
+    if(!Number.isFinite(longitude) || longitude < -180 || longitude > 180){ show('Longitude must be between -180 and 180.', 'err'); return; }
+    if(!Number.isFinite(altitude) || altitude < -500 || altitude > 9000){ show('Altitude must be between -500 and 9000 m.', 'err'); return; }
+    site = {site_configured: true, latitude, longitude, altitude_m: altitude};
+  }
   const collected = collectProfiles();
   if(collected.error){ show(collected.error, 'err'); return; }
   if(collected.profiles.length === 0){ show('Enter at least one site Wi-Fi network.', 'err'); return; }
@@ -233,7 +367,7 @@ $('cfg').addEventListener('submit', async ev => {
     const r = await fetch('/api/settings', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({server_url: server, api_token: apiToken, device_token: deviceToken, wifi: collected.profiles})
+      body: JSON.stringify({server_url: server, api_token: apiToken, device_token: deviceToken, timezone: $('tzInput').value, wifi: collected.profiles, ...site})
     });
     const text = await r.text();
     let result = {};
@@ -252,6 +386,18 @@ $('cfg').addEventListener('submit', async ev => {
     $('saveBtn').disabled = false;
   }
 });
+function selectTab(name){
+  const status = name !== 'config';
+  $('tab-status').classList.toggle('active', status);
+  $('tab-config').classList.toggle('active', !status);
+  $('tab-status').setAttribute('aria-selected', status ? 'true' : 'false');
+  $('tab-config').setAttribute('aria-selected', status ? 'false' : 'true');
+  $('panel-status').hidden = !status;
+  $('panel-config').hidden = status;
+}
+$('tab-status').addEventListener('click', () => selectTab('status'));
+$('tab-config').addEventListener('click', () => selectTab('config'));
+selectTab(location.hash === '#config' ? 'config' : 'status');
 refresh();
 loadSettings();
 setInterval(refresh, 5000);
@@ -349,7 +495,8 @@ void WebConfigServer::handleStatus() {
   doc["device_id"] = settings_.deviceId;
   doc["mac"] = settings_.deviceMac;
   doc["firmware"] = AKASHVANI_FW_VERSION;
-  doc["uptime_s"] = millis() / 1000UL;
+  const uint32_t nowMs = millis();
+  doc["uptime_s"] = nowMs / 1000UL;
   doc["provisioned"] = settings_.provisioned();
   doc["server_url"] = settings_.serverBaseUrl;
 
@@ -373,21 +520,70 @@ void WebConfigServer::handleStatus() {
   }
   time["valid"] = timeValid;
   time["source"] = time_.source();
+  time["timezone"] = settings_.timezone;
   time["epoch"] = epoch;
 
   JsonObject weather = doc["weather"].to<JsonObject>();
   weather["available"] = weather_.available;
+  JsonObject frames = weather["frames"].to<JsonObject>();
+  frames["valid"] = weather_.framesValid;
+  frames["expected"] = weather_.framesExpected;
+  frames["invalid"] = weather_.framesInvalid;
   if (weather_.available) {
     weather["observed_at_epoch"] = weather_.observedAtEpoch;
-    weather["temperature_c"] = weather_.temperatureC;
-    weather["humidity_pct"] = weather_.humidityPct;
-    weather["pressure_hpa"] = weather_.pressureHpa;
-    weather["in_temperature_c"] = weather_.inTemperatureC;
-    weather["in_humidity_pct"] = weather_.inHumidityPct;
-    weather["wind_speed_ms"] = weather_.windSpeedMs;
-    weather["wind_direction_deg"] = weather_.windDirectionDeg;
-    weather["wind_gust_ms"] = weather_.windGustMs;
-    weather["rain_day_mm"] = weather_.rainDayMm;
+    weather["last_frame_age_s"] = (nowMs - weather_.observedAtMs) / 1000UL;
+    if (std::isfinite(weather_.temperatureC)) {
+      weather["temperature_c"] = weather_.temperatureC;
+    }
+    if (std::isfinite(weather_.humidityPct)) {
+      weather["humidity_pct"] = weather_.humidityPct;
+    }
+    if (std::isfinite(weather_.pressureHpa)) {
+      weather["pressure_hpa"] = weather_.pressureHpa;
+    }
+    if (std::isfinite(weather_.inTemperatureC)) {
+      weather["in_temperature_c"] = weather_.inTemperatureC;
+    }
+    if (std::isfinite(weather_.inHumidityPct)) {
+      weather["in_humidity_pct"] = weather_.inHumidityPct;
+    }
+    if (std::isfinite(weather_.windSpeedMs)) {
+      weather["wind_speed_ms"] = weather_.windSpeedMs;
+    }
+    if (std::isfinite(weather_.windDirectionDeg)) {
+      weather["wind_direction_deg"] = weather_.windDirectionDeg;
+    }
+    if (std::isfinite(weather_.windGustMs)) {
+      weather["wind_gust_ms"] = weather_.windGustMs;
+    }
+    if (std::isfinite(weather_.rainRateMmH)) {
+      weather["rain_rate_mm_h"] = weather_.rainRateMmH;
+    }
+  }
+
+  JsonObject readings = weather["readings"].to<JsonObject>();
+  if (weather_.temperature.valid) {
+    JsonObject reading = readings["temperature"].to<JsonObject>();
+    reading["value_c"] = weather_.temperature.value;
+    reading["age_s"] = (nowMs - weather_.temperature.updatedAtMs) / 1000UL;
+  }
+  if (weather_.inTemperature.valid) {
+    JsonObject reading = readings["in_temperature"].to<JsonObject>();
+    reading["value_c"] = weather_.inTemperature.value;
+    reading["age_s"] = (nowMs - weather_.inTemperature.updatedAtMs) / 1000UL;
+  }
+  if (weather_.windSpeed.valid) {
+    JsonObject reading = readings["wind"].to<JsonObject>();
+    reading["speed_ms"] = weather_.windSpeed.value;
+    if (std::isfinite(weather_.windDirectionDeg)) {
+      reading["direction_deg"] = weather_.windDirectionDeg;
+    }
+    reading["age_s"] = (nowMs - weather_.windSpeed.updatedAtMs) / 1000UL;
+  }
+  if (weather_.rainRate.valid) {
+    JsonObject reading = readings["rain"].to<JsonObject>();
+    reading["rate_mm_h"] = weather_.rainRate.value;
+    reading["age_s"] = (nowMs - weather_.rainRate.updatedAtMs) / 1000UL;
   }
 
   doc["radio_ready"] = radioReady_;
@@ -409,6 +605,12 @@ void WebConfigServer::handleGetSettings() {
   doc["server_url"] = settings_.serverBaseUrl;
   doc["api_token"] = settings_.apiToken;
   doc["device_token"] = settings_.deviceToken;
+  doc["timezone"] = settings_.timezone;
+  doc["site_configured"] = settings_.siteConfigured;
+  doc["latitude"] = settings_.latitude;
+  doc["longitude"] = settings_.longitude;
+  doc["altitude_m"] = settings_.altitudeM;
+  doc["config_version"] = settings_.configVersion;
   JsonArray wifi = doc["wifi"].to<JsonArray>();
   for (uint8_t i = 0; i < kMaxWifiProfiles; ++i) {
     JsonObject profile = wifi.add<JsonObject>();
@@ -457,6 +659,32 @@ void WebConfigServer::handleSaveSettings() {
     sendJson(400, "{\"error\":\"device_token must be 3-64 characters\"}");
     return;
   }
+  const char* timezone = jsonString(doc["timezone"]);
+  if (!isValidTimezoneName(timezone, sizeof(settings_.timezone))) {
+    sendJson(400, "{\"error\":\"timezone must be an IANA name of at most 32 characters\"}");
+    return;
+  }
+  const bool siteConfigured = doc["site_configured"] | settings_.siteConfigured;
+  float latitude = 0.0f;
+  float longitude = 0.0f;
+  float altitude = 0.0f;
+  if (siteConfigured) {
+    latitude = doc["latitude"] | 0.0f;
+    longitude = doc["longitude"] | 0.0f;
+    altitude = doc["altitude_m"] | 0.0f;
+    if (!std::isfinite(latitude) || latitude < -90.0f || latitude > 90.0f) {
+      sendJson(400, "{\"error\":\"latitude must be between -90 and 90\"}");
+      return;
+    }
+    if (!std::isfinite(longitude) || longitude < -180.0f || longitude > 180.0f) {
+      sendJson(400, "{\"error\":\"longitude must be between -180 and 180\"}");
+      return;
+    }
+    if (!std::isfinite(altitude) || altitude < -500.0f || altitude > 9000.0f) {
+      sendJson(400, "{\"error\":\"altitude must be between -500 and 9000\"}");
+      return;
+    }
+  }
   JsonArrayConst wifi = doc["wifi"].as<JsonArrayConst>();
   if (wifi.isNull()) {
     sendJson(400, "{\"error\":\"wifi array required\"}");
@@ -495,6 +723,12 @@ void WebConfigServer::handleSaveSettings() {
   copyString(serverUrl, updated.serverBaseUrl, sizeof(updated.serverBaseUrl));
   copyString(apiToken, updated.apiToken, sizeof(updated.apiToken));
   copyString(deviceToken, updated.deviceToken, sizeof(updated.deviceToken));
+  copyString(timezone, updated.timezone, sizeof(updated.timezone));
+  updated.siteConfigured = siteConfigured;
+  updated.latitude = latitude;
+  updated.longitude = longitude;
+  updated.altitudeM = altitude;
+  updated.configVersion = settings_.configVersion + 1;
   // The device ID is the MAC-derived `ak-xxxxxx` and is not editable here.
 
   const bool networkChanged = !sameProfiles(updated, settings_);

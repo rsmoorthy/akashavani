@@ -24,6 +24,18 @@ struct DeviceSettings {
   char apiToken[65] = {};
   char serverBaseUrl[129] = {};
   char deviceMac[18] = {};
+  // IANA zone used only for display (AP page and server admin). Storage and
+  // every device/server message stay in UTC.
+  char timezone[33] = "UTC";
+  // Site coordinates. The device owns these; they are reported to the server
+  // with the rest of the configuration and used there for derived values.
+  bool siteConfigured = false;
+  float latitude = 0.0f;
+  float longitude = 0.0f;
+  float altitudeM = 0.0f;
+  // Incremented whenever the local configuration changes so the cloud copy can
+  // be refreshed without re-sending identical data on every request.
+  uint32_t configVersion = 1;
 
   // Ordered list of site networks. The AP is always available; the STA side
   // tries these in order until one connects.
@@ -33,7 +45,7 @@ struct DeviceSettings {
 
   bool uploadEnabled = true;
   bool archiveEnabled = true;
-  uint16_t uploadIntervalSeconds = 60;
+  uint32_t uploadIntervalSeconds = 60;
   uint16_t commandPollIntervalSeconds = 60;
 
   bool wifiConfigured() const {

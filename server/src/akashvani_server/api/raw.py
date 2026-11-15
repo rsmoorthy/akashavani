@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Device
 from ..security import require_device
+from ..timezones import format_utc
 
 router = APIRouter(prefix="/api/v1/devices/me", tags=["raw"])
-IST = timezone(timedelta(hours=5, minutes=30))
 MAX_RANGE_SECONDS = 7 * 86400
 MAX_RECORDS_PER_BATCH = 200
 
@@ -54,9 +54,9 @@ def ingest_raw(
     is_new = not path.exists()
     with path.open("a", encoding="utf-8") as handle:
         if is_new:
-            handle.write("timestamp_ist,raw,rssi,channel\n")
+            handle.write("timestamp_utc,raw,rssi,channel\n")
         for record in body.records:
-            when = datetime.fromtimestamp(record.t, UTC).astimezone(IST).isoformat()
+            when = format_utc(datetime.fromtimestamp(record.t, UTC))
             handle.write(
                 f"{when},{record.hex},{'' if record.rssi is None else record.rssi},"
                 f"{'' if record.ch is None else record.ch}\n"

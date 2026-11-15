@@ -48,7 +48,8 @@ binary chunks. Do not change the cloud payload as part of that change.
 The path uses the receiver's UTC date at write time, not the station's local
 date. The observation's own `observed_at` is inside the record. The receiver
 refuses to write when the clock is invalid, because a wrong directory is worse
-than a deferred record.
+than a deferred record. The device's configured time zone is display-only and
+never affects the path or the stored timestamp.
 
 ## Offload and recovery
 

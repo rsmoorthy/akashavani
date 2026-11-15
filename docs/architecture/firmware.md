@@ -80,6 +80,19 @@ sampling, FIFO access and channel changes. It does not decode Davis fields.
 `Rfm95Radio` remains the alternate seam. Davis/frame logic must not know which
 chip delivered the frame.
 
+`Rfm69Radio` uses the RFM69 DIO0 `PayloadReady` interrupt on GPIO 13. The ISR
+only notifies a high-priority FreeRTOS task; it never touches SPI. That task
+owns the RFM69 receive loop: it puts the radio in standby before reading the
+FIFO, records receive time and channel, runs the channel-hop/search timers, and
+enqueues frames into a 128-entry (about 2 KiB) fixed RAM queue. Only frames accepted by the configured
+validator enter the queue; invalid noise is counted in `RadioStats` and fed into
+the archive `frames_crc_bad` counter. The main loop only decodes, archives
+and uploads frames from that queue, so blocking server work (OTA download, SD
+replay, command handling) no longer stops RF reception or channel scanning. If
+the queue fills, frames are dropped and counted; the event is logged. The task
+is pinned to the loop core and does not run on the transmitter simulator
+(`RadioConfig::backgroundRx = false`).
+
 The bench transmitter writes the full RFM69 configuration on every boot because
 the USB1 board has no RESET connection and the chip retains its previous state.
 
@@ -123,7 +136,8 @@ archive bucket is emitted even when no Davis frame was decoded, so radio health
 minutes regardless of RF.
 
 The receiver uses an explicit 4 MB table with two 1.875 MiB OTA slots. The
-running slot is reported by `get_fw_version`; OTA download never overwrites it.
+running firmware version is reported with every device request and on the AP
+page; OTA download never overwrites the running slot.
 
 Sensitive values (Wi-Fi passwords, cloud token, ArduinoOTA password) are stored
 in plain NVS. This is acceptable for the scaffold but should be hardened for

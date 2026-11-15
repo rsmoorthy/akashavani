@@ -30,6 +30,18 @@ class Device(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    # IANA zone used only for operator-facing rendering; storage is always UTC.
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
+    # Device-reported site configuration. The JSON is the complete document;
+    # the scalar columns are extracted for archive derivations and admin views.
+    config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    config_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    altitude_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     mac_address: Mapped[str | None] = mapped_column(String(17), nullable=True)
     firmware_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -154,6 +166,9 @@ class ArchiveRecord(Base):
     frames_expected: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     frames_valid: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     frames_crc_bad: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    crc_bad_rssi_min_dbm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crc_bad_rssi_avg_dbm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crc_bad_rssi_max_dbm: Mapped[float | None] = mapped_column(Float, nullable=True)
     resync_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     gap_slots: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

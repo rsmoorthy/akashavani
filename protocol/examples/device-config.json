@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "timezone": "Asia/Kolkata",
+  "site": {
+    "latitude": 13.4867,
+    "longitude": 77.7064,
+    "altitude_m": 940.0
+  },
+  "wifi": [
+    {
+      "ssid": "site-net",
+      "password": "site-password"
+    }
+  ],
+  "admin_password": "akashvani-admin",
+  "upload_enabled": true,
+  "archive_enabled": true,
+  "upload_interval_seconds": 60,
+  "command_poll_interval_seconds": 30
+}

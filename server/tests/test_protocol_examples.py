@@ -17,6 +17,7 @@ CASES = [
     ("command-ack.schema.json", "command-ack.json"),
     ("firmware-check.schema.json", "firmware-check.json"),
     ("archive.schema.json", "archive.json"),
+    ("device-config.schema.json", "device-config.json"),
 ]
 
 

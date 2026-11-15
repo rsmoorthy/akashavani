@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from .api import admin, archive, commands, firmware, health, observations, raw
+from .api import admin, archive, commands, config, firmware, health, observations, raw
 from .config import Settings, get_settings
 from .db import Base, create_engine_for, create_session_factory
 from .logging import configure_logging
@@ -64,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(observations.router)
     app.include_router(archive.router)
     app.include_router(commands.router)
+    app.include_router(config.router)
     app.include_router(raw.router)
     app.include_router(firmware.router)
     app.include_router(admin.router)

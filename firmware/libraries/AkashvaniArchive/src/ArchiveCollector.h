@@ -22,12 +22,17 @@ class ArchiveCollector {
   bool poll(int64_t epochSeconds, ArchiveRecord& output);
 
   void noteBadFrame();
+  void noteBadFrames(uint32_t count, int16_t rssiMin, int32_t rssiSum, int16_t rssiMax);
   void noteResync();
   void noteSearch();
   void noteGap(uint16_t slots);
   void resetRadioCounters();
 
   bool ready() const { return ready_; }
+
+  // Live view of the bucket being filled, used by the local status page.
+  const ArchiveRecord& current() const { return current_; }
+  uint32_t expectedFrames() const { return (bucketSeconds_ * 1000UL) / slotMs_; }
 
  private:
   bool ensureBucket(int64_t epochSeconds);

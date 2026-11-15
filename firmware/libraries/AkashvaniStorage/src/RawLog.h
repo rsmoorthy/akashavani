@@ -15,10 +15,11 @@ struct RawLogConfig {
   uint16_t capacity = 48;
 };
 
-// Rolling raw-frame log: one file per weekday (`raw-data-monday` ...). The file
-// for a weekday is truncated when that weekday comes round again, so only the
-// last week is kept. Frames are buffered in RAM and flushed every few minutes
-// so the RF receive loop is never blocked per frame.
+// Rolling raw-frame log: one file per weekday (`raw-data-monday` ...), where
+// the weekday is the UTC weekday. The file for a weekday is truncated when
+// that weekday comes round again, so only the last week is kept. Frames are
+// buffered in RAM and flushed every few minutes so the RF receive loop is
+// never blocked per frame.
 class RawLog {
  public:
   explicit RawLog(const RawLogConfig& config);
@@ -55,7 +56,7 @@ class RawLog {
 
   static const char* weekdayName(int weekday);
   bool ensureFile(int64_t epochSeconds);
-  void formatIst(int64_t epochSeconds, char* output, size_t size);
+  void formatUtc(int64_t epochSeconds, char* output, size_t size);
 
   RawLogConfig config_;
   Entry entries_[64] = {};

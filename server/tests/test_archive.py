@@ -39,6 +39,9 @@ def test_accepts_archive_and_computes_si_values(client):
     assert row["in_dewpoint_c"] is not None
     assert row["battery_low"] is False
     assert row["supercap_v"] == 3.1
+    assert row["crc_bad_rssi_min_dbm"] == -102.0
+    assert row["crc_bad_rssi_avg_dbm"] == -88.0
+    assert row["crc_bad_rssi_max_dbm"] == -45.0
 
 
 def test_archive_is_idempotent(client):
@@ -192,7 +195,8 @@ def test_archive_csv_export(client):
     )
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
-    assert "date_time_ist" in response.text
+    assert "date_time_utc" in response.text
+    assert "date_time_site" in response.text
     assert payload["device_id"] in response.headers["content-disposition"]
 
 
@@ -202,6 +206,23 @@ def test_archive_csv_rejects_long_range(client):
         headers=admin_headers(),
     )
     assert response.status_code == 422
+
+
+def test_archive_without_site_altitude_stores_nulls(client):
+    client.post(
+        "/api/v1/admin/devices",
+        json={"id": "sim-002", "token": "no-site-token"},
+        headers=admin_headers(),
+    )
+    payload = archive_payload(device_id="sim-002")
+    response = client.post("/api/v1/archive", json=payload, headers=api_headers())
+    assert response.status_code == 202, response.text
+
+    stored = client.get("/api/v1/admin/archive?device_id=sim-002", headers=admin_headers()).json()
+    assert stored[0]["barometer_hpa"] is None
+    assert stored[0]["altimeter_hpa"] is None
+    assert stored[0]["cloudbase_m"] is None
+    assert stored[0]["quality_flags"]["missing_site_altitude"] is True
 
 
 def test_batch_accepts_msgpack(client):

@@ -98,7 +98,7 @@ Status SdArchive::append(const char* record, size_t length) {
     return Status::NotReady;
   }
 
-  // The caller stamps records; archive the local receipt time.
+  // The caller stamps records; archive the UTC receipt time.
   const int64_t now = static_cast<int64_t>(time(nullptr));
   char path[kArchivePathMax];
   if (!buildArchivePath(config_.deviceId, now, path, sizeof(path))) {

@@ -52,6 +52,9 @@ struct ArchiveRecord {
   uint32_t framesExpected = 0;
   uint32_t framesValid = 0;
   uint32_t framesCrcBad = 0;
+  int16_t crcBadRssiMin = 0;
+  int32_t crcBadRssiSum = 0;
+  int16_t crcBadRssiMax = 0;
   uint32_t resyncCount = 0;
   uint32_t searchCount = 0;
   uint32_t gapSlots = 0;

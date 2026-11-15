@@ -74,19 +74,26 @@ uint32_t lastStatusMs = 0;
 uint32_t lastNtpAttemptMs = 0;
 uint32_t lastNtpSyncMs = 0;
 uint32_t lastCommandPollMs = 0;
+uint32_t lastConfigReportMs = 0;
+uint32_t lastConfigAttemptMs = 0;
+uint32_t reportedConfigVersion = 0;
+bool configReportPending = true;
 uint32_t receivedSequence = 0;
-
-// Production RF tracking. The RF bench mode has its own state so the two paths
-// can be tested independently.
-uint8_t prodChannel = config::kRadioInitialChannel;
-uint32_t prodLastHopMs = 0;
-uint32_t prodLastRxMs = 0;
-bool prodHaveRx = false;
-uint8_t prodMissStreak = 0;
-bool prodSearchMode = false;
+uint32_t lastRadioMissedSlots = 0;
+uint32_t lastRadioResyncCount = 0;
+uint32_t lastRadioSearchCount = 0;
+uint32_t lastRadioBadFrames = 0;
+uint32_t lastBadLogMs = 0;
 
 DavisObservation lastObservation;
 bool haveObservation = false;
+uint32_t lastObservationAtMs = 0;
+// Davis frames carry one message-specific field at a time, so the status page
+// keeps the most recent value of each parameter separately.
+WeatherReading lastTemperature;
+WeatherReading lastInTemperature;
+WeatherReading lastWindSpeed;
+WeatherReading lastRainRate;
 // Epoch of the last CRC-valid Davis frame, reported as X-Last-Radio-At on every
 // API request. Zero means "never seen".
 int64_t lastRadioEpoch = 0;
@@ -394,6 +401,7 @@ void setupRfTest() {
   radioConfig.highPower = true;
   radioConfig.channel = config::kRadioInitialChannel;
   radioConfig.fixedPayloadLength = kDavisFrameBytes;
+  radioConfig.backgroundRx = false;
   const Status status = radio.begin(radioConfig);
   if (!isOk(status)) {
     AK_LOG_ERROR("boot", "RF bench mode: radio failed: %s", statusToString(status));
@@ -790,9 +798,21 @@ void sampleBme280() {
   latestInTempC = temperature;
   latestInHumidityPct = humidity;
   latestPressureHpa = pressure;
-  if (timeService.isValid()) {
+  lastInTemperature.valid = true;
+  lastInTemperature.value = temperature;
+  lastInTemperature.updatedAtMs = lastBmeSampleMs;
+  if (timeService.isValid() && radio.pendingFrames() == 0) {
     archiveCollector.addBme280(temperature, humidity, pressure, timeService.nowEpoch());
   }
+}
+
+bool isDavisFrameValid(const uint8_t* data, size_t length) {
+  if (data == nullptr || length != kDavisFrameBytes) {
+    return false;
+  }
+  const uint16_t expected =
+      static_cast<uint16_t>((static_cast<uint16_t>(data[6]) << 8) | data[7]);
+  return expected != 0 && davisCrc16(data, 6) == expected;
 }
 
 bool handleFrame(const RadioFrame& frame) {
@@ -800,7 +820,7 @@ bool handleFrame(const RadioFrame& frame) {
                                                      frame.receivedAtMs);
   if (decoded.status != DavisDecodeStatus::Ok) {
     if (timeService.isValid()) {
-      archiveCollector.noteBadFrame();
+      archiveCollector.noteBadFrames(1, frame.rssiDbm, frame.rssiDbm, frame.rssiDbm);
     }
     AK_LOG_WARN("rx", "RX_BAD len=%u status=%s rssi=%d raw=%02X %02X %02X %02X %02X %02X %02X %02X",
                 static_cast<unsigned>(frame.length), toString(decoded.status), frame.rssiDbm,
@@ -809,9 +829,9 @@ bool handleFrame(const RadioFrame& frame) {
     return false;
   }
 
-  const int64_t epoch = timeService.nowEpoch();
+  const int64_t epoch = frame.receivedAtEpoch;
   if (epoch < 946684800LL) {
-    AK_LOG_WARN("rx", "decoded frame but clock is invalid; dropping");
+    AK_LOG_WARN("rx", "decoded frame but receive time invalid; dropping");
     return true;
   }
 
@@ -821,93 +841,87 @@ bool handleFrame(const RadioFrame& frame) {
     observation.sequence = ++receivedSequence;
   }
 
-  AK_LOG_INFO("rx", "seq=%lu temp=%.1fC hum=%.0f%% rssi=%ddBm",
+  AK_LOG_INFO("rx", "seq=%lu temp=%.1fC hum=%.0f%% rssi=%ddBm ch=%u",
               static_cast<unsigned long>(observation.sequence), observation.temperatureC,
-              observation.humidityPct, frame.rssiDbm);
+              observation.humidityPct, frame.rssiDbm,
+              static_cast<unsigned>(frame.channel));
 
   lastObservation = observation;
   haveObservation = true;
+  lastObservationAtMs = frame.receivedAtMs;
+  if (observation.has(DavisField::Temperature) &&
+      std::isfinite(observation.temperatureC)) {
+    lastTemperature.valid = true;
+    lastTemperature.value = observation.temperatureC;
+    lastTemperature.updatedAtMs = frame.receivedAtMs;
+  }
+  if (observation.has(DavisField::WindSpeed) &&
+      std::isfinite(observation.windSpeedMs)) {
+    lastWindSpeed.valid = true;
+    lastWindSpeed.value = observation.windSpeedMs;
+    lastWindSpeed.updatedAtMs = frame.receivedAtMs;
+  }
+  if (observation.has(DavisField::RainRate) &&
+      std::isfinite(observation.rainRateMmPerHour)) {
+    lastRainRate.valid = true;
+    lastRainRate.value = observation.rainRateMmPerHour;
+    lastRainRate.updatedAtMs = frame.receivedAtMs;
+  }
   lastRadioEpoch = epoch;
   if (rawLogReady) {
-    rawLog.append(epoch, frame.data, frame.length, frame.rssiDbm, prodChannel);
+    rawLog.append(epoch, frame.data, frame.length, frame.rssiDbm, frame.channel);
   }
   archiveCollector.add(observation, frame.rssiDbm, decoded.batteryLow, epoch);
   return true;
 }
 
-void prodHop(bool backwards, const char* reason) {
-  const uint8_t from = prodChannel;
-  prodChannel = backwards ? previousDavisChannel(prodChannel) : nextDavisChannel(prodChannel);
-  const Status status = radio.setChannel(prodChannel);
-  prodLastHopMs = millis();
-  if (!isOk(status)) {
-    AK_LOG_ERROR("hop", "setChannel(%u) failed: %s", static_cast<unsigned>(prodChannel),
-                 statusToString(status));
-    return;
+void updateRadioStats() {
+  const Rfm69Radio::RadioStats stats = radio.stats();
+  if (stats.missedSlots > lastRadioMissedSlots) {
+    uint32_t delta = stats.missedSlots - lastRadioMissedSlots;
+    lastRadioMissedSlots = stats.missedSlots;
+    while (delta-- > 0) {
+      archiveCollector.noteGap(1);
+    }
   }
-  AK_LOG_INFO("hop", "HOP t=%lu from=%u to=%u reason=%s miss=%u search=%u",
-              static_cast<unsigned long>(prodLastHopMs), static_cast<unsigned>(from),
-              static_cast<unsigned>(prodChannel), reason,
-              static_cast<unsigned>(prodMissStreak), prodSearchMode ? 1u : 0u);
+  if (stats.resyncCount > lastRadioResyncCount) {
+    uint32_t delta = stats.resyncCount - lastRadioResyncCount;
+    lastRadioResyncCount = stats.resyncCount;
+    while (delta-- > 0) {
+      archiveCollector.noteResync();
+    }
+  }
+  if (stats.searchCount > lastRadioSearchCount) {
+    uint32_t delta = stats.searchCount - lastRadioSearchCount;
+    lastRadioSearchCount = stats.searchCount;
+    while (delta-- > 0) {
+      archiveCollector.noteSearch();
+    }
+  }
+  if (stats.badFrames > lastRadioBadFrames) {
+    lastRadioBadFrames = stats.badFrames;
+    if (lastBadLogMs == 0 || millis() - lastBadLogMs >= 60000UL) {
+      lastBadLogMs = millis();
+      AK_LOG_WARN("rx",
+                  "RX_BAD total=%lu rssi_min=%d rssi_avg=%d rssi_max=%d",
+                  static_cast<unsigned long>(stats.badFrames),
+                  static_cast<int>(stats.badRssiMin),
+                  static_cast<int>(stats.badRssiAvg),
+                  static_cast<int>(stats.badRssiMax));
+    }
+  }
+  const Rfm69Radio::BadStats bad = radio.takeBadStats();
+  if (bad.count > 0) {
+    archiveCollector.noteBadFrames(bad.count, bad.rssiMin, bad.rssiSum, bad.rssiMax);
+  }
 }
 
 void serviceRadio() {
   RadioFrame frame;
   const Status status = radio.receive(frame, config::kRadioReceiveTimeoutMs);
-  const uint32_t now = millis();
-
   if (isOk(status)) {
-    if (!handleFrame(frame)) {
-      // Noise can pass the two-byte sync. Do not treat it as a lock, but do
-      // not get stuck on a noisy channel either: hop on the normal slot timer.
-      if (now - prodLastHopMs >= config::kRadioHopMs) {
-        prodHop(false, "bad-crc");
-      }
-      return;
-    }
-    if (prodHaveRx && now - prodLastRxMs > 6000) {
-      archiveCollector.noteResync();
-      AK_LOG_WARN("sync", "RESYNC silence_ms=%lu ch=%u",
-                  static_cast<unsigned long>(now - prodLastRxMs),
-                  static_cast<unsigned>(prodChannel));
-    }
-    prodLastRxMs = now;
-    prodHaveRx = true;
-    prodMissStreak = 0;
-    prodSearchMode = false;
-    prodHop(false, "rx");
-    return;
+    handleFrame(frame);
   }
-
-  if (status != Status::Timeout) {
-    return;
-  }
-  const uint32_t interval =
-      prodSearchMode ? config::kRadioSearchHopMs : config::kRadioHopMs;
-  if (now - prodLastHopMs < interval) {
-    return;
-  }
-  if (!prodSearchMode) {
-    ++prodMissStreak;
-    archiveCollector.noteGap(1);
-    if (prodMissStreak >= config::kRadioSearchAfterMisses) {
-      prodSearchMode = true;
-      archiveCollector.noteSearch();
-      AK_LOG_WARN("sync", "SEARCH after %u missed slots; reverse scan from ch=%u",
-                  static_cast<unsigned>(prodMissStreak),
-                  static_cast<unsigned>(prodChannel));
-    }
-  }
-  prodHop(prodSearchMode, prodSearchMode ? "search" : "timeout");
-}
-
-void fillRuntimeInfo(JsonDocument& result, const FirmwareRuntimeInfo& info) {
-  result["version"] = String(info.version);
-  result["partition"] = String(info.partition);
-  result["build_date"] = String(info.buildDate);
-  result["build_time"] = String(info.buildTime);
-  result["free_sketch_bytes"] = info.freeSketchBytes;
-  result["mac"] = String(settings.deviceMac);
 }
 
 // Uploads raw frames in [start, end] to the server for CSV export. Bounded to
@@ -974,6 +988,28 @@ bool sendRawRange(int64_t startEpoch, int64_t endEpoch, uint32_t& total, bool& t
   return true;
 }
 
+void reportConfigWhenOnline() {
+  if (!settings.cloudConfigured() || !wifi.staConnected()) {
+    return;
+  }
+  const bool changed = configReportPending || settings.configVersion != reportedConfigVersion;
+  if (!changed && lastConfigReportMs != 0 &&
+      millis() - lastConfigReportMs < config::kConfigReportIntervalMs) {
+    return;
+  }
+  if (lastConfigAttemptMs != 0 && millis() - lastConfigAttemptMs < 60000UL) {
+    return;
+  }
+  lastConfigAttemptMs = millis();
+  ApiClient api(settings, lastRadioEpoch, currentHealth());
+  if (isOk(api.putDeviceConfig())) {
+    lastConfigReportMs = millis();
+    reportedConfigVersion = settings.configVersion;
+    configReportPending = false;
+    AK_LOG_INFO("config", "reported v%u", static_cast<unsigned>(settings.configVersion));
+  }
+}
+
 void pollCommands() {
   const uint32_t intervalMs =
       static_cast<uint32_t>(settings.commandPollIntervalSeconds) * 1000UL;
@@ -986,7 +1022,7 @@ void pollCommands() {
   lastCommandPollMs = millis();
 
   ApiClient api(settings, lastRadioEpoch, currentHealth());
-  CommandMessage commands[1];
+  static CommandMessage commands[1];
   size_t count = 0;
   const Status status = api.leaseCommands(commands, 1, count);
   if (!isOk(status)) {
@@ -1023,18 +1059,15 @@ void pollCommands() {
             result["synced"] = true;
           }
           break;
-        case protocol::CommandType::GetFwVersion:
-          if (ota) {
-            FirmwareRuntimeInfo info;
-            ok = isOk(ota->currentFirmware(info));
-            if (ok) {
-              fillRuntimeInfo(result, info);
-            } else {
-              error = "could not read firmware info";
-            }
+        case protocol::CommandType::GetConfig:
+          ok = isOk(api.putDeviceConfig());
+          if (!ok) {
+            error = "config report failed";
           } else {
-            ok = false;
-            error = "ota service unavailable";
+            reportedConfigVersion = settings.configVersion;
+            lastConfigReportMs = millis();
+            configReportPending = false;
+            result["reported"] = true;
           }
           break;
         case protocol::CommandType::DownloadNewFw:
@@ -1149,6 +1182,30 @@ void pollCommands() {
           }
           break;
         }
+        case protocol::CommandType::PushConfig: {
+          DeviceSettings updated = settings;
+          bool networkChanged = false;
+          if (!applyDeviceConfigJson(payload.as<JsonVariantConst>(), updated, networkChanged,
+                                     errorBuffer, sizeof(errorBuffer))) {
+            ok = false;
+            error = errorBuffer;
+            break;
+          }
+          updated.configVersion = settings.configVersion + 1;
+          if (!isOk(settingsStore.save(updated))) {
+            ok = false;
+            error = "could not save config";
+            break;
+          }
+          settings = updated;
+          reportedConfigVersion = settings.configVersion;
+          lastConfigReportMs = millis();
+          configReportPending = false;
+          result["applied"] = true;
+          result["reboot_required"] = networkChanged;
+          reboot = networkChanged;
+          break;
+        }
         case protocol::CommandType::SetConfig:
         case protocol::CommandType::UploadLogs:
         case protocol::CommandType::Unknown:
@@ -1230,9 +1287,10 @@ void updateDisplay() {
     webServer->setLastSentEpoch(lastSentEpoch);
     webServer->setRawFrames(rawLog.written());
     WeatherSnapshot weather;
+    weather.available = haveObservation;
+    weather.observedAtEpoch = lastObservation.observedAtEpoch;
+    weather.observedAtMs = lastObservationAtMs;
     if (haveObservation) {
-      weather.available = true;
-      weather.observedAtEpoch = lastObservation.observedAtEpoch;
       weather.temperatureC = lastObservation.temperatureC;
       weather.humidityPct = lastObservation.humidityPct;
       weather.pressureHpa = std::isfinite(latestPressureHpa) ? latestPressureHpa
@@ -1242,8 +1300,16 @@ void updateDisplay() {
       weather.windSpeedMs = lastObservation.windSpeedMs;
       weather.windDirectionDeg = lastObservation.windDirectionDeg;
       weather.windGustMs = lastObservation.windGustMs;
-      weather.rainDayMm = lastObservation.rainDayMm;
+      weather.rainRateMmH = lastObservation.rainRateMmPerHour;
     }
+    weather.temperature = lastTemperature;
+    weather.inTemperature = lastInTemperature;
+    weather.windSpeed = lastWindSpeed;
+    weather.rainRate = lastRainRate;
+    const ArchiveRecord& bucket = archiveCollector.current();
+    weather.framesExpected = archiveCollector.expectedFrames();
+    weather.framesValid = bucket.framesValid;
+    weather.framesInvalid = bucket.framesCrcBad;
     webServer->setWeather(weather);
   }
   digitalWrite(config::kStatusLedPin, wifi.staConnected() ? HIGH : LOW);
@@ -1347,19 +1413,20 @@ void setup() {
   radioConfig.highPower = true;
   radioConfig.channel = config::kRadioInitialChannel;
   radioConfig.fixedPayloadLength = kDavisFrameBytes;
+  radioConfig.hopIntervalMs = config::kRadioHopMs;
+  radioConfig.searchHopIntervalMs = config::kRadioSearchHopMs;
+  radioConfig.searchAfterMisses = config::kRadioSearchAfterMisses;
+  radioConfig.frameValidator = isDavisFrameValid;
   const Status radioStatus = radio.begin(radioConfig);
   radioReady = isOk(radioStatus);
   if (!radioReady) {
     AK_LOG_WARN("boot", "radio driver not active (%s); port prototype driver",
                 statusToString(radioStatus));
   } else {
-    prodChannel = config::kRadioInitialChannel;
-    radio.setChannel(prodChannel);
-    prodLastHopMs = millis();
     archiveCollector.reset();
     AK_LOG_INFO("boot", "production RF: ch=%u freq=%.3fMHz",
-                static_cast<unsigned>(prodChannel),
-                davisChannelFrequencyMhz(prodChannel));
+                static_cast<unsigned>(radio.channel()),
+                davisChannelFrequencyMhz(radio.channel()));
   }
 
   WifiApConfig apConfig;
@@ -1409,13 +1476,15 @@ void loop() {
 
   if (radioReady) {
     serviceRadio();
+    updateRadioStats();
   }
   sampleBme280();
 
   timeReady = timeService.isValid();
   syncTimeWhenOnline();
+  reportConfigWhenOnline();
 
-  if (timeService.isValid()) {
+  if (timeService.isValid() && radio.pendingFrames() == 0) {
     ArchiveRecord completed;
     while (archiveCollector.poll(timeService.nowEpoch(), completed)) {
       finishArchiveRecord(completed);

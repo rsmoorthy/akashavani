@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "Log.h"
+#include "ConfigJson.h"
 #include "ObservationJson.h"
 #include "Protocol.h"
 #include "Version.h"
@@ -277,6 +278,22 @@ Status ApiClient::checkForUpdate(const char* currentVersion, const char* channel
     info.downloadUrl[sizeof(info.downloadUrl) - 1] = '\0';
   }
   return Status::Ok;
+}
+
+Status ApiClient::putDeviceConfig() {
+  if (!settings_.cloudConfigured()) {
+    return Status::NotReady;
+  }
+  String body;
+  if (!serializeDeviceConfigJson(settings_, body)) {
+    return Status::InvalidArgument;
+  }
+  HTTPClient http;
+  prepareHttp(http, endpoint("/api/v1/devices/me/config"));
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.PUT(body);
+  http.end();
+  return (code == 200 || code == 201) ? Status::Ok : Status::IoError;
 }
 
 Status ApiClient::leaseCommands(CommandMessage* output, size_t capacity, size_t& count) {

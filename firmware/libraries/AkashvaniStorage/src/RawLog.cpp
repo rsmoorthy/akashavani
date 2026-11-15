@@ -9,8 +9,6 @@
 namespace akashvani {
 namespace {
 
-constexpr int64_t kIstOffsetSeconds = 5 * 3600 + 30 * 60;  // +05:30, no DST
-
 int64_t daysFromCivil(int year, unsigned month, unsigned day) {
   year -= month <= 2;
   const int era = (year >= 0 ? year : year - 399) / 400;
@@ -63,18 +61,18 @@ Status RawLog::begin(int64_t epochSeconds) {
   return Status::Ok;
 }
 
-void RawLog::formatIst(int64_t epochSeconds, char* output, size_t size) {
-  const time_t ist = static_cast<time_t>(epochSeconds + kIstOffsetSeconds);
+void RawLog::formatUtc(int64_t epochSeconds, char* output, size_t size) {
+  const time_t utc = static_cast<time_t>(epochSeconds);
   struct tm parts = {};
-  gmtime_r(&ist, &parts);
-  std::snprintf(output, size, "%04d-%02d-%02dT%02d:%02d:%02d+05:30", parts.tm_year + 1900,
+  gmtime_r(&utc, &parts);
+  std::snprintf(output, size, "%04d-%02d-%02dT%02d:%02d:%02dZ", parts.tm_year + 1900,
                 parts.tm_mon + 1, parts.tm_mday, parts.tm_hour, parts.tm_min, parts.tm_sec);
 }
 
 bool RawLog::ensureFile(int64_t epochSeconds) {
-  const time_t ist = static_cast<time_t>(epochSeconds + kIstOffsetSeconds);
+  const time_t utc = static_cast<time_t>(epochSeconds);
   struct tm parts = {};
-  gmtime_r(&ist, &parts);
+  gmtime_r(&utc, &parts);
   if (parts.tm_wday == currentWeekday_ && file_) {
     return true;
   }
@@ -125,7 +123,7 @@ Status RawLog::flush() {
   for (uint16_t i = 0; i < count_; ++i) {
     const Entry& entry = entries_[i];
     char stamp[32];
-    formatIst(entry.epoch, stamp, sizeof(stamp));
+    formatUtc(entry.epoch, stamp, sizeof(stamp));
     file_.print(stamp);
     file_.print(',');
     for (uint8_t b = 0; b < entry.length; ++b) {
@@ -206,13 +204,13 @@ bool RawLog::nextReplayRecord(Record& record) {
     int hour = 0;
     int minute = 0;
     int second = 0;
-    if (std::sscanf(replayLine_, "%d-%d-%dT%d:%d:%d+05:30,", &year, &month, &day, &hour,
+    if (std::sscanf(replayLine_, "%d-%d-%dT%d:%d:%dZ,", &year, &month, &day, &hour,
                     &minute, &second) != 6) {
       continue;
     }
     const int64_t epoch =
         daysFromCivil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)) * 86400 +
-        hour * 3600 + minute * 60 + second - kIstOffsetSeconds;
+        hour * 3600 + minute * 60 + second;
     if (epoch < replayStart_ || epoch > replayEnd_) {
       continue;
     }

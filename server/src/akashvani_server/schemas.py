@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
+    AfterValidator,
     AwareDatetime,
     BaseModel,
     ConfigDict,
@@ -14,13 +15,24 @@ from pydantic import (
     model_validator,
 )
 
+from .timezones import DEFAULT_DEVICE_TIMEZONE, is_valid_timezone
+
 Channel = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{1,15}$")]
+
+
+def _valid_timezone(value: str) -> str:
+    if not is_valid_timezone(value):
+        raise ValueError("unknown IANA time zone")
+    return value
+
+
+DeviceTimezone = Annotated[str, AfterValidator(_valid_timezone)]
 
 
 def _serialize_utc(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 # SQLite drops tzinfo, so response models force an explicit UTC representation.
@@ -167,6 +179,9 @@ class ArchiveQuality(BaseModel):
     rssi_avg_dbm: float | None = None
     rssi_min_dbm: float | None = None
     rssi_max_dbm: float | None = None
+    crc_bad_rssi_min_dbm: float | None = Field(default=None, ge=-200.0, le=0.0)
+    crc_bad_rssi_avg_dbm: float | None = Field(default=None, ge=-200.0, le=0.0)
+    crc_bad_rssi_max_dbm: float | None = Field(default=None, ge=-200.0, le=0.0)
 
 
 class ArchiveEnvelope(BaseModel):
@@ -270,6 +285,9 @@ class ArchiveOut(BaseModel):
     frames_expected: int
     frames_valid: int
     frames_crc_bad: int
+    crc_bad_rssi_min_dbm: float | None
+    crc_bad_rssi_avg_dbm: float | None
+    crc_bad_rssi_max_dbm: float | None
     resync_count: int
     search_count: int
     gap_slots: int
@@ -285,6 +303,8 @@ class DeviceCreate(BaseModel):
     id: DeviceId
     name: str = Field(default="", max_length=80)
     token: str = Field(min_length=8, max_length=256)
+    # Optional so token rotation does not overwrite the device's own setting.
+    timezone: DeviceTimezone | None = None
 
 
 class DeviceOut(BaseModel):
@@ -292,6 +312,10 @@ class DeviceOut(BaseModel):
 
     id: str
     name: str
+    timezone: str = DEFAULT_DEVICE_TIMEZONE
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude_m: float | None = None
     mac_address: str | None = None
     firmware_version: str | None
     created_at: UtcDateTime
@@ -313,6 +337,49 @@ class DeviceAdminOut(DeviceOut):
     rssi_avg_dbm: float | None = None
 
 
+class WifiProfileConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ssid: str = Field(min_length=1, max_length=32)
+    password: str = Field(default="", max_length=63)
+
+
+class SiteConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    latitude: float = Field(ge=-90.0, le=90.0)
+    longitude: float = Field(ge=-180.0, le=180.0)
+    altitude_m: float = Field(ge=-500.0, le=9000.0)
+
+
+class DeviceConfig(BaseModel):
+    """Device-owned configuration document exchanged with the server."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[1] = 1
+    timezone: DeviceTimezone
+    site: SiteConfig | None = None
+    wifi: list[WifiProfileConfig] = Field(default_factory=list, max_length=6)
+    admin_password: str = Field(default="", max_length=32)
+    upload_enabled: bool = True
+    archive_enabled: bool = True
+    upload_interval_seconds: int = Field(default=60, ge=10, le=86400)
+    command_poll_interval_seconds: int = Field(default=30, ge=10, le=3600)
+
+
+class DeviceConfigOut(BaseModel):
+    device_id: str
+    config_version: int | None = None
+    config_updated_at: UtcDateTime | None = None
+    config: DeviceConfig | None = None
+
+
+class DeviceConfigAccepted(BaseModel):
+    saved: bool = True
+    config_version: int
+
+
 class CommandType(str, Enum):
     REBOOT = "reboot"
     SYNC_TIME = "sync_time"
@@ -320,7 +387,8 @@ class CommandType(str, Enum):
     CHECK_FOR_UPDATE = "check_for_update"
     UPLOAD_LOGS = "upload_logs"
     SELF_TEST = "self_test"
-    GET_FW_VERSION = "get_fw_version"
+    GET_CONFIG = "get_config"
+    PUSH_CONFIG = "push_config"
     DOWNLOAD_NEW_FW = "download_new_fw"
     BOOT_WITH_NEW_FW = "boot_with_new_fw"
     GET_PENDING_COMMANDS = "get_pending_commands"

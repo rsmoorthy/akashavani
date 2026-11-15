@@ -36,11 +36,8 @@ class Settings(BaseSettings):
     # The receiver's hotspot page stores the same value.
     api_token: str = "secret"
 
-    # Site metadata used by the server-side derived calculations.
-    site_latitude: float = 13.4867
-    site_longitude: float = 77.7064
-    site_altitude_m: float = 940.0
-    site_timezone: str = "Asia/Kolkata"
+    # Site metadata used by the server-side derived calculations. Location and
+    # altitude are per device (reported with its configuration), not global.
     rain_bucket_mm: float = Field(default=0.254, gt=0.0)
 
     max_body_bytes: int = Field(default=64 * 1024, ge=1024)

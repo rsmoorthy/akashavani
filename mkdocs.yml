@@ -58,6 +58,7 @@ nav:
       - Provisioning: operations/provisioning.md
       - OTA: operations/ota.md
       - SD archive: operations/archive.md
+      - RF soak test: operations/rf-soak.md
   - Development:
       - Contributing: development/contributing.md
       - Roadmap: development/roadmap.md
@@ -66,6 +67,7 @@ nav:
   - Specs:
       - RFM69 + Davis receive: specs/rf-davis-receive.md
       - 5-minute archive collation: specs/davis-archive-collation.md
+      - Device configuration: specs/device-config.md
   - Reference:
       - Configuration: reference/configuration.md
   - Decisions:

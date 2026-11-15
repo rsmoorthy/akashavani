@@ -25,13 +25,39 @@ def test_raw_batch_upload_and_csv_download(client):
     )
     assert csv.status_code == 200
     lines = csv.text.strip().splitlines()
-    assert lines[0] == "timestamp_ist,raw,rssi,channel"
+    assert lines[0] == "timestamp_utc,timestamp_site,raw,rssi,channel"
     body = "\n".join(lines[1:])
     assert "81 06 01 2B EE 00 6F 3B" in body
     assert "A1 04 06 28 20 01 33 B7" in body
-    # Sorted oldest first; both timestamps are IST.
+    # Sorted oldest first; the device defaults to UTC, so both stamps are UTC.
     assert lines[1].startswith("2026-11-11T")
-    assert all(line.split(",")[0].endswith("+05:30") for line in lines[1:])
+    assert lines[1].split(",")[0].endswith("Z")
+    assert lines[1].split(",")[1].endswith("Z")
+
+
+def test_raw_csv_site_column_uses_device_timezone(client):
+    client.post(
+        "/api/v1/devices/me/raw",
+        json={**RANGE, "records": RECORDS},
+        headers=device_headers(),
+    )
+    rotated = client.post(
+        "/api/v1/admin/devices",
+        json={"id": DEVICE_ID, "token": "dev-sim-token", "timezone": "Asia/Kolkata"},
+        headers=admin_headers(),
+    )
+    assert rotated.status_code == 200, rotated.text
+    assert rotated.json()["timezone"] == "Asia/Kolkata"
+
+    csv = client.get(
+        f"/api/v1/admin/raw.csv?device_id={DEVICE_ID}"
+        f"&start={RANGE['start_epoch']}&end={RANGE['end_epoch']}",
+        headers=admin_headers(),
+    )
+    assert csv.status_code == 200
+    lines = csv.text.strip().splitlines()
+    assert lines[1].split(",")[0].endswith("Z")
+    assert lines[1].split(",")[1].endswith("+05:30")
 
 
 def test_raw_batch_rejects_long_range(client):

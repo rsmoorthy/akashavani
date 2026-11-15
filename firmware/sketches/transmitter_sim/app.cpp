@@ -431,6 +431,7 @@ void setup() {
   radioConfig.highPower = true;
   radioConfig.channel = 0;
   radioConfig.fixedPayloadLength = kDavisFrameBytes;
+  radioConfig.backgroundRx = false;
   const Status status = radio.begin(radioConfig);
   radioReady = isOk(status);
   if (!radioReady) {

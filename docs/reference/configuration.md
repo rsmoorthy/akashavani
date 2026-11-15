@@ -64,9 +64,12 @@ Namespace `akashvani`, written by the local AP page.
 | `token` | empty | yes |
 | `api_token` | `secret` | yes |
 | `server` | `http://192.168.1.100:8000` | no |
+| `tz` | `UTC` | no |
+| `site_ok` / `lat` / `lon` / `alt` | unset | no |
+| `cfg_ver` | `1` | no |
 | `wifi_ssid_0` … `wifi_ssid_5` | empty | no |
 | `wifi_pass_0` … `wifi_pass_5` | empty | yes |
-| `admin_pw` | `akashvani-admin` | yes (ArduinoOTA only) |
+| `admin_pw` | `akashvani-admin` | yes (OTA password over Wi-Fi) |
 | `upload` / `archive` | true / true | no |
 | `upl_int` / `cmd_int` | 60 / 30 seconds | no |
 | `configured` | set by the first save | no |
@@ -92,13 +95,36 @@ The OTA staged release is stored in NVS namespace `ota_meta` under
 | AP address | `http://10.90.0.1/` |
 | DHCP pool | `10.90.0.11` – `10.90.0.20` |
 | Status refresh | 5 seconds |
+| Tabs | Status, Configuration |
 
-The page has no separate admin login; the AP WPA2 password is the boundary. It
-shows time, firmware, STA connection/SSID/IP, AP state, radio/SD flags, queue
-depth and the last weather frame when one exists. The form saves the server URL,
-device token and up to six site Wi-Fi profiles together. Passwords are hidden
-until "Show passwords" is pressed. A Wi-Fi change restarts the board after the
-response is sent; server URL and token changes apply immediately.
+The page has no separate admin login; the AP WPA2 password is the boundary. The
+Status tab shows time, firmware, STA connection/SSID/IP, AP state, radio/SD
+flags, queue depth and the weather station rows: last-known Temp, Int Temp,
+Wind and Rain with relative ages, current-bucket valid/expected and invalid
+frame counts, and a relative last-frame age. The Configuration tab holds the
+form. It saves the server URL, device token, time zone, site coordinates and up
+to six site Wi-Fi profiles together. Passwords are hidden until "Show passwords"
+is pressed. A Wi-Fi change restarts the board after the response is sent; other
+fields apply immediately.
+
+### Device configuration
+
+There is no site-wide time zone, location or altitude. Each device stores its
+own IANA time-zone name (`tz`, default `UTC`) and optional site coordinates
+(`site_ok`, `lat`, `lon`, `alt`) in NVS, chosen on its AP page.
+
+The device reports the full configuration document to
+`PUT /api/v1/devices/me/config` on boot, after an AP-page save and daily. The
+server stores a mirror in `devices.config` and extracts the time zone and site
+coordinates for `/admin` and archive derivations. `get_config` asks the device
+to report immediately; `push_config` sends the admin copy back to the device.
+
+The server URL, server API token and device token are not included in the
+document. They are edited only on the device's own AP page. The server validates
+the time zone with `zoneinfo`; the firmware only bounds its length and character
+set. Until a device reports an altitude, derived `barometer`, `altimeter` and
+`cloudbase` values are stored as `NULL` with a `missing_site_altitude` quality
+flag.
 
 ## Server environment
 
@@ -116,10 +142,6 @@ All variables use the `AKASHVANI_` prefix. Values can also be placed in
 | `AKASHVANI_DEVICE_SEEDS` | `sim-001:dev-sim-token:Simulator,station-1:dev-station-1-token:Bench station 1` | comma-separated seeds |
 | `AKASHVANI_ADMIN_TOKEN` | `dev-admin-token` | admin bearer token |
 | `AKASHVANI_API_TOKEN` | `secret` | shared archive bearer token; also accepted by the admin API |
-| `AKASHVANI_SITE_LATITUDE` | `13.4867` | site latitude |
-| `AKASHVANI_SITE_LONGITUDE` | `77.7064` | site longitude |
-| `AKASHVANI_SITE_ALTITUDE_M` | `940` | site altitude in metres |
-| `AKASHVANI_SITE_TIMEZONE` | `Asia/Kolkata` | site timezone |
 | `AKASHVANI_RAIN_BUCKET_MM` | `0.254` | rain collector tip size (0.01 in) |
 | `AKASHVANI_MAX_BODY_BYTES` | 65536 | ingest limit |
 | `AKASHVANI_MAX_FIRMWARE_BYTES` | 8388608 | admin upload limit |

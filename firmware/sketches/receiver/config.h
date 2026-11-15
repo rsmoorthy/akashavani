@@ -96,6 +96,9 @@ constexpr uint32_t kBmeSampleIntervalMs = 10000;
 constexpr uint32_t kStatusIntervalMs = 2000;
 constexpr uint32_t kNtpRetryIntervalMs = 60000;
 constexpr uint32_t kNtpSyncIntervalMs = 6UL * 60UL * 60UL * 1000UL;
+// Safety-net interval for reporting the device configuration. The normal path
+// is boot and AP-page changes; this catches silent divergence.
+constexpr uint32_t kConfigReportIntervalMs = 24UL * 60UL * 60UL * 1000UL;
 
 // At most this many observations wait in RAM for a cloud connection. The SD
 // card remains the durable copy beyond this window.

@@ -25,5 +25,15 @@ def app(settings):
 
 @pytest.fixture()
 def client(app):
+    from tests.factories import admin_headers, device_config
+
     with TestClient(app) as test_client:
+        # The seeded device has no configuration until it reports one; give it
+        # site coordinates so derived archive values are covered by default.
+        response = test_client.put(
+            "/api/v1/admin/devices/sim-001/config",
+            json=device_config(),
+            headers=admin_headers(),
+        )
+        assert response.status_code == 200, response.text
         yield test_client

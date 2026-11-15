@@ -49,6 +49,22 @@ def admin_headers(token: str = ADMIN_TOKEN) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def device_config(**overrides):
+    config = {
+        "version": 1,
+        "timezone": "UTC",
+        "site": {"latitude": 13.4867, "longitude": 77.7064, "altitude_m": 940.0},
+        "wifi": [{"ssid": "bench-net", "password": "bench-password"}],
+        "admin_password": "akashvani-admin",
+        "upload_enabled": True,
+        "archive_enabled": True,
+        "upload_interval_seconds": 60,
+        "command_poll_interval_seconds": 30,
+    }
+    config.update(overrides)
+    return config
+
+
 def api_headers(token: str = API_TOKEN) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
@@ -102,6 +118,9 @@ def archive_payload(**overrides):
             "rssi_avg_dbm": -55.0,
             "rssi_min_dbm": -70.0,
             "rssi_max_dbm": -40.0,
+            "crc_bad_rssi_min_dbm": -102.0,
+            "crc_bad_rssi_avg_dbm": -88.0,
+            "crc_bad_rssi_max_dbm": -45.0,
         },
     }
     payload.update(overrides)

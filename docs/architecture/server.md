@@ -86,8 +86,9 @@ schema errors consistently.
   the clause and is intended for a single worker in development.
 - For `download_new_fw`, the admin enqueue endpoint fills `url`, `sha256` and
   `size_bytes` from the selected firmware release so the device never invents
-  download details. `get_fw_version` and `boot_with_new_fw` carry no payload
-  beyond an optional version.
+  download details. `get_config`, `reboot`, `sync_time` and `boot_with_new_fw`
+  carry no payload beyond an optional version; `push_config` carries the full
+  device configuration document.
 
 ## Request flow: OTA
 
@@ -131,6 +132,15 @@ explicitly.
 - Alembic is the schema mechanism. The application creates tables automatically
   only when `environment=test`.
 - The Docker entrypoint runs `alembic upgrade head` before Uvicorn.
+- Every stored and transported timestamp is UTC (epoch integers or `...Z`
+  strings). A device's `timezone` column is an IANA name used only for
+  operator-facing rendering and CSV export; it never changes stored values.
+- `devices.config` is the server mirror of the device-owned configuration
+  document. Site coordinates are extracted into `latitude`, `longitude` and
+  `altitude_m`; archive derivations use `altitude_m` and store `NULL` when it is
+  unknown.
+- Archive rows also store the per-bucket invalid-frame RSSI summary in
+  `crc_bad_rssi_min_dbm`, `crc_bad_rssi_avg_dbm` and `crc_bad_rssi_max_dbm`.
 
 ## Scaling notes
 

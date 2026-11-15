@@ -5,28 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Akashvani admin</title>
 <style>
-  :root { color-scheme: light dark; --line: #8884; --accent: #0b7285; }
-  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.5rem; max-width: 1100px; }
-  h1 { margin-top: 0; }
-  h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  :root { color-scheme: light dark; --line: #8884; --accent: #0b7285; --muted: #667085; }
+  * { box-sizing: border-box; }
+  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.25rem; max-width: 1200px; }
+  h1 { margin: 0 0 1rem; }
+  h2 { margin: 0 0 .8rem; font-size: 1.1rem; }
+  h3 { margin: 1rem 0 .5rem; font-size: .98rem; }
+  .muted { color: var(--muted); font-size: .88rem; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   code { font-size: 12px; word-break: break-all; }
-  form { display: grid; gap: .6rem; max-width: 640px; }
+  .table-wrap { overflow-x: auto; }
+  form { display: grid; gap: .7rem; max-width: 760px; }
   label { display: grid; gap: .2rem; font-weight: 600; }
-  input, select, button { font: inherit; padding: .4rem .5rem; }
+  label.inline { display: flex; align-items: center; gap: .45rem; font-weight: 500; }
+  input, select, button { font: inherit; padding: .42rem .5rem; }
+  input[type=checkbox] { width: auto; padding: 0; }
   button { cursor: pointer; background: var(--accent); color: white; border: 0; border-radius: 4px; width: fit-content; }
-  button.secondary { background: #888; }
+  button.secondary { background: #667085; }
   .row { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+  .wifi-row { display: grid; grid-template-columns: 2rem 1fr 1fr; gap: .5rem; align-items: center; }
+  .wifi-row .num { color: var(--muted); font-size: .82rem; }
   .status { min-height: 1.4em; font-size: 13px; }
   .error { color: #c92a2a; }
   .ok { color: #2b8a3e; }
+  .tabs { display: flex; flex-wrap: wrap; gap: .35rem; border-bottom: 1px solid var(--line); margin: 1.2rem 0 1rem; }
+  .tabs button { background: transparent; color: inherit; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; padding: .55rem .8rem; }
+  .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .panel { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 700px) {
+    body { padding: .8rem; }
+    .grid2 { grid-template-columns: 1fr; }
+    form { max-width: none; }
+    .wifi-row { grid-template-columns: 1.5rem 1fr; }
+    .wifi-row .pass { grid-column: 2; }
+    .tabs button { padding: .5rem .6rem; }
+  }
 </style>
 </head>
 <body>
 <h1>Akashvani admin</h1>
 
-<section>
+<section class="panel">
   <h2>Admin token</h2>
   <div class="row">
     <label>Bearer token
@@ -38,89 +61,289 @@
   <div id="status" class="status"></div>
 </section>
 
-<section>
-  <h2>Devices</h2>
-  <table>
-    <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
-    <tbody id="devices"></tbody>
-  </table>
-</section>
-
-<section>
-  <h2>Download archive CSV</h2>
-  <form id="csvForm">
-    <label>Device <select id="csvDevice" required></select></label>
-    <label>Start <input id="csvStart" type="datetime-local" required></label>
-    <label>End <input id="csvEnd" type="datetime-local" required></label>
-    <button type="submit">Download CSV</button>
-  </form>
-  <p class="muted">Stored archive buckets, IST timestamps, maximum one week per download.</p>
-</section>
-
-<section>
-  <h2>Download raw CSV</h2>
-  <form id="rawForm">
-    <label>Device <select id="rawDevice" required></select></label>
-    <label>Start <input id="rawStart" type="datetime-local" required></label>
-    <label>End <input id="rawEnd" type="datetime-local" required></label>
-    <button type="submit">Download raw CSV</button>
-  </form>
-  <p class="muted">Raw frames collected by <code>download_raw_data</code>; same device/range as the command.</p>
-</section>
-
-<section>
-  <h2>Firmware releases</h2>
-  <table>
-    <thead><tr><th>Version</th><th>Channel</th><th>Size</th><th>SHA-256</th><th>File</th></tr></thead>
-    <tbody id="firmware"></tbody>
-  </table>
-  <h3>Upload a new image</h3>
-  <form id="uploadForm">
-    <label>Version <input name="version" placeholder="0.2.0" required></label>
-    <label>Channel <input name="channel" value="stable" required></label>
-    <label>Notes <input name="notes"></label>
-    <label>Image file <input name="file" type="file" required></label>
-    <label><span><input name="mandatory" type="checkbox"> Mandatory</span></label>
-    <button type="submit">Upload and register</button>
-  </form>
-</section>
-
-<section>
-  <h2>Queue a command</h2>
-  <form id="commandForm">
-    <label>Device <select id="commandDevice" required></select></label>
-    <label>Command
-      <select id="commandType" onchange="updateCommandPayload()">
-        <option value="get_fw_version">get_fw_version</option>
-        <option value="download_new_fw">download_new_fw</option>
-        <option value="boot_with_new_fw">boot_with_new_fw</option>
-        <option value="reboot">reboot</option>
-        <option value="sync_time">sync_time</option>
-        <option value="self_test">self_test</option>
-        <option value="get_data_again">get_data_again</option>
-        <option value="download_raw_data">download_raw_data</option>
-        <option value="get_pending_commands">get_pending_commands</option>
+<section class="panel">
+  <h2>Time display</h2>
+  <div class="row">
+    <label>Time zone
+      <select id="tzMode">
+        <option value="site">Site TZ</option>
+        <option value="utc">UTC</option>
+        <option value="browser">Browser time</option>
       </select>
     </label>
-    <label id="versionField">Firmware version
-      <select id="commandVersion"></select>
-    </label>
-    <label id="rangeField">Start <input id="commandStart" type="datetime-local"></label>
-    <label id="rangeEndField">End <input id="commandEnd" type="datetime-local"></label>
-    <button type="submit">Queue command</button>
-  </form>
-  <h3>Commands</h3>
-  <table>
-    <thead><tr><th>Created</th><th>Type</th><th>Status</th><th>Payload</th><th>Result / error</th></tr></thead>
-    <tbody id="commands"></tbody>
-  </table>
+    <p id="tzHint" class="muted" style="margin:0;max-width:36rem"></p>
+  </div>
+</section>
+
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="devices" class="active">Devices</button>
+  <button type="button" data-tab="downloads">Download CSV</button>
+  <button type="button" data-tab="firmware">Firmware</button>
+  <button type="button" data-tab="commands">Commands</button>
+  <button type="button" data-tab="site">Site Settings</button>
+</nav>
+
+<section id="tab-devices" class="tab active">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Site TZ</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
+      <tbody id="devices"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tab-downloads" class="tab">
+  <div class="panel">
+    <h2>Download archive CSV</h2>
+    <form id="csvForm">
+      <label>Device <select id="csvDevice" required></select></label>
+      <label>Start <input id="csvStart" type="datetime-local" required></label>
+      <label>End <input id="csvEnd" type="datetime-local" required></label>
+      <button type="submit">Download CSV</button>
+    </form>
+    <p class="muted">Enter times in the selected time zone. CSV rows carry both UTC and Site TZ timestamps. Maximum one week per download.</p>
+  </div>
+  <div class="panel">
+    <h2>Download raw CSV</h2>
+    <form id="rawForm">
+      <label>Device <select id="rawDevice" required></select></label>
+      <label>Start <input id="rawStart" type="datetime-local" required></label>
+      <label>End <input id="rawEnd" type="datetime-local" required></label>
+      <button type="submit">Download raw CSV</button>
+    </form>
+    <p class="muted">Raw frames collected by <code>download_raw_data</code>; same device, range and time-zone selection as the command. CSV rows carry both UTC and Site TZ timestamps.</p>
+  </div>
+</section>
+
+<section id="tab-firmware" class="tab">
+  <div class="panel">
+    <h2>Firmware releases</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Version</th><th>Channel</th><th>Size</th><th>SHA-256</th><th>File</th></tr></thead>
+        <tbody id="firmware"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Upload a new image</h2>
+    <form id="uploadForm">
+      <label>Version <input name="version" placeholder="0.2.0" required></label>
+      <label>Channel <input name="channel" value="stable" required></label>
+      <label>Notes <input name="notes"></label>
+      <label>Image file <input name="file" type="file" required></label>
+      <label class="inline"><input name="mandatory" type="checkbox"> Mandatory</label>
+      <button type="submit">Upload and register</button>
+    </form>
+  </div>
+</section>
+
+<section id="tab-commands" class="tab">
+  <div class="panel">
+    <h2>Queue a command</h2>
+    <form id="commandForm">
+      <label>Device <select id="commandDevice" required></select></label>
+      <label>Command
+        <select id="commandType" onchange="updateCommandPayload()">
+          <option value="get_config">get_config</option>
+          <option value="push_config">push_config</option>
+          <option value="download_new_fw">download_new_fw</option>
+          <option value="boot_with_new_fw">boot_with_new_fw</option>
+          <option value="reboot">reboot</option>
+          <option value="sync_time">sync_time</option>
+          <option value="self_test">self_test</option>
+          <option value="get_data_again">get_data_again</option>
+          <option value="download_raw_data">download_raw_data</option>
+          <option value="get_pending_commands">get_pending_commands</option>
+        </select>
+      </label>
+      <label id="versionField">Firmware version
+        <select id="commandVersion"></select>
+      </label>
+      <label id="rangeField">Start <input id="commandStart" type="datetime-local"></label>
+      <label id="rangeEndField">End <input id="commandEnd" type="datetime-local"></label>
+      <button type="submit">Queue command</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Commands</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Created</th><th>Type</th><th>Status</th><th>Payload</th><th>Result / error</th></tr></thead>
+        <tbody id="commands"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="tab-site" class="tab">
+  <div class="panel">
+    <h2>Site settings</h2>
+    <div class="row">
+      <label>Device <select id="cfgDevice"></select></label>
+      <button type="button" id="cfgReload" class="secondary">Reload from server</button>
+    </div>
+    <p id="cfgMeta" class="muted"></p>
+    <form id="cfgForm">
+      <div class="grid2">
+        <label>Time zone <select id="cfgTimezone"></select></label>
+        <label>OTA password over Wi-Fi <input id="cfgAdminPassword" type="password" maxlength="32"></label>
+        <label>Latitude <input id="cfgLat" type="number" step="any" min="-90" max="90" placeholder="13.4867"></label>
+        <label>Longitude <input id="cfgLon" type="number" step="any" min="-180" max="180" placeholder="77.7064"></label>
+        <label>Altitude (m) <input id="cfgAlt" type="number" step="any" min="-500" max="9000" placeholder="940"></label>
+        <label>Upload interval (s) <input id="cfgUploadInterval" type="number" min="10" max="86400" required></label>
+        <label>Command poll interval (s) <input id="cfgPollInterval" type="number" min="10" max="3600" required></label>
+      </div>
+      <label class="inline"><input id="cfgUploadEnabled" type="checkbox"> Uploads enabled</label>
+      <label class="inline"><input id="cfgArchiveEnabled" type="checkbox"> SD archive enabled</label>
+      <h3>Wi-Fi profiles</h3>
+      <p class="muted">Up to six networks, tried in order. Leave a row blank to skip it.</p>
+      <div id="cfgWifiRows"></div>
+      <div class="row">
+        <button type="submit">Save to server</button>
+        <button type="button" id="cfgPush" class="secondary">Push config to device</button>
+        <button type="button" id="cfgGet" class="secondary">Get config from device</button>
+      </div>
+      <p id="cfgStatus" class="status"></p>
+    </form>
+    <p class="muted">Save only updates the server copy. Push sends the saved copy to the device. Get overwrites the server copy with the device copy, so any unpushed admin changes are lost.</p>
+  </div>
 </section>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let releases = [];
+let devices = [];
+let cfgLoadedFor = '';
+const TZ_KEY = 'akashvaniTzMode';
+const TAB_KEY = 'akashvaniTab';
 
 function token() { return localStorage.getItem('akashvaniAdminToken') || ''; }
+
+function tzMode() {
+  const mode = localStorage.getItem(TZ_KEY);
+  return mode === 'utc' || mode === 'browser' ? mode : 'site';
+}
+
+function deviceById(id) {
+  return devices.find((device) => device.id === id) || null;
+}
+
+// undefined means "browser zone"; otherwise an IANA name.
+function zoneForDevice(device) {
+  if (tzMode() === 'utc') return 'UTC';
+  if (tzMode() === 'browser') return undefined;
+  const name = device && device.timezone ? device.timezone : 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: name });
+    return name;
+  } catch (_) {
+    return 'UTC';
+  }
+}
+
+const timezoneNames = (() => {
+  try {
+    const all = Intl.supportedValuesOf('timeZone');
+    if (all && all.length) return all;
+  } catch (_) {}
+  return ['UTC', 'Asia/Kolkata', 'Europe/London', 'America/New_York', 'Australia/Sydney'];
+})();
+
+function fillTimezones(select, selected) {
+  const zone = selected || 'UTC';
+  const names = timezoneNames.includes(zone) ? timezoneNames.slice() : [zone, ...timezoneNames];
+  select.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  select.value = zone;
+}
+
+const stampFormatters = new Map();
+
+function zoneParts(date, zone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  const out = {};
+  for (const part of formatter.formatToParts(date)) out[part.type] = part.value;
+  return {
+    year: Number(out.year), month: Number(out.month), day: Number(out.day),
+    hour: Number(out.hour), minute: Number(out.minute), second: Number(out.second)
+  };
+}
+
+function stamp(iso, zone) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const key = zone || 'browser';
+  let formatter = stampFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit',
+      day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    stampFormatters.set(key, formatter);
+  }
+  return formatter.format(date);
+}
+
+function relative(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return iso;
+  const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (seconds < 60) return seconds + 's ago';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = seconds % 60;
+    return rest ? minutes + 'm ' + rest + 's ago' : minutes + 'm ago';
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest ? hours + 'h ' + rest + 'm ago' : hours + 'h ago';
+  }
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest ? days + 'd ' + rest + 'h ago' : days + 'd ago';
+}
+
+// Convert a datetime-local wall time in an IANA zone to a Unix epoch. A null
+// zone means the browser's own zone.
+function zonedEpoch(localValue, zone) {
+  if (!localValue) return null;
+  if (!zone) {
+    const parsed = new Date(localValue);
+    return Number.isNaN(parsed.getTime()) ? null : Math.floor(parsed.getTime() / 1000);
+  }
+  const [datePart, timePart] = localValue.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second = 0] = (timePart || '00:00').split(':').map(Number);
+  const wall = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = wall;
+  for (let i = 0; i < 3; i += 1) {
+    const parts = zoneParts(new Date(guess), zone);
+    const observed = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    guess += wall - observed;
+  }
+  return Math.floor(guess / 1000);
+}
+
+function updateTzHint() {
+  const mode = tzMode();
+  $('tzHint').textContent = mode === 'site'
+    ? 'Site TZ is each device\'s own time zone, configured on its AP page or in Site Settings.'
+    : mode === 'utc'
+      ? 'All timestamps are shown in UTC.'
+      : 'Timestamps are shown in this browser\'s time zone.';
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 function setStatus(text, kind = '') {
   const el = $('status');
@@ -128,10 +351,10 @@ function setStatus(text, kind = '') {
   el.className = 'status ' + kind;
 }
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
+function setCfgStatus(text, kind = '') {
+  const el = $('cfgStatus');
+  el.textContent = text;
+  el.className = 'status ' + kind;
 }
 
 async function api(path, options = {}) {
@@ -152,10 +375,35 @@ function saveToken() {
   refreshAll();
 }
 
+function showTab(name) {
+  const target = document.getElementById('tab-' + name) ? name : 'devices';
+  document.querySelectorAll('.tab').forEach((panel) => {
+    panel.classList.toggle('active', panel.id === 'tab-' + target);
+  });
+  document.querySelectorAll('#tabs button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === target);
+  });
+  localStorage.setItem(TAB_KEY, target);
+  if (target === 'site') {
+    fillConfigDevices();
+    if (!cfgLoadedFor && $('cfgDevice').value) loadDeviceConfig();
+  }
+}
+
 async function loadDevices() {
-  const devices = await api('/api/v1/admin/devices');
-  $('devices').innerHTML = devices.map((d) => `<tr>
+  devices = await api('/api/v1/admin/devices');
+  $('devices').innerHTML = devices.map((d) => {
+    const zone = zoneForDevice(d);
+    const seen = d.last_seen_at
+      ? `<span title="${escapeHtml(stamp(d.last_seen_at, zone))}">${escapeHtml(relative(d.last_seen_at))}</span>`
+      : '';
+    const radio = d.last_radio_at
+      ? `<span title="${escapeHtml(stamp(d.last_radio_at, zone))}">${escapeHtml(relative(d.last_radio_at))}</span>`
+      : '';
+    const bucket = d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : '';
+    return `<tr>
     <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
+    <td><code>${escapeHtml(d.timezone || 'UTC')}</code></td>
     <td>${d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'}</td>
     <td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
     <td>${escapeHtml(d.firmware_version ?? '')}</td>
@@ -164,24 +412,44 @@ async function loadDevices() {
     <td>${d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'}</td>
     <td>${escapeHtml(d.reset_reason ?? '')}</td>
     <td>${d.wifi_rssi === null || d.wifi_rssi === undefined ? '' : d.wifi_rssi + ' dBm'}</td>
-    <td>${escapeHtml(d.last_seen_at ?? '')}</td>
-    <td>${escapeHtml(d.last_radio_at ?? '')}</td>
-    <td>${escapeHtml(d.latest_archive_at ?? '')}</td>
+    <td>${seen}</td>
+    <td>${radio}</td>
+    <td>${bucket}</td>
     <td>${d.frames_valid === null || d.frames_valid === undefined ? '' : `${d.frames_valid}/${d.frames_expected}`}</td>
-    <td>${d.rssi_avg_dbm === null || d.rssi_avg_dbm === undefined ? '' : Number(d.rssi_avg_dbm).toFixed(0)}</td></tr>`).join('');
-  const current = $('commandDevice').value;
-  $('commandDevice').innerHTML = devices.map((d) =>
-    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
-  if (current) $('commandDevice').value = current;
-  const csvCurrent = $('csvDevice').value;
-  $('csvDevice').innerHTML = devices.map((d) =>
-    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
-  if (csvCurrent) $('csvDevice').value = csvCurrent;
-  const rawCurrent = $('rawDevice').value;
-  $('rawDevice').innerHTML = devices.map((d) =>
-    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
-  if (rawCurrent) $('rawDevice').value = rawCurrent;
+    <td>${d.rssi_avg_dbm === null || d.rssi_avg_dbm === undefined ? '' : Number(d.rssi_avg_dbm).toFixed(0)}</td></tr>`;
+  }).join('');
+  const ids = devices.map((d) => d.id).join(',');
+  if (ids !== loadDevices.lastIds) {
+    loadDevices.lastIds = ids;
+    fillDeviceSelects();
+    fillConfigDevices();
+  }
+  if (document.getElementById('tab-site').classList.contains('active') && !cfgLoadedFor && $('cfgDevice').value) {
+    loadDeviceConfig();
+  }
   return devices;
+}
+
+function fillDeviceSelects() {
+  for (const selectId of ['csvDevice', 'rawDevice', 'commandDevice']) {
+    const select = $(selectId);
+    const current = select.value;
+    select.innerHTML = devices.map((d) =>
+      `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
+    if (current && devices.some((d) => d.id === current)) select.value = current;
+  }
+}
+
+function fillConfigDevices() {
+  const select = $('cfgDevice');
+  const current = select.value;
+  select.innerHTML = devices.map((d) =>
+    `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
+  if (current && devices.some((d) => d.id === current)) {
+    select.value = current;
+  } else if (devices.length > 0) {
+    select.value = devices[0].id;
+  }
 }
 
 async function loadFirmware() {
@@ -199,9 +467,10 @@ async function loadCommands() {
   const device = $('commandDevice').value;
   if (!device) { $('commands').innerHTML = ''; return; }
   const commands = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/commands?limit=50`);
+  const zone = zoneForDevice(deviceById(device));
   $('commands').innerHTML = commands.map((c) => {
     const detail = c.error ? `<span class="error">${escapeHtml(c.error)}</span>` : escapeHtml(JSON.stringify(c.result ?? ''));
-    return `<tr><td>${escapeHtml(c.created_at)}</td><td>${escapeHtml(c.type)}</td>
+    return `<tr><td>${escapeHtml(stamp(c.created_at, zone))}</td><td>${escapeHtml(c.type)}</td>
       <td>${escapeHtml(c.status)}</td><td><code>${escapeHtml(JSON.stringify(c.payload))}</code></td>
       <td><code>${detail}</code></td></tr>`;
   }).join('');
@@ -209,8 +478,9 @@ async function loadCommands() {
 
 function updateCommandPayload() {
   const type = $('commandType').value;
-  $('versionField').style.display = (type === 'download_new_fw' || type === 'boot_with_new_fw') ? '' : 'none';
+  const isFirmware = type === 'download_new_fw' || type === 'boot_with_new_fw';
   const isRange = type === 'get_data_again' || type === 'download_raw_data';
+  $('versionField').style.display = isFirmware ? '' : 'none';
   $('rangeField').style.display = isRange ? '' : 'none';
   $('rangeEndField').style.display = isRange ? '' : 'none';
 }
@@ -226,26 +496,136 @@ async function refreshAll() {
   }
 }
 
-$('uploadForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  form.set('mandatory', event.target.mandatory.checked ? 'true' : 'false');
-  try {
-    const release = await api('/api/v1/admin/firmware/upload', { method: 'POST', body: form });
-    setStatus(`Uploaded ${release.version} (${release.size_bytes} bytes, ${release.sha256})`, 'ok');
-    event.target.reset();
-    event.target.channel.value = 'stable';
-    await loadFirmware();
-  } catch (error) {
-    setStatus(error.message, 'error');
+// ---------------------------------------------------------------------------
+// Site settings
+// ---------------------------------------------------------------------------
+function buildConfigWifiRows(profiles) {
+  const box = $('cfgWifiRows');
+  box.innerHTML = '';
+  for (let i = 0; i < 6; i += 1) {
+    const profile = profiles[i] || {};
+    const row = document.createElement('div');
+    row.className = 'wifi-row';
+    const num = document.createElement('div');
+    num.className = 'num';
+    num.textContent = String(i + 1);
+    const ssid = document.createElement('input');
+    ssid.className = 'ssid';
+    ssid.type = 'text';
+    ssid.maxLength = 32;
+    ssid.placeholder = 'Wi-Fi network name';
+    ssid.value = profile.ssid || '';
+    const pass = document.createElement('input');
+    pass.className = 'pass';
+    pass.type = 'password';
+    pass.maxLength = 63;
+    pass.placeholder = 'Password (8-63 characters)';
+    pass.value = profile.password || '';
+    row.appendChild(num);
+    row.appendChild(ssid);
+    row.appendChild(pass);
+    box.appendChild(row);
   }
-});
+}
 
+async function loadDeviceConfig() {
+  const device = $('cfgDevice').value;
+  if (!device) return;
+  cfgLoadedFor = device;
+  try {
+    const data = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/config`);
+    const cfg = data.config;
+    const zone = zoneForDevice(deviceById(device));
+    $('cfgMeta').textContent = cfg
+      ? `Server copy v${data.config_version} updated ${stamp(data.config_updated_at, zone)}`
+      : 'No configuration saved on the server yet.';
+    fillTimezones($('cfgTimezone'), cfg ? cfg.timezone : 'UTC');
+    $('cfgAdminPassword').value = cfg ? (cfg.admin_password || '') : '';
+    $('cfgLat').value = cfg && cfg.site ? cfg.site.latitude : '';
+    $('cfgLon').value = cfg && cfg.site ? cfg.site.longitude : '';
+    $('cfgAlt').value = cfg && cfg.site ? cfg.site.altitude_m : '';
+    $('cfgUploadEnabled').checked = cfg ? cfg.upload_enabled : true;
+    $('cfgArchiveEnabled').checked = cfg ? cfg.archive_enabled : true;
+    $('cfgUploadInterval').value = cfg ? cfg.upload_interval_seconds : 60;
+    $('cfgPollInterval').value = cfg ? cfg.command_poll_interval_seconds : 30;
+    buildConfigWifiRows(cfg ? cfg.wifi : []);
+    setCfgStatus('');
+  } catch (error) {
+    setCfgStatus(error.message, 'error');
+  }
+}
+
+function collectConfig() {
+  const latRaw = $('cfgLat').value.trim();
+  const lonRaw = $('cfgLon').value.trim();
+  const altRaw = $('cfgAlt').value.trim();
+  const filled = [latRaw, lonRaw, altRaw].filter((value) => value !== '').length;
+  let site = null;
+  if (filled > 0) {
+    if (filled !== 3) return { error: 'Enter latitude, longitude and altitude together, or leave all three blank.' };
+    const latitude = Number(latRaw);
+    const longitude = Number(lonRaw);
+    const altitude = Number(altRaw);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return { error: 'Latitude must be between -90 and 90.' };
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return { error: 'Longitude must be between -180 and 180.' };
+    if (!Number.isFinite(altitude) || altitude < -500 || altitude > 9000) return { error: 'Altitude must be between -500 and 9000 m.' };
+    site = { latitude, longitude, altitude_m: altitude };
+  }
+  const wifi = [];
+  const rows = document.querySelectorAll('#cfgWifiRows .wifi-row');
+  for (let i = 0; i < rows.length; i += 1) {
+    const ssid = rows[i].querySelector('.ssid').value.trim();
+    const password = rows[i].querySelector('.pass').value;
+    if (!ssid && password) return { error: `Row ${i + 1}: enter an SSID or clear the password.` };
+    if (!ssid) continue;
+    if (ssid.length > 32) return { error: `Row ${i + 1}: SSID must be 32 characters or fewer.` };
+    if (password.length < 8 || password.length > 63) return { error: `Row ${i + 1}: password must be 8-63 characters.` };
+    wifi.push({ ssid, password });
+  }
+  return {
+    config: {
+      version: 1,
+      timezone: $('cfgTimezone').value,
+      site,
+      wifi,
+      admin_password: $('cfgAdminPassword').value,
+      upload_enabled: $('cfgUploadEnabled').checked,
+      archive_enabled: $('cfgArchiveEnabled').checked,
+      upload_interval_seconds: Number($('cfgUploadInterval').value),
+      command_poll_interval_seconds: Number($('cfgPollInterval').value),
+    }
+  };
+}
+
+async function saveDeviceConfig() {
+  const collected = collectConfig();
+  if (collected.error) { setCfgStatus(collected.error, 'error'); return false; }
+  const device = $('cfgDevice').value;
+  try {
+    const data = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collected.config),
+    });
+    $('cfgMeta').textContent = `Server copy v${data.config_version} updated ${stamp(data.config_updated_at, zoneForDevice(deviceById(device)))}`;
+    setCfgStatus('Saved to server.', 'ok');
+    return true;
+  } catch (error) {
+    setCfgStatus(error.message, 'error');
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event wiring
+// ---------------------------------------------------------------------------
 $('csvForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const device = $('csvDevice').value;
-  const start = Math.floor(new Date($('csvStart').value).getTime() / 1000);
-  const end = Math.floor(new Date($('csvEnd').value).getTime() / 1000);
+  const zone = zoneForDevice(deviceById(device));
+  const start = zonedEpoch($('csvStart').value, zone);
+  const end = zonedEpoch($('csvEnd').value, zone);
+  if (start === null || end === null) { setStatus('Enter a start and end time.', 'error'); return; }
   const response = await fetch(`/api/v1/admin/archive.csv?device_id=${encodeURIComponent(device)}&start=${start}&end=${end}`, {
     headers: { Authorization: 'Bearer ' + token() }
   });
@@ -262,8 +642,10 @@ $('csvForm').addEventListener('submit', async (event) => {
 $('rawForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const device = $('rawDevice').value;
-  const start = Math.floor(new Date($('rawStart').value).getTime() / 1000);
-  const end = Math.floor(new Date($('rawEnd').value).getTime() / 1000);
+  const zone = zoneForDevice(deviceById(device));
+  const start = zonedEpoch($('rawStart').value, zone);
+  const end = zonedEpoch($('rawEnd').value, zone);
+  if (start === null || end === null) { setStatus('Enter a start and end time.', 'error'); return; }
   const response = await fetch(`/api/v1/admin/raw.csv?device_id=${encodeURIComponent(device)}&start=${start}&end=${end}`, {
     headers: { Authorization: 'Bearer ' + token() }
   });
@@ -277,6 +659,21 @@ $('rawForm').addEventListener('submit', async (event) => {
   setStatus('Downloaded raw CSV for ' + device, 'ok');
 });
 
+$('uploadForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  form.set('mandatory', event.target.mandatory.checked ? 'true' : 'false');
+  try {
+    const release = await api('/api/v1/admin/firmware/upload', { method: 'POST', body: form });
+    setStatus(`Uploaded ${release.version} (${release.size_bytes} bytes, ${release.sha256})`, 'ok');
+    event.target.reset();
+    event.target.channel.value = 'stable';
+    await loadFirmware();
+  } catch (error) {
+    setStatus(error.message, 'error');
+  }
+});
+
 $('commandForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const type = $('commandType').value;
@@ -285,8 +682,12 @@ $('commandForm').addEventListener('submit', async (event) => {
     payload.version = $('commandVersion').value;
   }
   if (type === 'get_data_again' || type === 'download_raw_data') {
-    payload.start_epoch = Math.floor(new Date($('commandStart').value).getTime() / 1000);
-    payload.end_epoch = Math.floor(new Date($('commandEnd').value).getTime() / 1000);
+    const zone = zoneForDevice(deviceById($('commandDevice').value));
+    const start = zonedEpoch($('commandStart').value, zone);
+    const end = zonedEpoch($('commandEnd').value, zone);
+    if (start === null || end === null) { setStatus('Enter a start and end time for this command.', 'error'); return; }
+    payload.start_epoch = start;
+    payload.end_epoch = end;
   }
   try {
     const command = await api(`/api/v1/admin/devices/${encodeURIComponent($('commandDevice').value)}/commands`, {
@@ -302,8 +703,65 @@ $('commandForm').addEventListener('submit', async (event) => {
 });
 
 $('commandDevice').addEventListener('change', loadCommands);
+
+$('cfgDevice').addEventListener('change', () => {
+  cfgLoadedFor = '';
+  loadDeviceConfig();
+});
+$('cfgReload').addEventListener('click', () => {
+  cfgLoadedFor = '';
+  loadDeviceConfig();
+});
+$('cfgForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  await saveDeviceConfig();
+});
+$('cfgPush').addEventListener('click', async () => {
+  if (!(await saveDeviceConfig())) return;
+  try {
+    const device = $('cfgDevice').value;
+    const command = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/commands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'push_config', payload: {} })
+    });
+    setCfgStatus(`Queued push_config (${command.id}). The device may reboot if Wi-Fi changed.`, 'ok');
+  } catch (error) {
+    setCfgStatus(error.message, 'error');
+  }
+});
+$('cfgGet').addEventListener('click', async () => {
+  if (!confirm('Get config overwrites the server copy with the device copy. Unpushed admin changes will be lost. Continue?')) return;
+  try {
+    const device = $('cfgDevice').value;
+    const command = await api(`/api/v1/admin/devices/${encodeURIComponent(device)}/commands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'get_config', payload: {} })
+    });
+    setCfgStatus(`Queued get_config (${command.id}). Reload in about a minute.`, 'ok');
+  } catch (error) {
+    setCfgStatus(error.message, 'error');
+  }
+});
+
+document.querySelectorAll('#tabs button').forEach((button) => {
+  button.addEventListener('click', () => showTab(button.dataset.tab));
+});
+$('tzMode').addEventListener('change', () => {
+  localStorage.setItem(TZ_KEY, $('tzMode').value);
+  updateTzHint();
+  loadDevices();
+  loadCommands();
+});
+
 $('token').value = token();
+$('tzMode').value = tzMode();
+updateTzHint();
 updateCommandPayload();
+fillTimezones($('cfgTimezone'), 'UTC');
+buildConfigWifiRows([]);
+showTab(localStorage.getItem(TAB_KEY) || 'devices');
 refreshAll();
 setInterval(() => { if (token()) { loadCommands(); loadDevices(); } }, 5000);
 </script>

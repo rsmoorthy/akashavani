@@ -65,6 +65,26 @@ All notable changes are recorded here. The firmware version lives in
 
 ### Changed
 
+- Removed `AKASHVANI_SITE_TIMEZONE`; there is no site-wide zone. Each device
+  stores an IANA display zone (NVS `tz`, default `UTC`, set on its AP page) and
+  reports it with its configuration. The server stores it in `devices.timezone`
+  (migration `e2c7b5a41f90`).
+- UTC is now the only stored and transported time zone: SD archive paths and
+  records, the rolling raw log (UTC weekday and `...Z` stamps, previously IST),
+  observations, commands and API responses.
+- Device configuration exchange: `PUT /api/v1/devices/me/config` on boot, after
+  an AP-page save and daily; the server mirrors the document in
+  `devices.config` (migration `f3d18c6b2a70`). `get_config` and `push_config`
+  replace `get_fw_version` for manual sync. `get_fw_version` is removed.
+- Per-device latitude, longitude and altitude replace the site-wide
+  `AKASHVANI_SITE_*` variables and are editable on the AP page and `/admin`.
+  Archive derivations store `NULL` when altitude is not yet known.
+- `/admin` was reorganised into Devices, Download CSV, Firmware, Commands and
+  Site Settings tabs with a mobile-friendly layout and a full device-config
+  editor.
+- `/admin` gained a Site TZ / UTC / Browser time selector (default Site TZ),
+  relative Last Seen/Last Radio, second-resolution timestamps and CSV exports
+  with both UTC and Site TZ columns.
 - Removed `station_id` end-to-end: DB column (migration `7d1c93a5e2b4`),
   `X-Station-Id` header/fallback, `DeviceOut`, `/admin` column, AP-page field,
   NVS key, `self_test` field and boot log. Identity is the device token plus
@@ -86,7 +106,17 @@ All notable changes are recorded here. The firmware version lives in
 - Command acknowledgements carry a structured `result`.
 - Development identity/credentials are only seeded on a blank device; NVS wins
   after the first save through the AP page.
-- Firmware version `0.3.0`.
+- Firmware version `0.3.2`.
+- The local AP page is split into Status and Configuration tabs. The weather
+  section shows last-known Temp, Int Temp, Wind and Rain values with relative
+  ages, current-bucket valid/invalid frame counts and a relative last-frame age.
+- RFM69 receive is interrupt-driven: DIO0 notifies a high-priority task that
+  puts the radio in standby, drains the FIFO into a 128-frame RAM queue and owns
+  the channel-hop/search timers, so blocking OTA/replay commands do not stop
+  frame reception. Only CRC-valid frames are queued; invalid noise is counted
+  and discarded. Frames carry their receive epoch and channel. Per bucket, the
+  invalid-frame RSSI min/avg/max is sent to the server and stored on the archive
+  row.
 
 ### Known gaps
 
