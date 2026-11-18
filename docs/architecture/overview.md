@@ -115,9 +115,9 @@ The epoch window accepted by both firmware and server is 2000-01-01 through
 - The RF link is unauthenticated; anyone in range can inject a frame. The
   receiver must validate framing/CRC and plausibility. Cloud authentication is
   per device token, not per frame.
-- The provisioning AP is WPA2-protected but uses a shared default password
-  (`kApPassword`) until changed in firmware. The AP configuration page has no
-  separate login in this phase.
+- The provisioning AP is WPA2-protected with a build-time password
+  (`AK_AP_PASSWORD` from `firmware/.env`), shared by boards built from the same
+  configuration. The AP configuration page has no separate login in this phase.
 - The device token is a bearer credential. Lose the board, rotate the token.
 - TLS verification is currently disabled on the device for local development;
   production requires a pinned CA.

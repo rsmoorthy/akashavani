@@ -69,6 +69,9 @@ All notable changes are recorded here. The firmware version lives in
   firmware libraries, classes, files, product strings, AP SSID prefix, default
   admin password and OTA artifact names now use the new spelling. JSON keys,
   HTTP routes, headers, device IDs and NVS keys are unchanged.
+- Provisioning AP password is supplied at build time from `firmware/.env`
+  (`AK_AP_PASSWORD`) or `receiver/secrets.h`; no default password is compiled
+  in. It remains in the image and is not stored in NVS.
 - Removed `AKASHAVANI_SITE_TIMEZONE`; there is no site-wide zone. Each device
   stores an IANA display zone (NVS `tz`, default `UTC`, set on its AP page) and
   reports it with its configuration. The server stores it in `devices.timezone`

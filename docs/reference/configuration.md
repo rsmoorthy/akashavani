@@ -10,6 +10,7 @@
 | `AKASHAVANI_FQBN_16MB` | `esp32:esp32:esp32:...app3M_fat9M_16MB` | replace the 16 MB default |
 | `AKASHAVANI_ESP32_CORE` | `3.0.2` | core version installed by `fw-setup` |
 | `AKASHAVANI_HOST` / `PORT` | `127.0.0.1` / `8000` | local server binding |
+| `AK_AP_PASSWORD` | unset | provisioning AP password; read from `firmware/.env` or the environment (WPA2: 8-63 characters) |
 
 The default target is the ESP32 classic bench board. The receiver sketch carries
 `partitions.csv` with two 1.875 MiB OTA slots; see
@@ -33,7 +34,7 @@ OTA tooling.
 | `kDisplayCsPin` / `kDisplayDcPin` / `kDisplayResetPin` | 8 / 7 / 6 | unused ST7735 seam; the bench panel is I²C |
 | `kStatusLedPin` | 2 | |
 | `kApSsidPrefix` | `akashavani-` | last MAC byte is appended, e.g. `akashavani-e0` |
-| `kApPassword` | `doordarshan` | WPA2 password for the provisioning AP |
+| `kApPassword` | `AK_AP_PASSWORD` | WPA2 password for the provisioning AP; from `firmware/.env` at build time |
 | `kApChannel` | 6 | AP channel; STA may override when both are active |
 | `kApMaxClients` | 4 | simultaneous AP clients |
 | `kApIp` / `kApGateway` / `kApSubnet` | `10.90.0.1` / `10.90.0.1` / `255.255.255.0` | AP interface |
@@ -91,7 +92,7 @@ The OTA staged release is stored in NVS namespace `ota_meta` under
 | Setting | Value |
 | --- | --- |
 | AP SSID | `akashavani-XX`, where `XX` is the last MAC byte in hex |
-| AP password | `doordarshan` (`kApPassword`) |
+| AP password | `AK_AP_PASSWORD` from `firmware/.env` |
 | AP address | `http://10.90.0.1/` |
 | DHCP pool | `10.90.0.11` – `10.90.0.20` |
 | Status refresh | 5 seconds |

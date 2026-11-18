@@ -13,7 +13,7 @@ namespace akashavani {
 // devices on the same bench never collide.
 struct WifiApConfig {
   const char* ssidPrefix = "akashavani-";
-  const char* password = "doordarshan";
+  const char* password = "";
   uint8_t channel = 6;
   uint8_t maxClients = 4;
   const char* ip = "10.90.0.1";

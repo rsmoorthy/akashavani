@@ -117,6 +117,8 @@ Firmware build notes:
 - Default target is 4 MB / `min_spiffs`; `AKASHAVANI_FLASH_SIZE=16M` selects the
   16 MB scheme.
 - `firmware/VERSION` is injected as `AKASHAVANI_FW_VERSION` by the build script.
+- The receiver AP password comes from `firmware/.env` (`AK_AP_PASSWORD`); copy
+  `firmware/.env.example` before building. `receiver/secrets.h` is the fallback.
 
 ## Where to change what
 

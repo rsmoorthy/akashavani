@@ -50,8 +50,9 @@ Bench state at handoff (2026-11-12, verified):
   Check MACs with `esptool read_mac` before flashing — `arduino-cli board list`
   does not show them and the ports have swapped once.
 - Receiver `ak-2731e0`, device token `secret123`, shared API token `secret`,
-  server `http://192.168.29.31:8000`, AP `akashavani-e0` / `doordarshan`, STA
-  `Advaita` (`192.168.29.84`), simulator `192.168.29.144` (idle).
+  server `http://192.168.29.31:8000`, AP `akashavani-e0` (password from
+  `firmware/.env`), STA `Advaita` (`192.168.29.84`), simulator
+  `192.168.29.144` (idle).
 - Server DB: `server/data/akashavani.db`; admin token `dev-admin-token`;
   `/admin` at `http://127.0.0.1:8000/admin`. The dev server is currently run
   without `--reload` (`setsid nohup uvicorn ... :8000`), so restart it after

@@ -23,16 +23,17 @@ cannot be recovered.
 
 ## 2. Connect to the board AP
 
-| Setting | Default |
+| Setting | Value |
 | --- | --- |
 | SSID | `akashavani-XX` (`XX` = last MAC byte, e.g. `akashavani-e0`) |
-| Password | `doordarshan` |
+| Password | `AK_AP_PASSWORD` from `firmware/.env` |
 | Board address | `http://10.90.0.1/` |
 | DHCP pool | `10.90.0.11` – `10.90.0.20` |
 
 The AP stays active after the site Wi-Fi is configured, so a mistaken site
-credential does not lock you out. The AP password and DHCP range are constants
-in `firmware/sketches/receiver/config.h`.
+credential does not lock you out. The AP password is compiled in from
+`firmware/.env` at build time; the DHCP range is a constant in
+`firmware/sketches/receiver/config.h`.
 
 ## 3. Configure site Wi-Fi and cloud
 
@@ -100,12 +101,13 @@ It refreshes every 5 seconds.
 | --- | --- | --- |
 | site Wi-Fi passwords | NVS (`wifi_pass_0`…`wifi_pass_5`) | plain text in the scaffold |
 | device token | NVS (`dev_token`) | edited on the AP page; rotate if lost |
-| AP password | firmware constant (`kApPassword`) | shared bench default, change in code |
+| AP password | build-time `AK_AP_PASSWORD` (`firmware/.env`) | compiled into the image; not stored in NVS |
 | ArduinoOTA password | NVS (`admin_pw`) | editable in admin Site Settings |
 
 The AP page has no separate login. Anyone who knows the AP password can change
-the server URL, device token and Wi-Fi profiles. Add authentication and a
-per-board AP password before field deployment.
+the server URL, device token and Wi-Fi profiles. The AP password is shared by
+every board built from the same `.env`; add authentication and per-board
+credentials before field deployment.
 
 ## Token rotation
 
@@ -136,7 +138,7 @@ before doing it onsite.
 
 ## Site checklist
 
-- [ ] AP password (`kApPassword`) changed from the shared bench default.
+- [ ] AP password set in `firmware/.env` before the release build.
 - [ ] ArduinoOTA password (`admin_pw`) changed from the default.
 - [ ] Device token unique to this board.
 - [ ] Site Wi-Fi uses a dedicated/IoT network where possible.

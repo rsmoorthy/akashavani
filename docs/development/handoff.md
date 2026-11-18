@@ -366,8 +366,9 @@ slot), leaving ~739 KB free. The `0.2.1` OTA image is 1,233,424 bytes.
 
 - `WifiService` now always brings up the AP with:
   - SSID `akashavani-XX`, where `XX` is the last STA MAC byte (`akashavani-e0`);
-  - password and DHCP/IP range from `config.h` (default `doordarshan`,
-    `10.90.0.1`, pool `10.90.0.11`-`10.90.0.20`);
+  - password from the build-time `AK_AP_PASSWORD` (`firmware/.env`), and
+    DHCP/IP range from `config.h` (`10.90.0.1`, pool
+    `10.90.0.11`-`10.90.0.20`);
   - an exact DHCP end address set through the netif DHCP server API.
 - Site Wi-Fi is now an ordered list of up to six SSID/password profiles, tried
   sequentially by the STA side.

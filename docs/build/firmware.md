@@ -47,6 +47,29 @@ receiver.ino.elf / .map
 The sketch name comes from the folder; `transmitter_sim.ino.bin` is the simulator
 binary.
 
+## Build-time credentials
+
+The receiver's provisioning AP password is not stored in source. Copy the
+example file and set it before building:
+
+```bash
+cp firmware/.env.example firmware/.env
+# edit firmware/.env and set AK_AP_PASSWORD
+```
+
+`firmware/.env` is git-ignored. `tools/fw-common.sh` loads it for `fw-build`,
+`fw-flash` and `fw-export`; variables already exported in the environment take
+precedence. `tools/fw-build.sh` injects `AK_AP_PASSWORD` as a build define, and
+`config.h` fails the build when it is missing or not 8-63 characters. If the
+password must contain whitespace, define it in
+`firmware/sketches/receiver/secrets.h` instead. The `ap_client` bench sketch uses
+the same value.
+
+The password is compiled into the image; it is not stored in NVS. Change it by
+building and flashing a new image, not through the AP page or a settings reset.
+Anyone holding the firmware image can recover it, so treat it as a shared
+provisioning credential rather than a per-device secret.
+
 ## Flash and monitor
 
 ```bash

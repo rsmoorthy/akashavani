@@ -10,6 +10,41 @@ BUILD_DIR="$ROOT/firmware/build"
 CACHE_DIR="$ROOT/firmware/.cache/arduino"
 VERSION="$(tr -d '[:space:]' < "$ROOT/firmware/VERSION")"
 
+# Load firmware/.env when present. Simple KEY=VALUE lines, optional surrounding
+# quotes and `#` comments; the file is parsed, not sourced, so values are not
+# shell-expanded. An existing environment variable wins, which lets CI and
+# one-off builds override the file.
+load_env_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ "$line" == export\ * ]] && line="${line#export }"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    if [[ ${#value} -ge 2 && "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ ${#value} -ge 2 && "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+    if [[ -z "${!key:-}" ]]; then
+      export "$key=$value"
+    fi
+  done < "$file"
+}
+
+load_env_file "$ROOT/firmware/.env"
+
 # The two bench boards are ESP32-D0WD-V3 (classic). The production target may
 # move to ESP32-S3 later; override AKASHAVANI_FQBN for that. The receiver sketch
 # carries an explicit 4 MB partition table (two 1.875 MiB OTA slots) which the

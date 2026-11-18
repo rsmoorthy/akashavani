@@ -25,6 +25,9 @@ jobs:
   firmware-build:
     name: Firmware build
     runs-on: ubuntu-latest
+    env:
+      # Public CI-only value; the receiver skips the build without a define.
+      AK_AP_PASSWORD: ci-build-only-password
     steps:
       - uses: actions/checkout@v4
       - name: Cache Arduino toolchain

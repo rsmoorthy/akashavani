@@ -16,6 +16,15 @@ constexpr uint32_t kStaRetryIntervalMs = 20000;
 
 Status WifiService::begin(const DeviceSettings& settings, const WifiApConfig& apConfig,
                           uint32_t staTimeoutMs) {
+  if (apConfig.password == nullptr) {
+    return Status::InvalidArgument;
+  }
+  const size_t passwordLength = std::strlen(apConfig.password);
+  if (passwordLength < 8 || passwordLength > 63) {
+    AK_LOG_ERROR("wifi", "AP password must be 8-63 characters (got %u)",
+                 static_cast<unsigned>(passwordLength));
+    return Status::InvalidArgument;
+  }
   settings_ = settings;
   apConfig_ = apConfig;
   if (settings_.wifiConfigured()) {

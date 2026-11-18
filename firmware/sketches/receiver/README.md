@@ -55,12 +55,13 @@ card together. See
 [`docs/hardware/pinmap.md`](../../../docs/hardware/pinmap.md).
 
 Copy `secrets.example.h` to `secrets.h` and fill in the local Wi-Fi password and
-device token. `secrets.h` is git-ignored.
+device token. `secrets.h` is git-ignored. The provisioning AP password is set
+separately in `firmware/.env` (see `firmware/.env.example`).
 
 ## Local admin
 
-Connect to `akashavani-<last MAC byte>` (default password `doordarshan`), open
+Connect to `akashavani-<last MAC byte>` (password from `firmware/.env`), open
 `http://10.90.0.1/`. The page refreshes status every 5 s and lets you save the
 station ID, the Python server URL and up to six site Wi-Fi networks. Changing a
-Wi-Fi network restarts the board. The AP password and DHCP range are constants
-in `config.h`.
+Wi-Fi network restarts the board. The AP password comes from the build; the DHCP
+range is a constant in `config.h`.

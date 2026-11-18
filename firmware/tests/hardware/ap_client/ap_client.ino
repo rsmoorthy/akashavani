@@ -1,10 +1,10 @@
 // Temporary bench client for the Akashavani provisioning AP.
 //
 // Flash this on the second board (USB1). It scans for an SSID that starts with
-// "akashavani-", connects with the default AP password, then exercises the local
-// HTTP server: status JSON, settings JSON, an unchanged round-trip, a Wi-Fi
-// profile change that must trigger a reboot, persistence across that reboot,
-// and the HTML page. It prints everything on the serial console.
+// "akashavani-", connects with the build-time AP password, then exercises the
+// local HTTP server: status JSON, settings JSON, an unchanged round-trip, a
+// Wi-Fi profile change that must trigger a reboot, persistence across that
+// reboot, and the HTML page. It prints everything on the serial console.
 //
 // The change test appends a temporary profile and then removes it again, so the
 // receiver's Wi-Fi list and server URL end up where they started.
@@ -14,8 +14,12 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
+#ifndef AK_AP_PASSWORD
+#error "Set AK_AP_PASSWORD in firmware/.env before building ap_client."
+#endif
+
 namespace {
-constexpr const char* kApPassword = "doordarshan";
+constexpr const char* kApPassword = AK_AP_PASSWORD;
 constexpr const char* kApBaseUrl = "http://10.90.0.1";
 constexpr uint32_t kSerialBaud = 115200;
 constexpr const char* kTestSsid = "akashavani-selftest";
