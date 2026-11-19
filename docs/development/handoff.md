@@ -7,6 +7,7 @@
 **Latest slice:** 2026-11-13, interrupt-driven RFM69 receive + channel scan task, bench soak
 **Scaffold commit:** `ab8078c` (`Initial Akashavani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
+**Latest bench check:** 2026-11-18, BME280 forced-mode sampling fixed
 
 This page records what was completed, what was verified, what is still a stub,
 and the plan agreed with the project owner. Update it at each slice boundary.
@@ -143,6 +144,42 @@ Unverified: OLED visual output and TLS.
 section at the end); image signatures and rollback are still missing. The RTC
 responds and SNTP sets it when Wi-Fi is up, but the DS3231's stored time was
 invalid before that.
+
+### BME280 sampling check (2026-11-18)
+
+The receiver reported an indoor temperature around 38.9 °C while the room was
+below 22 °C. The receiver's `/api/status` returned a bit-identical value
+(`38.86999893`, later `39.13999939` after a reboot) every 10 s while `age_s`
+kept resetting, so the sensor was not being re-measured.
+
+Root cause: `bme.setSampling(MODE_FORCED, ...)` takes one conversion at boot.
+In forced mode the BME280 returns to sleep, and Adafruit's `readTemperature()`
+only reads the result registers; it does not start a conversion. The receiver
+now calls `bme.takeForcedMeasurement()` before each sample. After flashing,
+`/api/status` changed every sample (`38.83`, `38.82`, `38.79`, `38.77`,
+`38.76`, `38.75 °C` over about one minute).
+
+The magnitude is real local heat, not a compensation error:
+
+| Board | BME280 | DS3231 | Conditions |
+| --- | --- | --- | --- |
+| USB1 simulator | 25.34 °C | 25.75 °C | open air, room below 22 °C |
+| USB0 receiver | 38.8–39.1 °C | 34.00 °C at boot | enclosed |
+
+Both sensors on the receiver are well above the open-air board, and the
+BME280 sits about 5 °C above the DS3231. The reading is the temperature of the
+sensor's local environment inside the enclosure, not outdoor air. It should not
+be compared directly with the Davis outdoor temperature or "corrected" to it.
+Vent the enclosure and keep the BME280 away from the ESP32, regulator and radio
+if it is meant to represent enclosure/site air; a vented or pressure-ported
+enclosure is also needed for meaningful station pressure.
+
+With the lid removed on 2026-11-18 the reading fell from about 39 °C to
+**32.8 °C over roughly 10 minutes**, then plateaued at 32.7–32.9 °C while the
+board stayed powered. That slow decay and elevated equilibrium are consistent
+with board/enclosure thermal mass plus continued heat from the ESP32, radio and
+SD card, not with a slow BME280. A bare sensor would settle in seconds; a small
+powered enclosure takes tens of minutes and settles above ambient.
 
 ## Explicit stubs / gaps
 

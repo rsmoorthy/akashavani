@@ -788,6 +788,12 @@ void sampleBme280() {
     return;
   }
   lastBmeSampleMs = millis();
+  // In forced mode the BME280 sleeps after one conversion. readTemperature()
+  // only reads the result registers, so without this the firmware re-reads the
+  // single measurement taken at boot forever.
+  if (!bme.takeForcedMeasurement()) {
+    return;
+  }
   const float temperature = bme.readTemperature();
   const float humidity = bme.readHumidity();
   const float pressure = bme.readPressure() / 100.0f;

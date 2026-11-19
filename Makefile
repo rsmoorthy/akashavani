@@ -130,8 +130,8 @@ lint: server-lint ## Run linters
 check: test lint ## Test + lint
 
 .PHONY: docs-serve
-docs-serve: ## Serve documentation at http://127.0.0.1:8001
-	.venv/bin/mkdocs serve -a 127.0.0.1:8001
+docs-serve: ## Serve documentation at http://0.0.0.0:8001
+	.venv/bin/mkdocs serve -a 0.0.0.0:8001
 
 .PHONY: docs-build
 docs-build: ## Build the documentation site
