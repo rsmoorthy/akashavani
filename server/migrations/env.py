@@ -5,11 +5,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from akashvani_server.config import get_settings
-from akashvani_server.db import Base
+from akashavani_server.config import get_settings
+from akashavani_server.db import Base
 
 # Importing models registers the tables on Base.metadata.
-from akashvani_server import models  # noqa: F401
+from akashavani_server import models  # noqa: F401
 
 config = context.config
 

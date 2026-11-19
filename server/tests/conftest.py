@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from akashvani_server.config import Settings
-from akashvani_server.main import create_app
+from akashavani_server.config import Settings
+from akashavani_server.main import create_app
 
 
 @pytest.fixture()

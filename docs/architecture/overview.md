@@ -4,10 +4,10 @@
 
 ```mermaid
 flowchart LR
-  station[Davis station] -- 868/915 MHz RF --> rx[Akashvani receiver]
+  station[Davis station] -- 868/915 MHz RF --> rx[Akashavani receiver]
   sim[Transmitter simulator] -- RF --> rx
   rx -- SD card --> archive[(JSONL archive)]
-  rx -- HTTP(S) JSON/CBOR --> server[Akashvani server]
+  rx -- HTTP(S) JSON/CBOR --> server[Akashavani server]
   server -- commands + OTA --> rx
   admin[Operator] -- LAN/AP --> rx
   admin -- HTTP admin API --> server
@@ -20,25 +20,25 @@ to exercise the receiver's RF path and, through it, the rest of the pipeline.
 
 | Library | Owns | Does not own |
 | --- | --- | --- |
-| `AkashvaniCore` | status codes, log, CRC, hex, UTC helpers, IDs | hardware buses |
-| `AkashvaniRadio` | `IRadio`, RFM69 registers, mock radio | Davis semantics |
-| `AkashvaniDavis` | observation model, frame codec, simulator | radio configuration |
-| `AkashvaniProtocol` | version, envelope/command types, field names | JSON library details |
-| `AkashvaniStorage` | daily path layout, SD append/flush | cloud policy |
-| `AkashvaniNet` | NVS settings, AP+STA, local admin, upload, OTA | measurement decoding |
-| `AkashvaniRtc` | DS3231, SNTP, time validity | scheduling policy |
-| `AkashvaniDisplay` | display state, no-op driver | data collection |
+| `AkashavaniCore` | status codes, log, CRC, hex, UTC helpers, IDs | hardware buses |
+| `AkashavaniRadio` | `IRadio`, RFM69 registers, mock radio | Davis semantics |
+| `AkashavaniDavis` | observation model, frame codec, simulator | radio configuration |
+| `AkashavaniProtocol` | version, envelope/command types, field names | JSON library details |
+| `AkashavaniStorage` | daily path layout, SD append/flush | cloud policy |
+| `AkashavaniNet` | NVS settings, AP+STA, local admin, upload, OTA | measurement decoding |
+| `AkashavaniRtc` | DS3231, SNTP, time validity | scheduling policy |
+| `AkashavaniDisplay` | display state, no-op driver | data collection |
 
 The dependency graph is acyclic:
 
 ```text
 sketch/app
-  ├─ AkashvaniNet ──> Core, Davis, Protocol, Rtc
-  ├─ AkashvaniStorage ──> Core
-  ├─ AkashvaniRadio ──> Core
-  ├─ AkashvaniDavis ──> Core
-  ├─ AkashvaniRtc ──> Core
-  └─ AkashvaniDisplay ──> Core
+  ├─ AkashavaniNet ──> Core, Davis, Protocol, Rtc
+  ├─ AkashavaniStorage ──> Core
+  ├─ AkashavaniRadio ──> Core
+  ├─ AkashavaniDavis ──> Core
+  ├─ AkashavaniRtc ──> Core
+  └─ AkashavaniDisplay ──> Core
 ```
 
 ## Observation path
@@ -115,9 +115,9 @@ The epoch window accepted by both firmware and server is 2000-01-01 through
 - The RF link is unauthenticated; anyone in range can inject a frame. The
   receiver must validate framing/CRC and plausibility. Cloud authentication is
   per device token, not per frame.
-- The provisioning AP is WPA2-protected but uses a shared default password
-  (`kApPassword`) until changed in firmware. The AP configuration page has no
-  separate login in this phase.
+- The provisioning AP is WPA2-protected with a build-time password
+  (`AK_AP_PASSWORD` from `firmware/.env`), shared by boards built from the same
+  configuration. The AP configuration page has no separate login in this phase.
 - The device token is a bearer credential. Lose the board, rotate the token.
 - TLS verification is currently disabled on the device for local development;
   production requires a pinned CA.

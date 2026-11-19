@@ -12,7 +12,7 @@
 
 namespace {
 
-using namespace akashvani;
+using namespace akashavani;
 
 TEST(DavisCrc, MatchesCapturedFrames) {
   const uint8_t first[6] = {0x87, 0x05, 0x2D, 0x32, 0x5B, 0x0F};

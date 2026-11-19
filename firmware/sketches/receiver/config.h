@@ -8,6 +8,13 @@
 #include "secrets.example.h"
 #endif
 
+// Provisioning AP password: compiled into the image, never read from NVS.
+// tools/fw-common.sh loads firmware/.env and tools/fw-build.sh injects
+// AK_AP_PASSWORD; secrets.h is the fallback when building without the scripts.
+#ifndef AK_AP_PASSWORD
+#error "Set AK_AP_PASSWORD in firmware/.env (copy firmware/.env.example) or in receiver/secrets.h."
+#endif
+
 // Receiver pin map and runtime tuning.
 //
 // The pin values below match the observed ESP32-D0WD-V3 bench wiring from
@@ -65,9 +72,14 @@ constexpr uint8_t kDisplayAddress = 0x3C;
 constexpr uint8_t kStatusLedPin = 2;
 
 // Provisioning access point. The SSID is the prefix plus the last MAC byte,
-// e.g. "akashvani-e0". Change the password, IP address and DHCP pool here.
-constexpr const char* kApSsidPrefix = "akashvani-";
-constexpr const char* kApPassword = "doordarshan";
+// e.g. "akashavani-e0". The password comes from firmware/.env at build time;
+// change the IP address and DHCP pool here.
+constexpr const char* kApSsidPrefix = "akashavani-";
+constexpr const char* kApPassword = AK_AP_PASSWORD;
+static_assert(sizeof(AK_AP_PASSWORD) - 1 >= 8,
+              "AP password must be at least 8 characters (WPA2)");
+static_assert(sizeof(AK_AP_PASSWORD) - 1 <= 63,
+              "AP password must be at most 63 characters (WPA2)");
 constexpr uint8_t kApChannel = 6;
 constexpr uint8_t kApMaxClients = 4;
 constexpr const char* kApIp = "10.90.0.1";

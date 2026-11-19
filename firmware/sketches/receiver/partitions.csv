@@ -1,4 +1,4 @@
-# Akashvani 4 MB layout.
+# Akashavani 4 MB layout.
 #
 # Two OTA application slots of 0x1E0000 bytes (1,966,080 B = 1.875 MiB) each.
 # The running image is never overwritten by an OTA download. The small SPIFFS

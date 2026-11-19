@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/command.schema.json",
+  "$id": "https://akashavani.local/schema/command.schema.json",
   "title": "Leased command",
   "description": "A command resource returned by POST /api/v1/devices/me/commands/lease.",
   "type": "object",

@@ -1,46 +1,46 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(akashvani_native_tests LANGUAGES CXX)
+project(akashavani_native_tests LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(AKASHVANI_WERROR "Treat compiler warnings as errors" ON)
+option(AKASHAVANI_WERROR "Treat compiler warnings as errors" ON)
 
 include(CTest)
 
-set(AKASHVANI_LIB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../libraries")
+set(AKASHAVANI_LIB_DIR "${CMAKE_CURRENT_LIST_DIR}/../../libraries")
 
-add_library(akashvani_logic STATIC
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src/Status.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src/Crc.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src/Hex.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src/TimeUtils.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src/DeviceId.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisDecoder.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisEncoder.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src/DavisSimulator.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniArchive/src/ArchiveCollector.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/MessageType.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/CommandType.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src/Envelope.cpp"
-  "${AKASHVANI_LIB_DIR}/AkashvaniStorage/src/ArchivePath.cpp"
+add_library(akashavani_logic STATIC
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src/Status.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src/Crc.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src/Hex.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src/TimeUtils.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src/DeviceId.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniDavis/src/DavisDecoder.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniDavis/src/DavisEncoder.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniDavis/src/DavisSimulator.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniArchive/src/ArchiveCollector.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniProtocol/src/MessageType.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniProtocol/src/CommandType.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniProtocol/src/Envelope.cpp"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniStorage/src/ArchivePath.cpp"
 )
 
-target_include_directories(akashvani_logic PUBLIC
-  "${AKASHVANI_LIB_DIR}/AkashvaniCore/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniDavis/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniArchive/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniProtocol/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniRadio/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniRtc/src"
-  "${AKASHVANI_LIB_DIR}/AkashvaniStorage/src"
+target_include_directories(akashavani_logic PUBLIC
+  "${AKASHAVANI_LIB_DIR}/AkashavaniCore/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniDavis/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniArchive/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniProtocol/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniRadio/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniRtc/src"
+  "${AKASHAVANI_LIB_DIR}/AkashavaniStorage/src"
 )
 
-target_compile_options(akashvani_logic PRIVATE -Wall -Wextra -Wpedantic)
-if(AKASHVANI_WERROR)
-  target_compile_options(akashvani_logic PRIVATE -Werror)
+target_compile_options(akashavani_logic PRIVATE -Wall -Wextra -Wpedantic)
+if(AKASHAVANI_WERROR)
+  target_compile_options(akashavani_logic PRIVATE -Werror)
 endif()
 
 find_package(GTest QUIET)
@@ -56,7 +56,7 @@ if(NOT GTest_FOUND)
   FetchContent_MakeAvailable(googletest)
 endif()
 
-add_executable(akashvani_tests
+add_executable(akashavani_tests
   test_core.cpp
   test_archive.cpp
   test_davis.cpp
@@ -65,11 +65,11 @@ add_executable(akashvani_tests
   test_storage.cpp
 )
 
-target_link_libraries(akashvani_tests PRIVATE akashvani_logic GTest::gtest_main)
-target_compile_options(akashvani_tests PRIVATE -Wall -Wextra -Wpedantic)
-if(AKASHVANI_WERROR)
-  target_compile_options(akashvani_tests PRIVATE -Werror)
+target_link_libraries(akashavani_tests PRIVATE akashavani_logic GTest::gtest_main)
+target_compile_options(akashavani_tests PRIVATE -Wall -Wextra -Wpedantic)
+if(AKASHAVANI_WERROR)
+  target_compile_options(akashavani_tests PRIVATE -Werror)
 endif()
 
 include(GoogleTest)
-gtest_discover_tests(akashvani_tests)
+gtest_discover_tests(akashavani_tests)

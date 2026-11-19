@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/firmware-check.schema.json",
+  "$id": "https://akashavani.local/schema/firmware-check.schema.json",
   "title": "Firmware check response",
   "description": "Response from GET /api/v1/firmware/check.",
   "type": "object",

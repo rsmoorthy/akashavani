@@ -5,8 +5,9 @@
 
 **Date:** 2026-10-26
 **Latest slice:** 2026-11-13, interrupt-driven RFM69 receive + channel scan task, bench soak
-**Scaffold commit:** `ab8078c` (`Initial Akashvani scaffold`)
+**Scaffold commit:** `ab8078c` (`Initial Akashavani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
+**Latest bench check:** 2026-11-18, BME280 forced-mode sampling fixed
 
 This page records what was completed, what was verified, what is still a stub,
 and the plan agreed with the project owner. Update it at each slice boundary.
@@ -144,16 +145,52 @@ section at the end); image signatures and rollback are still missing. The RTC
 responds and SNTP sets it when Wi-Fi is up, but the DS3231's stored time was
 invalid before that.
 
+### BME280 sampling check (2026-11-18)
+
+The receiver reported an indoor temperature around 38.9 °C while the room was
+below 22 °C. The receiver's `/api/status` returned a bit-identical value
+(`38.86999893`, later `39.13999939` after a reboot) every 10 s while `age_s`
+kept resetting, so the sensor was not being re-measured.
+
+Root cause: `bme.setSampling(MODE_FORCED, ...)` takes one conversion at boot.
+In forced mode the BME280 returns to sleep, and Adafruit's `readTemperature()`
+only reads the result registers; it does not start a conversion. The receiver
+now calls `bme.takeForcedMeasurement()` before each sample. After flashing,
+`/api/status` changed every sample (`38.83`, `38.82`, `38.79`, `38.77`,
+`38.76`, `38.75 °C` over about one minute).
+
+The magnitude is real local heat, not a compensation error:
+
+| Board | BME280 | DS3231 | Conditions |
+| --- | --- | --- | --- |
+| USB1 simulator | 25.34 °C | 25.75 °C | open air, room below 22 °C |
+| USB0 receiver | 38.8–39.1 °C | 34.00 °C at boot | enclosed |
+
+Both sensors on the receiver are well above the open-air board, and the
+BME280 sits about 5 °C above the DS3231. The reading is the temperature of the
+sensor's local environment inside the enclosure, not outdoor air. It should not
+be compared directly with the Davis outdoor temperature or "corrected" to it.
+Vent the enclosure and keep the BME280 away from the ESP32, regulator and radio
+if it is meant to represent enclosure/site air; a vented or pressure-ported
+enclosure is also needed for meaningful station pressure.
+
+With the lid removed on 2026-11-18 the reading fell from about 39 °C to
+**32.8 °C over roughly 10 minutes**, then plateaued at 32.7–32.9 °C while the
+board stayed powered. That slow decay and elevated equilibrium are consistent
+with board/enclosure thermal mass plus continued heat from the ESP32, radio and
+SD card, not with a slow BME280. A bare sensor would settle in seconds; a small
+powered enclosure takes tens of minutes and settles above ambient.
+
 ## Explicit stubs / gaps
 
 | Area | Path | What is missing |
 | --- | --- | --- |
-| RFM95 (alternate) | `AkashvaniRadio/src/Rfm95Radio.cpp` | modem registers, bitrate/deviation/bandwidth, FIFO, IRQ, raw mode, transmit |
-| Display | `AkashvaniDisplay/src/St7735Display.cpp` | reset/init/draw; panel disabled by default. Bench board has an I²C SSD1306 at `0x3C`, which needs a different driver. |
-| TLS | `AkashvaniNet/src/ApiClient.cpp`, `OtaService.cpp` | CA pinning, remove `setInsecure()` |
-| OTA security | `AkashvaniNet/src/OtaService.cpp` | signatures, TLS pinning, bootloader rollback (SHA-256 streaming is implemented) |
+| RFM95 (alternate) | `AkashavaniRadio/src/Rfm95Radio.cpp` | modem registers, bitrate/deviation/bandwidth, FIFO, IRQ, raw mode, transmit |
+| Display | `AkashavaniDisplay/src/St7735Display.cpp` | reset/init/draw; panel disabled by default. Bench board has an I²C SSD1306 at `0x3C`, which needs a different driver. |
+| TLS | `AkashavaniNet/src/ApiClient.cpp`, `OtaService.cpp` | CA pinning, remove `setInsecure()` |
+| OTA security | `AkashavaniNet/src/OtaService.cpp` | signatures, TLS pinning, bootloader rollback (SHA-256 streaming is implemented) |
 | Command set | `receiver/app.cpp` | `set_config` and `upload_logs` return unsupported |
-| Retention | `AkashvaniStorage` | no card cleanup policy |
+| Retention | `AkashavaniStorage` | no card cleanup policy |
 | Production RF sync | `receiver/app.cpp`, `Rfm69Radio` | blind reverse-scan restart acquisition is a bench aid; decide the field policy |
 
 Implemented in this slice: the RFM69 SX1231 driver, Davis CRC/decoder/encoder,
@@ -326,7 +363,7 @@ USB1 was not retested with the RESET 17 mapping, since you asked specifically fo
 | --- | --- |
 | Flash `0.1.0-dev` over USB | PASS, ~1.23 MB image |
 | Download `0.2.0` via command | PASS, 1,233,360 bytes staged in `app1`, SHA-256 matched |
-| Boot staged `0.2.0` | PASS, device restarted into `app1`, boot log reports `Akashvani 0.2.0` |
+| Boot staged `0.2.0` | PASS, device restarted into `app1`, boot log reports `Akashavani 0.2.0` |
 | Second OTA to `0.2.1` | PASS, staged in `app0`, restarted into `app0` |
 | `get_fw_version` | PASS, reports `0.2.1`, partition `app0`, station 1, MAC |
 | `boot_with_new_fw` without staged image | Correctly failed: `no staged image recorded` |
@@ -339,7 +376,7 @@ slot), leaving ~739 KB free. The `0.2.1` OTA image is 1,233,424 bytes.
 
 - Serial log: `/tmp/opencode/usb1-ota.log` (boot, download progress, SHA line,
   boot-partition selection, reset, new boot banner).
-- Server log: `/tmp/opencode/akashvani-server.log`.
+- Server log: `/tmp/opencode/akashavani-server.log`.
 - Server command rows show `acked` with result JSON for download/boot and
   `failed` for the deliberate boot-without-download test.
 
@@ -365,9 +402,10 @@ slot), leaving ~739 KB free. The `0.2.1` OTA image is 1,233,424 bytes.
 ## What changed
 
 - `WifiService` now always brings up the AP with:
-  - SSID `akashvani-XX`, where `XX` is the last STA MAC byte (`akashvani-e0`);
-  - password and DHCP/IP range from `config.h` (default `doordarshan`,
-    `10.90.0.1`, pool `10.90.0.11`-`10.90.0.20`);
+  - SSID `akashavani-XX`, where `XX` is the last STA MAC byte (`akashavani-e0`);
+  - password from the build-time `AK_AP_PASSWORD` (`firmware/.env`), and
+    DHCP/IP range from `config.h` (`10.90.0.1`, pool
+    `10.90.0.11`-`10.90.0.20`);
   - an exact DHCP end address set through the netif DHCP server API.
 - Site Wi-Fi is now an ordered list of up to six SSID/password profiles, tried
   sequentially by the STA side.
@@ -390,7 +428,7 @@ slot), leaving ~739 KB free. The `0.2.1` OTA image is 1,233,424 bytes.
 
 | Step | Result |
 | --- | --- |
-| AP boot | PASS: `akashvani-e0`, `10.90.0.1`, DHCP `10.90.0.11`-`10.90.0.20` |
+| AP boot | PASS: `akashavani-e0`, `10.90.0.1`, DHCP `10.90.0.11`-`10.90.0.20` |
 | Client joins AP | PASS: `10.90.0.11`, gateway `10.90.0.1` |
 | `GET /api/status` | PASS: firmware, time/SNTP, STA SSID/IP, AP state, weather placeholder |
 | `GET /api/settings` | PASS: station, server URL and six profile slots |
@@ -592,7 +630,7 @@ The serial ports can change after a USB re-enumeration; check
 
 ## What changed
 
-- New host-testable `AkashvaniArchive` library: five-minute sums/counts, vector
+- New host-testable `AkashavaniArchive` library: five-minute sums/counts, vector
   wind sums, gust maximum/direction, rain tip delta, supercap latest/minimum and
   RF quality counters.
 - Receiver production path now hops/searches, samples the BME280, collates into
@@ -602,7 +640,7 @@ The serial ports can change after a USB re-enumeration; check
   `secret`.
 - Server `archive` table + Alembic migration, sums/counts ingest, SI rain and
   derived calculations, and `GET /api/v1/admin/archive`.
-- `AKASHVANI_API_TOKEN` defaults to `secret`; the same token is accepted by the
+- `AKASHAVANI_API_TOKEN` defaults to `secret`; the same token is accepted by the
   admin API. Site config defaults: 13.4867 N, 77.7064 E, 940 m,
   Asia/Kolkata, 0.254 mm rain tip.
 - Protocol schema/example: `protocol/schema/archive.schema.json`,
@@ -646,7 +684,7 @@ the receiver re-acquired after a search. Rain was zero during the run.
 
 - The 0.95–1.0" I²C panel was soldered onto USB0, so both bench boards now carry
   an SSD1306-class OLED at `0x3C` on SDA 21 / SCL 22.
-- `AkashvaniDisplay` gained `Ssd1306Display` (Adafruit SSD1306 + GFX). Layout is
+- `AkashavaniDisplay` gained `Ssd1306Display` (Adafruit SSD1306 + GFX). Layout is
   an inverted title bar, `WiFi <SSID>` (or `AP <SSID>` when STA is down),
   IP/RSSI, then the three application lines and a status row. Rendering happens
   on a 2 s cadence, not per RF frame.
@@ -690,7 +728,7 @@ signature is absent, so it reports USB1 as `FOUND ... (configured state)`.
 ## Verified on USB1 (new firmware)
 
 ```
-[     184] I boot       Akashvani simulator 0.3.0
+[     184] I boot       Akashavani simulator 0.3.0
 [     203] I boot       READY interval=3000ms id=1 power=0dBm; commands R1/R2/R3, S, X, ?
 [     242] I display    SSD1306 128x64 ready at 0x3C
 [     336] I wifi       connecting ssid=Advaita
@@ -698,7 +736,7 @@ signature is absent, so it reports USB1 as `FOUND ... (configured state)`.
 ```
 
 The owner confirmed a proper display on both panels. The SSID line is the key
-check: `WiFi Advaita` on both boards (or `AP akashvani-e0` if the station link
+check: `WiFi Advaita` on both boards (or `AP akashavani-e0` if the station link
 is down).
 
 ## USB0 boot-loop incident (recovered)
@@ -721,7 +759,7 @@ normally:
 
 ```
 [     225] I display    SSD1306 128x64 ready at 0x3C
-[     490] I wifi       AP up: akashvani-e0 (10.90.0.1) DHCP 10.90.0.11-10.90.0.20
+[     490] I wifi       AP up: akashavani-e0 (10.90.0.1) DHCP 10.90.0.11-10.90.0.20
 [     492] I wifi       connecting to Advaita (profile 1/1)
 [     745] I web        local admin at http://10.90.0.1/
 [     863] I time       RTC updated from SNTP
@@ -849,7 +887,7 @@ Checks: `make fw-build-all` (receiver 1,302,861 B = 66 %, simulator 932,861 B),
 
 No hardware was used; this is a build/test slice.
 
-- `AKASHVANI_SITE_TIMEZONE` was removed. There is no site-wide zone.
+- `AKASHAVANI_SITE_TIMEZONE` was removed. There is no site-wide zone.
 - Each device stores an IANA zone name in NVS (`tz`, default `UTC`) and exposes
   it on its AP page. The firmware validates only length/characters; the server
   validates the name with `zoneinfo`.
@@ -881,8 +919,8 @@ No hardware was used; this is a build/test slice.
   saves it to NVS and reboots when the Wi-Fi list changes. Command payloads are
   now 4 KiB.
 - Per-device latitude, longitude and altitude on the AP page and in NVS;
-  `AKASHVANI_SITE_LATITUDE`, `AKASHVANI_SITE_LONGITUDE` and
-  `AKASHVANI_SITE_ALTITUDE_M` are removed. Archive derivations store `NULL` and
+  `AKASHAVANI_SITE_LATITUDE`, `AKASHAVANI_SITE_LONGITUDE` and
+  `AKASHAVANI_SITE_ALTITUDE_M` are removed. Archive derivations store `NULL` and
   set `missing_site_altitude` until altitude is known.
 - `/admin` has five tabs (Devices, Download CSV, Firmware, Commands, Site
   Settings), a mobile-friendly layout and a full config editor with Save, Push
@@ -999,6 +1037,6 @@ Use `tools/rf-soak.py` / `make rf-soak` to repeat the measurement; see
 # ports: USB0 = simulator, USB1 = receiver (verify with esptool read_mac)
 ./tools/fw-flash.sh receiver /dev/ttyUSB1
 ./tools/fw-flash.sh transmitter_sim /dev/ttyUSB0
-cd server && setsid nohup ../.venv/bin/uvicorn akashvani_server.main:app \
-  --host 0.0.0.0 --port 8000 > /tmp/opencode/akashvani-server.log 2>&1 &
+cd server && setsid nohup ../.venv/bin/uvicorn akashavani_server.main:app \
+  --host 0.0.0.0 --port 8000 > /tmp/opencode/akashavani-server.log 2>&1 &
 ```

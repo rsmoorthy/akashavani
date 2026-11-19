@@ -1,6 +1,6 @@
-site_name: Akashvani
+site_name: Akashavani
 site_description: ESP32-S3 Davis weather receiver, bench simulator and cloud API
-site_author: Akashvani Project
+site_author: Akashavani Project
 docs_dir: docs
 
 theme:

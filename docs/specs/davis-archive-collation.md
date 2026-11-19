@@ -2,7 +2,7 @@
 
 **Status:** implemented and bench-tested 2026-11-01
 **Scope:** data analysis, collation contract and implementation notes.
-**Inputs:** the implemented Davis decoder (`firmware/libraries/AkashvaniDavis`),
+**Inputs:** the implemented Davis decoder (`firmware/libraries/AkashavaniDavis`),
 the captured frames in `firmware/tests/native/vectors/davis_iss_frames.txt`, and
 the reference Weewx database `weewx-latest.sdb` (table `archive`).
 
@@ -684,7 +684,7 @@ Still to confirm:
 
 Implemented:
 
-- `AkashvaniArchive` collector: five-minute sums/counts, vector wind sums,
+- `AkashavaniArchive` collector: five-minute sums/counts, vector wind sums,
   gust maximum/direction, rain tip delta, supercap latest/minimum and quality
   counters. Host tests cover aggregation, rain wrap, vector direction and
   BME-only buckets.
@@ -708,7 +708,7 @@ quality counters.
 Hardware bench status: a 12-minute receiver + simulator run completed on
 2026-11-01. The receiver produced archive buckets at 16:25, 16:30 and 16:35;
 the last two were 100/100 valid frames. Three real receiver records are in
-`server/data/akashvani.db` with temperature, humidity, pressure/barometer,
+`server/data/akashavani.db` with temperature, humidity, pressure/barometer,
 wind, UV, solar, rain fields, derived values and quality counters.
 
 Two RF bugs found and fixed during the run:
@@ -742,8 +742,8 @@ power-cycle USB1 before a long RF run.
 
 ## 13. References
 
-- `firmware/libraries/AkashvaniDavis/src/DavisDecoder.cpp`
-- `firmware/libraries/AkashvaniDavis/src/DavisObservation.h`
+- `firmware/libraries/AkashavaniDavis/src/DavisDecoder.cpp`
+- `firmware/libraries/AkashavaniDavis/src/DavisObservation.h`
 - `firmware/tests/native/vectors/davis_iss_frames.txt`
 - `docs/specs/rf-davis-receive.md`
 - `docs/operations/archive.md`

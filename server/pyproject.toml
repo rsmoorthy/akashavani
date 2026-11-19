@@ -3,9 +3,9 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "akashvani-server"
+name = "akashavani-server"
 version = "0.1.0"
-description = "Akashvani weather-data ingest, command and OTA API"
+description = "Akashavani weather-data ingest, command and OTA API"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -35,8 +35,8 @@ dev = [
 postgres = ["psycopg[binary]>=3.2,<4"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/akashvani_server"]
-force-include = { "src/akashvani_server/admin_ui.html" = "akashvani_server/admin_ui.html" }
+packages = ["src/akashavani_server"]
+force-include = { "src/akashavani_server/admin_ui.html" = "akashavani_server/admin_ui.html" }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -52,8 +52,8 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 # FastAPI dependencies are declared in argument defaults by design.
-"src/akashvani_server/api/*.py" = ["B008"]
-"src/akashvani_server/security.py" = ["B008"]
+"src/akashavani_server/api/*.py" = ["B008"]
+"src/akashavani_server/security.py" = ["B008"]
 # Generated Alembic revisions are not hand-formatted.
 "migrations/**" = ["E501", "I001"]
 

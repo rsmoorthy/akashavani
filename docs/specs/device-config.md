@@ -27,7 +27,7 @@ One JSON object, versioned:
   "timezone": "Asia/Kolkata",
   "site": { "latitude": 13.4867, "longitude": 77.7064, "altitude_m": 940.0 },
   "wifi": [{ "ssid": "site-net", "password": "secret123" }],
-  "admin_password": "akashvani-admin",
+  "admin_password": "akashavani-admin",
   "upload_enabled": true,
   "archive_enabled": true,
   "upload_interval_seconds": 60,

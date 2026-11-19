@@ -14,8 +14,8 @@ Normative artifacts:
 | `protocol/schema/firmware-check.schema.json` | OTA check response |
 | `protocol/examples/*.json` | valid examples used by tests |
 
-The Python Pydantic models in `server/src/akashvani_server/schemas.py` and the
-C++ constants in `firmware/libraries/AkashvaniProtocol` mirror these schemas. A
+The Python Pydantic models in `server/src/akashavani_server/schemas.py` and the
+C++ constants in `firmware/libraries/AkashavaniProtocol` mirror these schemas. A
 change to one requires a change to the others and a test update.
 
 ## Versioning
@@ -49,10 +49,10 @@ free heap, Wi-Fi RSSI and the reset reason) and are stored on the device row.
 Time zone and site settings are not sent as headers; they travel in the
 configuration document.
 
-Commands and admin calls use `Authorization: Bearer <AKASHVANI_ADMIN_TOKEN>` on
+Commands and admin calls use `Authorization: Bearer <AKASHAVANI_ADMIN_TOKEN>` on
 the administrative endpoints. Device tokens are stored as SHA-256 hashes.
 
-The shared `AKASHVANI_API_TOKEN` (default `secret`) is accepted by the archive
+The shared `AKASHAVANI_API_TOKEN` (default `secret`) is accepted by the archive
 API and the admin API. For device endpoints it can also be used with
 `X-Device-Id` to identify the device. The receiver stores this token on the
 hotspot page and sends it as a bearer token on all API calls.
@@ -135,7 +135,7 @@ The body is described by `protocol/schema/archive.schema.json`. The receiver
 sends sums and counts; the server divides them, converts rain tips using the
 site bucket size and calculates the derived values. The shared bearer token is
 configured on the hotspot page (default `secret`) and in the server's
-`AKASHVANI_API_TOKEN`.
+`AKASHAVANI_API_TOKEN`.
 
 ## Device configuration
 

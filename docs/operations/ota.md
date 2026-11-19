@@ -61,7 +61,7 @@ Server-side registration by filename still works if the file is already in
 curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/firmware \
   -H 'Authorization: Bearer dev-admin-token' \
   -H 'Content-Type: application/json' \
-  -d '{"version":"0.2.0","channel":"stable","filename":"akashvani-0.2.0-receiver.ino.bin"}'
+  -d '{"version":"0.2.0","channel":"stable","filename":"akashavani-0.2.0-receiver.ino.bin"}'
 ```
 
 ## LAN OTA (Wi-Fi, no server commands)
@@ -84,7 +84,7 @@ and writes the inactive slot directly.
      --fqbn "$(select_fqbn)" \
      --port ak-2731e0.local \
      --protocol network \
-     --upload-field password=akashvani-admin \
+     --upload-field password=akashavani-admin \
      --input-dir firmware/build/receiver \
      firmware/sketches/receiver
    ```
@@ -110,7 +110,7 @@ options are:
 | Tool | Platforms | How it works |
 | --- | --- | --- |
 | **Arduino IDE 2.x** | Windows, macOS, Linux | `Tools → Port` shows the board as a network port (e.g. `ak-2731e0 at 192.168.29.84`). Select it instead of the USB port and click **Upload**. The IDE asks for the OTA password over Wi-Fi the first time. |
-| **PlatformIO IDE** (VS Code extension) | Windows, macOS, Linux | Set `upload_protocol = espota`, `upload_port = ak-2731e0.local` (or the IP) and `upload_flags = --auth=akashvani-admin` in `platformio.ini`, then use the **Upload** button. This also works when mDNS discovery is blocked. |
+| **PlatformIO IDE** (VS Code extension) | Windows, macOS, Linux | Set `upload_protocol = espota`, `upload_port = ak-2731e0.local` (or the IP) and `upload_flags = --auth=akashavani-admin` in `platformio.ini`, then use the **Upload** button. This also works when mDNS discovery is blocked. |
 | **Arduino IDE 1.8.x** | Windows, macOS, Linux | Same network-port workflow as IDE 2.x; older but still works. |
 | **`espota.py`** (CLI, shipped with the ESP32 core) | Any | Not a GUI, but it is what most GUI wrappers call. Use it directly for a prebuilt `.bin`. |
 
@@ -118,12 +118,12 @@ Arduino IDE 2.x is the simplest macOS/Windows GUI when the computer and device
 are on the same LAN:
 
 1. Install the ESP32 core version used by this project (see
-   `AKASHVANI_ESP32_CORE`, currently `3.0.2`).
+   `AKASHAVANI_ESP32_CORE`, currently `3.0.2`).
 2. Open `firmware/sketches/receiver/receiver.ino`.
 3. Select the ESP32 board and keep the sketch's `partitions.csv` scheme.
 4. Select the **network** port under `Tools → Port`; do not select the USB
    serial port.
-5. Click **Upload** and enter `akashvani-admin` (or the current **OTA password
+5. Click **Upload** and enter `akashavani-admin` (or the current **OTA password
    over Wi-Fi**) when prompted.
 
 If the network port does not appear:
@@ -138,12 +138,12 @@ If the network port does not appear:
   above.
 
 GUI tools build the sketch from source. To push an already-built
-`akashvani-receiver-0.3.1.bin` without rebuilding, use `espota.py` from the
+`akashavani-receiver-0.3.1.bin` without rebuilding, use `espota.py` from the
 ESP32 core, for example:
 
 ```bash
 python ~/.arduino15/packages/esp32/hardware/esp32/3.0.2/tools/espota.py \
-  -i 192.168.29.84 -p 3232 -a akashvani-admin \
+  -i 192.168.29.84 -p 3232 -a akashavani-admin \
   -f firmware/build/receiver/receiver.ino.bin
 ```
 
@@ -175,7 +175,7 @@ goes straight to the inactive slot and the device restarts when it completes.
    ```
 
    This prints the SHA-256 and the registration command. The file is
-   `server/data/firmware/akashvani-receiver-0.3.1.bin`.
+   `server/data/firmware/akashavani-receiver-0.3.1.bin`.
 
 4. Register the release (or use **Firmware → Upload and register** in
    `/admin`):
@@ -184,7 +184,7 @@ goes straight to the inactive slot and the device restarts when it completes.
    curl -sS -X POST http://127.0.0.1:8000/api/v1/admin/firmware \
      -H 'Authorization: Bearer dev-admin-token' \
      -H 'Content-Type: application/json' \
-     -d '{"version":"0.3.1","channel":"stable","filename":"akashvani-receiver-0.3.1.bin"}'
+     -d '{"version":"0.3.1","channel":"stable","filename":"akashavani-receiver-0.3.1.bin"}'
    ```
 
 5. Confirm `GET /api/v1/admin/firmware` lists `0.3.1`.
@@ -213,7 +213,7 @@ goes straight to the inactive slot and the device restarts when it completes.
      -d '{"type":"boot_with_new_fw","payload":{"version":"0.3.1"}}'
    ```
 
-9. Confirm the device reboots, the serial banner says `Akashvani 0.3.1`, and
+9. Confirm the device reboots, the serial banner says `Akashavani 0.3.1`, and
    `/admin` shows firmware `0.3.1`. The config should report again on boot.
 
 There is no automatic rollback. If the new image does not boot, recover over

@@ -1,10 +1,10 @@
-// Temporary bench client for the Akashvani provisioning AP.
+// Temporary bench client for the Akashavani provisioning AP.
 //
 // Flash this on the second board (USB1). It scans for an SSID that starts with
-// "akashvani-", connects with the default AP password, then exercises the local
-// HTTP server: status JSON, settings JSON, an unchanged round-trip, a Wi-Fi
-// profile change that must trigger a reboot, persistence across that reboot,
-// and the HTML page. It prints everything on the serial console.
+// "akashavani-", connects with the build-time AP password, then exercises the
+// local HTTP server: status JSON, settings JSON, an unchanged round-trip, a
+// Wi-Fi profile change that must trigger a reboot, persistence across that
+// reboot, and the HTML page. It prints everything on the serial console.
 //
 // The change test appends a temporary profile and then removes it again, so the
 // receiver's Wi-Fi list and server URL end up where they started.
@@ -14,11 +14,15 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 
+#ifndef AK_AP_PASSWORD
+#error "Set AK_AP_PASSWORD in firmware/.env before building ap_client."
+#endif
+
 namespace {
-constexpr const char* kApPassword = "doordarshan";
+constexpr const char* kApPassword = AK_AP_PASSWORD;
 constexpr const char* kApBaseUrl = "http://10.90.0.1";
 constexpr uint32_t kSerialBaud = 115200;
-constexpr const char* kTestSsid = "akashvani-selftest";
+constexpr const char* kTestSsid = "akashavani-selftest";
 constexpr const char* kTestPassword = "selftest123";
 
 String apSsid;
@@ -30,14 +34,14 @@ bool connectToAp() {
   const int count = WiFi.scanNetworks();
   int best = -1;
   for (int i = 0; i < count; ++i) {
-    if (WiFi.SSID(i).startsWith("akashvani-") &&
+    if (WiFi.SSID(i).startsWith("akashavani-") &&
         (best < 0 || WiFi.RSSI(i) > WiFi.RSSI(best))) {
       best = i;
     }
   }
   if (best < 0) {
     WiFi.scanDelete();
-    Serial.println("FAIL: no akashvani-* AP found");
+    Serial.println("FAIL: no akashavani-* AP found");
     return false;
   }
   apSsid = WiFi.SSID(best);
@@ -192,7 +196,7 @@ void runOnce() {
   String page;
   httpGet("/", page);
   Serial.printf("page contains title: %s\n",
-                page.indexOf("Akashvani") >= 0 ? "PASS" : "FAIL");
+                page.indexOf("Akashavani") >= 0 ? "PASS" : "FAIL");
   Serial.printf("page contains 6 Wi-Fi rows: %s\n",
                 page.indexOf("wifiRows") >= 0 ? "PASS" : "FAIL");
 
@@ -220,7 +224,7 @@ void runOnce() {
 void setup() {
   Serial.begin(kSerialBaud);
   delay(200);
-  Serial.println("\nAkashvani AP client bench test");
+  Serial.println("\nAkashavani AP client bench test");
   runOnce();
 }
 

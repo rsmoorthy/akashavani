@@ -21,14 +21,14 @@ firmware/
 
 | Library | Responsibility | Host-testable |
 | --- | --- | --- |
-| `AkashvaniCore` | status, logging, CRC, hex, UTC time, device IDs | partly |
-| `AkashvaniRadio` | `IRadio`, RFM69/RFM95 driver seams, mock radio | partly |
-| `AkashvaniDavis` | observation model, codec seams, simulator | yes |
-| `AkashvaniProtocol` | envelope/command contract and validators | yes |
-| `AkashvaniStorage` | daily JSONL archive on micro-SD | partly |
-| `AkashvaniNet` | NVS settings, AP+STA, local admin, upload, OTA | no |
-| `AkashvaniRtc` | DS3231 and SNTP time service | partly |
-| `AkashvaniDisplay` | display state and no-op driver | yes |
+| `AkashavaniCore` | status, logging, CRC, hex, UTC time, device IDs | partly |
+| `AkashavaniRadio` | `IRadio`, RFM69/RFM95 driver seams, mock radio | partly |
+| `AkashavaniDavis` | observation model, codec seams, simulator | yes |
+| `AkashavaniProtocol` | envelope/command contract and validators | yes |
+| `AkashavaniStorage` | daily JSONL archive on micro-SD | partly |
+| `AkashavaniNet` | NVS settings, AP+STA, local admin, upload, OTA | no |
+| `AkashavaniRtc` | DS3231 and SNTP time service | partly |
+| `AkashavaniDisplay` | display state and no-op driver | yes |
 
 ## Build
 
@@ -40,8 +40,8 @@ make fw-test
 ```
 
 The default target is the ESP32 classic bench board with an explicit 4 MB table
-(1.875 MiB app slot with OTA). Set `AKASHVANI_FLASH_SIZE=16M` for the 16 MB
-scheme, or override the whole FQBN with `AKASHVANI_FQBN`. The production board
+(1.875 MiB app slot with OTA). Set `AKASHAVANI_FLASH_SIZE=16M` for the 16 MB
+scheme, or override the whole FQBN with `AKASHAVANI_FQBN`. The production board
 may move to ESP32-S3; use the FQBN override for that.
 
 ## Dependency policy

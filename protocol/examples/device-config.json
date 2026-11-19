@@ -12,7 +12,7 @@
       "password": "site-password"
     }
   ],
-  "admin_password": "akashvani-admin",
+  "admin_password": "akashavani-admin",
   "upload_enabled": true,
   "archive_enabled": true,
   "upload_interval_seconds": 60,

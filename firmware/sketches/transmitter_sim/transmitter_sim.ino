@@ -1,5 +1,5 @@
 #include "app.h"
 
-void setup() { akashvani::transmitter_sim_app::setup(); }
+void setup() { akashavani::transmitter_sim_app::setup(); }
 
-void loop() { akashvani::transmitter_sim_app::loop(); }
+void loop() { akashavani::transmitter_sim_app::loop(); }

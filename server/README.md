@@ -1,8 +1,8 @@
-# Akashvani server
+# Akashavani server
 
 HTTP ingest, command and OTA service for the receiver fleet. Python 3.11+,
 FastAPI, SQLAlchemy 2, Alembic. SQLite is the development default; the same
-code runs on PostgreSQL through `AKASHVANI_DATABASE_URL`.
+code runs on PostgreSQL through `AKASHAVANI_DATABASE_URL`.
 
 ```bash
 make server-setup
@@ -34,7 +34,7 @@ make docker-up           # http://localhost:8000/docs
 | GET | `/admin` | none (page shell) | admin UI; API calls still need the bearer token |
 
 Device auth uses `X-Device-Token`. Admin auth uses `Authorization: Bearer
-<AKASHVANI_ADMIN_TOKEN>`. Tokens are stored as SHA-256 hashes; the plaintext is
+<AKASHAVANI_ADMIN_TOKEN>`. Tokens are stored as SHA-256 hashes; the plaintext is
 only known to the device (or to the operator who provisioned it).
 
 ## Data model

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://akashvani.local/schema/device-config.schema.json",
+  "$id": "https://akashavani.local/schema/device-config.schema.json",
   "title": "Device configuration document",
   "description": "Reported by the device with PUT /api/v1/devices/me/config and sent back with the push_config command.",
   "type": "object",

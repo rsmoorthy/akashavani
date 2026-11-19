@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CORE_VERSION="${AKASHVANI_ESP32_CORE:-3.0.2}"
+CORE_VERSION="${AKASHAVANI_ESP32_CORE:-3.0.2}"
 URL="https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
 
 if ! command -v arduino-cli >/dev/null 2>&1; then

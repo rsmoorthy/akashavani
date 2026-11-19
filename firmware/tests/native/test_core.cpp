@@ -10,7 +10,7 @@
 
 namespace {
 
-using namespace akashvani;
+using namespace akashavani;
 
 TEST(Status, StringNamesAreStable) {
   EXPECT_STREQ("ok", statusToString(Status::Ok));

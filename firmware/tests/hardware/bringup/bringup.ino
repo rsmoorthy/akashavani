@@ -11,8 +11,8 @@
 #include <Wire.h>
 #include <WiFi.h>
 
-#include "AkashvaniCore.h"
-#include "AkashvaniRtc.h"
+#include "AkashavaniCore.h"
+#include "AkashavaniRtc.h"
 #include "Rfm95Radio.h"
 
 namespace {
@@ -27,10 +27,10 @@ constexpr uint8_t kSdCs = 9;
 constexpr uint8_t kI2cSda = 4;
 constexpr uint8_t kI2cScl = 5;
 
-akashvani::Ds3231Clock rtc(Wire, kI2cSda, kI2cScl);
-akashvani::TimeService timeService;
-akashvani::Rfm95Radio radio(
-    SPI, akashvani::RadioPins{kRadioCs, kRadioReset, kRadioDio0, kSpiSck, kSpiMiso, kSpiMosi});
+akashavani::Ds3231Clock rtc(Wire, kI2cSda, kI2cScl);
+akashavani::TimeService timeService;
+akashavani::Rfm95Radio radio(
+    SPI, akashavani::RadioPins{kRadioCs, kRadioReset, kRadioDio0, kSpiSck, kSpiMiso, kSpiMosi});
 bool rtcReady = false;
 
 void scanI2c() {
@@ -48,14 +48,14 @@ void scanI2c() {
 }  // namespace
 
 void setup() {
-  akashvani::Log::begin(115200);
-  akashvani::Log::setLevel(akashvani::LogLevel::Debug);
+  akashavani::Log::begin(115200);
+  akashavani::Log::setLevel(akashavani::LogLevel::Debug);
   delay(200);
-  AK_LOG_INFO("bringup", "Akashvani hardware bring-up");
+  AK_LOG_INFO("bringup", "Akashavani hardware bring-up");
 
   Wire.begin(kI2cSda, kI2cScl);
   scanI2c();
-  rtcReady = akashvani::isOk(rtc.begin());
+  rtcReady = akashavani::isOk(rtc.begin());
   if (rtcReady) {
     timeService.begin(rtc);
     AK_LOG_INFO("rtc", "epoch=%lld lostPower=%s", static_cast<long long>(rtc.nowEpoch()),
@@ -71,11 +71,11 @@ void setup() {
     AK_LOG_ERROR("sd", "mount failed");
   }
 
-  akashvani::RadioConfig config;
-  config.chip = akashvani::RadioChip::Rfm95;
+  akashavani::RadioConfig config;
+  config.chip = akashavani::RadioChip::Rfm95;
   config.frequencyMhz = 915.0f;
-  const akashvani::Status status = radio.begin(config);
-  AK_LOG_INFO("radio", "begin=%s version=0x%02x", akashvani::statusToString(status),
+  const akashavani::Status status = radio.begin(config);
+  AK_LOG_INFO("radio", "begin=%s version=0x%02x", akashavani::statusToString(status),
               radio.versionRegister());
 
   WiFi.mode(WIFI_STA);
@@ -98,7 +98,7 @@ void loop() {
   if (rtcReady) {
     char timestamp[21];
     const int64_t epoch = timeService.nowEpoch();
-    akashvani::formatIso8601Utc(epoch, timestamp, sizeof(timestamp));
+    akashavani::formatIso8601Utc(epoch, timestamp, sizeof(timestamp));
     AK_LOG_INFO("clock", "%s (%s)", timestamp, timeService.source());
   } else {
     AK_LOG_WARN("clock", "RTC unavailable");

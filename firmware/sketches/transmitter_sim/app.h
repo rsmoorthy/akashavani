@@ -1,10 +1,10 @@
 #pragma once
 
-namespace akashvani {
+namespace akashavani {
 namespace transmitter_sim_app {
 
 void setup();
 void loop();
 
 }  // namespace transmitter_sim_app
-}  // namespace akashvani
+}  // namespace akashavani

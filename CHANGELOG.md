@@ -25,7 +25,7 @@ All notable changes are recorded here. The firmware version lives in
   `X-Firmware-Version`) stored on the device row.
 - Explicit 4 MB receiver partition table with two 1.875 MiB OTA slots.
 - Bench builds target the ESP32 classic boards; pins match the observed wiring.
-- Provisioning AP with a MAC-derived SSID (`akashvani-XX`), fixed address
+- Provisioning AP with a MAC-derived SSID (`akashavani-XX`), fixed address
   `10.90.0.1` and a configurable `10.90.0.11`-`10.90.0.20` DHCP pool.
 - Mobile-friendly status/config page on port 80, refreshed every 5 s, with
   station ID, server URL and six site Wi-Fi SSID/password pairs.
@@ -65,7 +65,14 @@ All notable changes are recorded here. The firmware version lives in
 
 ### Changed
 
-- Removed `AKASHVANI_SITE_TIMEZONE`; there is no site-wide zone. Each device
+- Renamed the project to `Akashavani` (corrected spelling): Python package,
+  firmware libraries, classes, files, product strings, AP SSID prefix, default
+  admin password and OTA artifact names now use the new spelling. JSON keys,
+  HTTP routes, headers, device IDs and NVS keys are unchanged.
+- Provisioning AP password is supplied at build time from `firmware/.env`
+  (`AK_AP_PASSWORD`) or `receiver/secrets.h`; no default password is compiled
+  in. It remains in the image and is not stored in NVS.
+- Removed `AKASHAVANI_SITE_TIMEZONE`; there is no site-wide zone. Each device
   stores an IANA display zone (NVS `tz`, default `UTC`, set on its AP page) and
   reports it with its configuration. The server stores it in `devices.timezone`
   (migration `e2c7b5a41f90`).
@@ -77,7 +84,7 @@ All notable changes are recorded here. The firmware version lives in
   `devices.config` (migration `f3d18c6b2a70`). `get_config` and `push_config`
   replace `get_fw_version` for manual sync. `get_fw_version` is removed.
 - Per-device latitude, longitude and altitude replace the site-wide
-  `AKASHVANI_SITE_*` variables and are editable on the AP page and `/admin`.
+  `AKASHAVANI_SITE_*` variables and are editable on the AP page and `/admin`.
   Archive derivations store `NULL` when altitude is not yet known.
 - `/admin` was reorganised into Devices, Download CSV, Firmware, Commands and
   Site Settings tabs with a mobile-friendly layout and a full device-config

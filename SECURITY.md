@@ -13,8 +13,9 @@ information.
 
 These are documented, not accepted for production:
 
-- default AP password (`doordarshan`, `kApPassword`) and admin password
-  (`akashvani-admin`);
+- provisioning AP password is compiled in from `firmware/.env`
+  (`AK_AP_PASSWORD`), shared across devices built from it, and recoverable from
+  the image; default admin password (`akashavani-admin`);
 - development admin token `dev-admin-token` and seed device token;
 - plaintext NVS for Wi-Fi and cloud credentials;
 - TLS certificate verification disabled on the device

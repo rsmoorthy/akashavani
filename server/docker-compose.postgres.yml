@@ -1,7 +1,7 @@
 services:
   api:
     environment:
-      AKASHVANI_DATABASE_URL: postgresql+psycopg://akashvani:akashvani@db:5432/akashvani
+      AKASHAVANI_DATABASE_URL: postgresql+psycopg://akashavani:akashavani@db:5432/akashavani
     depends_on:
       db:
         condition: service_healthy
@@ -9,16 +9,16 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: akashvani
-      POSTGRES_USER: akashvani
-      POSTGRES_PASSWORD: akashvani
+      POSTGRES_DB: akashavani
+      POSTGRES_USER: akashavani
+      POSTGRES_PASSWORD: akashavani
     volumes:
-      - akashvani-pg:/var/lib/postgresql/data
+      - akashavani-pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U akashvani -d akashvani"]
+      test: ["CMD-SHELL", "pg_isready -U akashavani -d akashavani"]
       interval: 5s
       timeout: 3s
       retries: 10
 
 volumes:
-  akashvani-pg:
+  akashavani-pg:

@@ -47,6 +47,29 @@ receiver.ino.elf / .map
 The sketch name comes from the folder; `transmitter_sim.ino.bin` is the simulator
 binary.
 
+## Build-time credentials
+
+The receiver's provisioning AP password is not stored in source. Copy the
+example file and set it before building:
+
+```bash
+cp firmware/.env.example firmware/.env
+# edit firmware/.env and set AK_AP_PASSWORD
+```
+
+`firmware/.env` is git-ignored. `tools/fw-common.sh` loads it for `fw-build`,
+`fw-flash` and `fw-export`; variables already exported in the environment take
+precedence. `tools/fw-build.sh` injects `AK_AP_PASSWORD` as a build define, and
+`config.h` fails the build when it is missing or not 8-63 characters. If the
+password must contain whitespace, define it in
+`firmware/sketches/receiver/secrets.h` instead. The `ap_client` bench sketch uses
+the same value.
+
+The password is compiled into the image; it is not stored in NVS. Change it by
+building and flashing a new image, not through the AP page or a settings reset.
+Anyone holding the firmware image can recover it, so treat it as a shared
+provisioning credential rather than a per-device secret.
+
 ## Flash and monitor
 
 ```bash
@@ -58,7 +81,7 @@ make fw-monitor PORT=/dev/ttyACM0 BAUD=115200
 `CDCOnBoot=cdc` applies to the ESP32-S3 native USB. The current bench boards are
 ESP32 classic with a CP2102 UART bridge, so the default FQBN is
 `esp32:esp32:esp32`. If the production board becomes an S3, override
-`AKASHVANI_FQBN`.
+`AKASHAVANI_FQBN`.
 
 ## Board options and flash size
 
@@ -76,13 +99,13 @@ copies it into the build directory. It defines two OTA application slots of
 For a 16 MB board:
 
 ```bash
-AKASHVANI_FLASH_SIZE=16M make fw-build BOARD=receiver
+AKASHAVANI_FLASH_SIZE=16M make fw-build BOARD=receiver
 ```
 
 This selects `app3M_fat9M_16MB`. To use an exact FQBN:
 
 ```bash
-AKASHVANI_FQBN='esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc' \
+AKASHAVANI_FQBN='esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc' \
   make fw-build BOARD=receiver
 ```
 
@@ -94,7 +117,7 @@ OTA requires two app slots; do not trade them away without an ADR.
 ## Version
 
 `firmware/VERSION` is read by `tools/fw-build.sh` and passed as
-`AKASHVANI_FW_VERSION` (`build.defines`), so the binary, the `X-Firmware-Version`
+`AKASHAVANI_FW_VERSION` (`build.defines`), so the binary, the `X-Firmware-Version`
 header and the OTA release name agree.
 
 ```bash
@@ -113,7 +136,7 @@ make fw-export
 ```
 
 Builds the receiver, copies
-`akashvani-receiver-<version>.bin` into `firmware/build/ota/` and
+`akashavani-receiver-<version>.bin` into `firmware/build/ota/` and
 `server/data/firmware/`, and writes a `.sha256` file. The script prints the
 `curl` command to register the release with a local server.
 

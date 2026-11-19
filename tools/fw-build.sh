@@ -15,6 +15,20 @@ fi
 
 mkdir -p "$OUT" "$CACHE_DIR"
 
+# build.defines is additive; keep the version define and append the AP password
+# when firmware/.env or the environment supplies one.
+DEFINES="-DAKASHAVANI_FW_VERSION=\"${VERSION}\""
+if [[ -n "${AK_AP_PASSWORD:-}" ]]; then
+  if [[ "$AK_AP_PASSWORD" =~ [[:space:]] ]]; then
+    echo "AK_AP_PASSWORD must not contain whitespace for a build define." >&2
+    echo "Define it in firmware/sketches/receiver/secrets.h instead." >&2
+    exit 1
+  fi
+  ESCAPED="${AK_AP_PASSWORD//\\/\\\\}"
+  ESCAPED="${ESCAPED//\"/\\\"}"
+  DEFINES+=" -DAK_AP_PASSWORD=\"${ESCAPED}\""
+fi
+
 echo "Building $BOARD with $FQBN"
 "$ARDUINO_CLI" compile \
   --fqbn "$FQBN" \
@@ -22,7 +36,7 @@ echo "Building $BOARD with $FQBN"
   --build-cache-path "$CACHE_DIR" \
   --output-dir "$OUT" \
   --warnings default \
-  --build-property "build.defines=-DAKASHVANI_FW_VERSION=\"${VERSION}\"" \
+  --build-property "build.defines=${DEFINES}" \
   "$SKETCH"
 
 echo
