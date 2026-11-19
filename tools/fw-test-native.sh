@@ -16,5 +16,7 @@ else
 fi
 
 "$CMAKE" -S "$ROOT/firmware/tests/native" -B "$BUILD" -DCMAKE_BUILD_TYPE=Debug
-"$CMAKE" --build "$BUILD" --parallel
+# Default to one job: build hosts can be memory-constrained.
+# Override with AK_BUILD_JOBS=N only when there is memory to spare.
+"$CMAKE" --build "$BUILD" --parallel "${AK_BUILD_JOBS:-1}"
 "$CTEST" --test-dir "$BUILD" --output-on-failure

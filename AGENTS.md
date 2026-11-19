@@ -108,6 +108,18 @@ make lint
 make docs-build
 ```
 
+Run these **one at a time, never in parallel**. This VM has a small memory
+footprint; two concurrent builds, a background job plus a foreground build, or
+`make -j` exhaust memory and trigger the OOM killer.
+
+- `make fw-test` caps its internal CMake build at one job
+  (`--parallel "${AK_BUILD_JOBS:-1}"`). Only raise `AK_BUILD_JOBS` if the
+  machine has memory to spare.
+- `make fw-build-all` builds receiver then simulator sequentially, but each
+  Arduino build is memory-hungry: do not run anything else while it runs.
+- CI runs the `firmware-native`, `firmware-build`, `server`, `docs` and
+  `docker` jobs in parallel on separate runners; do not mirror that locally.
+
 Firmware build notes:
 
 - Use `build.defines` for additive defines; overriding `build.extra_flags`

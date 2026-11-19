@@ -8,7 +8,7 @@ pinned release.
 make fw-test
 # or
 cmake -S firmware/tests/native -B firmware/tests/native/build
-cmake --build firmware/tests/native/build -j
+cmake --build firmware/tests/native/build --parallel 1
 ctest --test-dir firmware/tests/native/build --output-on-failure
 ```
 
