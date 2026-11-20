@@ -28,6 +28,7 @@
   .wifi-row { display: grid; grid-template-columns: 2rem 1fr 1fr; gap: .5rem; align-items: center; }
   .wifi-row .num { color: var(--muted); font-size: .82rem; }
   .status { min-height: 1.4em; font-size: 13px; }
+  #devices td:nth-child(3) a { white-space: nowrap; }
   .error { color: #c92a2a; }
   .ok { color: #2b8a3e; }
   .tabs { display: flex; flex-wrap: wrap; gap: .35rem; border-bottom: 1px solid var(--line); margin: 1.2rem 0 1rem; }
@@ -84,9 +85,26 @@
 </nav>
 
 <section id="tab-devices" class="tab active">
+  <div class="panel">
+    <h2>Station identity and public URL</h2>
+    <div class="row">
+      <label>Device <select id="identityDevice"></select></label>
+      <button type="button" id="identityReload" class="secondary">Reload</button>
+    </div>
+    <form id="identityForm">
+      <div class="grid2">
+        <label>Display name <input id="identityName" maxlength="80" required></label>
+        <label>Public slug <input id="identitySlug" maxlength="64" required></label>
+        <label>Site time zone <select id="identityTimezone"></select></label>
+      </div>
+      <button type="submit">Save identity</button>
+      <p id="identityStatus" class="status"></p>
+      <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens.</p>
+    </form>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Name</th><th>Site TZ</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
+      <thead><tr><th>ID</th><th>Name</th><th>Slug</th><th>Site TZ</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
       <tbody id="devices"></tbody>
     </table>
   </div>
@@ -401,8 +419,10 @@ async function loadDevices() {
       ? `<span title="${escapeHtml(stamp(d.last_radio_at, zone))}">${escapeHtml(relative(d.last_radio_at))}</span>`
       : '';
     const bucket = d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : '';
+    const dashboardUrl = `/dashboard/${encodeURIComponent(d.slug)}/`;
     return `<tr>
     <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
+    <td><a href="${dashboardUrl}" target="_blank" rel="noopener"><code>${escapeHtml(d.slug)}</code></a></td>
     <td><code>${escapeHtml(d.timezone || 'UTC')}</code></td>
     <td>${d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'}</td>
     <td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
@@ -423,6 +443,7 @@ async function loadDevices() {
     loadDevices.lastIds = ids;
     fillDeviceSelects();
     fillConfigDevices();
+    fillIdentityForm();
   }
   if (document.getElementById('tab-site').classList.contains('active') && !cfgLoadedFor && $('cfgDevice').value) {
     loadDeviceConfig();
@@ -431,13 +452,39 @@ async function loadDevices() {
 }
 
 function fillDeviceSelects() {
-  for (const selectId of ['csvDevice', 'rawDevice', 'commandDevice']) {
+  for (const selectId of ['csvDevice', 'rawDevice', 'commandDevice', 'identityDevice']) {
     const select = $(selectId);
     const current = select.value;
     select.innerHTML = devices.map((d) =>
       `<option value="${escapeHtml(d.id)}">${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
     if (current && devices.some((d) => d.id === current)) select.value = current;
   }
+}
+
+function setIdentityStatus(text, kind = '') {
+  const el = $('identityStatus');
+  el.textContent = text;
+  el.className = 'status ' + kind;
+}
+
+function fillIdentityForm() {
+  const device = deviceById($('identityDevice').value);
+  if (!device) {
+    $('identityName').value = '';
+    $('identitySlug').value = '';
+    fillTimezones($('identityTimezone'), 'UTC');
+    $('identityUrl').querySelector('code').textContent = '';
+    $('identityUrl').removeAttribute('href');
+    setIdentityStatus('');
+    return;
+  }
+  $('identityName').value = device.name || '';
+  $('identitySlug').value = device.slug || '';
+  fillTimezones($('identityTimezone'), device.timezone || 'UTC');
+  const url = `/dashboard/${encodeURIComponent(device.slug || '')}/`;
+  $('identityUrl').querySelector('code').textContent = url;
+  $('identityUrl').href = url;
+  setIdentityStatus('');
 }
 
 function fillConfigDevices() {
@@ -619,6 +666,42 @@ async function saveDeviceConfig() {
 // ---------------------------------------------------------------------------
 // Event wiring
 // ---------------------------------------------------------------------------
+$('identityDevice').addEventListener('change', fillIdentityForm);
+$('identityReload').addEventListener('click', async () => {
+  try {
+    await loadDevices();
+    fillIdentityForm();
+  } catch (error) {
+    setIdentityStatus(error.message, 'error');
+  }
+});
+$('identityForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const deviceId = $('identityDevice').value;
+  if (!deviceId) { setIdentityStatus('Select a device first.', 'error'); return; }
+  const name = $('identityName').value.trim();
+  if (!name) { setIdentityStatus('Display name is required.', 'error'); return; }
+  try {
+    const updated = await api(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        slug: $('identitySlug').value.trim(),
+        timezone: $('identityTimezone').value
+      })
+    });
+    setIdentityStatus(`Saved. Public URL: /dashboard/${updated.slug}/`, 'ok');
+    await loadDevices();
+    $('identityDevice').value = updated.id;
+    $('identitySlug').value = updated.slug;
+    $('identityUrl').querySelector('code').textContent = `/dashboard/${updated.slug}/`;
+    $('identityUrl').href = `/dashboard/${updated.slug}/`;
+  } catch (error) {
+    setIdentityStatus(error.message, 'error');
+  }
+});
+
 $('csvForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const device = $('csvDevice').value;
@@ -760,6 +843,7 @@ $('tzMode').value = tzMode();
 updateTzHint();
 updateCommandPayload();
 fillTimezones($('cfgTimezone'), 'UTC');
+fillTimezones($('identityTimezone'), 'UTC');
 buildConfigWifiRows([]);
 showTab(localStorage.getItem(TAB_KEY) || 'devices');
 refreshAll();

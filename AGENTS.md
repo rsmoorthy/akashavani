@@ -7,7 +7,10 @@ Instructions for AI agents and developers resuming work on this repository.
 Akashavani targets an ESP32-S3 system for receiving Davis weather-station RF
 data, archiving it to micro-SD, and uploading it to a Python/FastAPI server.
 The two current bench boards are ESP32-D0WD-V3 (classic); one acts as the
-receiver and one simulates a Davis transmitter for bench testing.
+receiver and one simulates a Davis transmitter for bench testing. A public,
+unauthenticated React dashboard is served at `/dashboard/<slug>/` when
+`AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`; it reads only `/api/v1/public` and
+never exposes device credentials.
 
 Read first:
 
@@ -104,6 +107,8 @@ make setup
 make fw-build-all
 make fw-test
 make server-test
+make dashboard-test
+make dashboard-build
 make lint
 make docs-build
 ```
@@ -141,6 +146,8 @@ Firmware build notes:
 - Host-safe logic tests: `firmware/tests/native/`.
 - Server routes: `server/src/akashavani_server/api/`; schema in `schemas.py`,
   tables in `models.py`, migration required for schema changes.
+- Public dashboard frontend: `server/dashboard/`; public API and slug handling
+  in `api/public.py`, `slugs.py` and `services/dashboard.py`.
 - Wire contract: `protocol/schema/` and `docs/protocol/README.md`.
 - Architecture decisions: `docs/adr/`; supersede rather than rewrite.
 - Current handoff/open questions: `docs/development/handoff.md`.

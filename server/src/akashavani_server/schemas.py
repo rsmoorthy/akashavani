@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
 
@@ -15,9 +15,17 @@ from pydantic import (
     model_validator,
 )
 
+from .slugs import normalise_slug
 from .timezones import DEFAULT_DEVICE_TIMEZONE, is_valid_timezone
 
 Channel = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{1,15}$")]
+
+
+def _valid_slug(value: str) -> str:
+    return normalise_slug(value)
+
+
+Slug = Annotated[str, AfterValidator(_valid_slug)]
 
 
 def _valid_timezone(value: str) -> str:
@@ -302,8 +310,15 @@ class ArchiveOut(BaseModel):
 class DeviceCreate(BaseModel):
     id: DeviceId
     name: str = Field(default="", max_length=80)
+    slug: Slug | None = None
     token: str = Field(min_length=8, max_length=256)
     # Optional so token rotation does not overwrite the device's own setting.
+    timezone: DeviceTimezone | None = None
+
+
+class DevicePatch(BaseModel):
+    name: str | None = Field(default=None, max_length=80)
+    slug: Slug | None = None
     timezone: DeviceTimezone | None = None
 
 
@@ -312,6 +327,7 @@ class DeviceOut(BaseModel):
 
     id: str
     name: str
+    slug: str
     timezone: str = DEFAULT_DEVICE_TIMEZONE
     latitude: float | None = None
     longitude: float | None = None
@@ -459,3 +475,99 @@ class FirmwareCheckResponse(BaseModel):
     sha256: str | None = None
     size_bytes: int | None = None
     mandatory: bool = False
+
+
+class PublicCurrentOut(BaseModel):
+    date_time: UtcDateTime
+    out_temp_c: float | None = None
+    app_temp_c: float | None = None
+    dewpoint_c: float | None = None
+    out_humidity_pct: float | None = None
+    wind_speed_m_s: float | None = None
+    wind_gust_m_s: float | None = None
+    wind_dir_deg: float | None = None
+    pressure_hpa: float | None = None
+    barometer_hpa: float | None = None
+    rain_rate_instant_mm_h: float | None = None
+    rain_rate_15m_mm_h: float | None = None
+    rain_mm: float | None = None
+    solar_wm2: float | None = None
+    uv_index: float | None = None
+
+
+class PublicStationOut(BaseModel):
+    id: str
+    slug: str
+    name: str
+    timezone: str
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude_m: float | None = None
+    online: bool
+    last_seen_at: UtcDateTime | None = None
+    first_archive_at: UtcDateTime | None = None
+    latest_archive_at: UtcDateTime | None = None
+    site_date: date
+
+
+class PublicStationResponse(BaseModel):
+    station: PublicStationOut
+    current: PublicCurrentOut | None = None
+    today_rain_mm: float | None = None
+
+
+class HistoryPointOut(BaseModel):
+    t: UtcDateTime
+    out_temp_c: float | None = None
+    app_temp_c: float | None = None
+    dewpoint_c: float | None = None
+    out_humidity_pct: float | None = None
+    wind_speed_m_s: float | None = None
+    wind_gust_m_s: float | None = None
+    wind_dir_deg: float | None = None
+    pressure_hpa: float | None = None
+    barometer_hpa: float | None = None
+    rain_rate_mm_h: float | None = None
+    rain_mm: float | None = None
+    solar_wm2: float | None = None
+    uv_index: float | None = None
+
+
+class SummaryMetricOut(BaseModel):
+    high: float | None = None
+    low: float | None = None
+    average: float | None = None
+    total: float | None = None
+
+
+class HistorySummaryOut(BaseModel):
+    temperature: SummaryMetricOut
+    dew_point: SummaryMetricOut
+    humidity: SummaryMetricOut
+    precipitation_rate: SummaryMetricOut
+    precipitation_accumulation: SummaryMetricOut
+    wind_speed: SummaryMetricOut
+    wind_gust: SummaryMetricOut
+    wind_direction: SummaryMetricOut
+    pressure: SummaryMetricOut
+
+
+class HistoryCoverageOut(BaseModel):
+    days_in_range: int
+    days_with_data: int
+    includes_today: bool
+
+
+class PublicHistoryOut(BaseModel):
+    station_id: str
+    timezone: str
+    period: str
+    start_date: date
+    end_date: date
+    start: UtcDateTime
+    end: UtcDateTime
+    bucket_seconds: int
+    sample_count: int
+    coverage: HistoryCoverageOut
+    points: list[HistoryPointOut]
+    summary: HistorySummaryOut

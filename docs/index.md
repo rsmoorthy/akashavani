@@ -25,6 +25,7 @@ Akashavani is a weather-data pipeline built around a Davis weather station:
 | Understand the system | [Architecture overview](architecture/overview.md) |
 | Build and flash firmware | [Firmware build](build/firmware.md) |
 | Run the server locally | [Server build](build/server.md) |
+| Build the public weather dashboard | [Public dashboard](build/dashboard.md) |
 | Provision a board | [Provisioning](operations/provisioning.md) |
 | Understand the wire format | [Protocol](protocol/README.md) |
 | Port the prototype | [Roadmap](development/roadmap.md) |

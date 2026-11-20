@@ -19,7 +19,7 @@ help: ## Show this help
 # Setup
 # ---------------------------------------------------------------------------
 .PHONY: setup
-setup: fw-setup server-setup ## Install firmware toolchain and Python environment
+setup: fw-setup server-setup dashboard-setup ## Install firmware, Python and dashboard dependencies
 
 .PHONY: fw-setup
 fw-setup: ## Install the pinned ESP32 core and external Arduino libraries
@@ -101,6 +101,29 @@ server-lint: ## Ruff + mypy
 server-format: ## Auto-format Python
 	./tools/server-lint.sh --fix
 
+# ---------------------------------------------------------------------------
+# Dashboard (React frontend)
+# ---------------------------------------------------------------------------
+.PHONY: dashboard-setup
+dashboard-setup: ## Install dashboard Node dependencies
+	cd server/dashboard && npm ci
+
+.PHONY: dashboard-dev
+dashboard-dev: ## Run the Vite dashboard dev server on port 5173
+	cd server/dashboard && npm run dev
+
+.PHONY: dashboard-build
+dashboard-build: ## Build the dashboard into server/dashboard/dist
+	cd server/dashboard && npm run build
+
+.PHONY: dashboard-test
+dashboard-test: ## Dashboard unit tests + TypeScript check
+	cd server/dashboard && npm test && npm run typecheck
+
+.PHONY: dashboard-lint
+dashboard-lint: ## Dashboard ESLint
+	cd server/dashboard && npm run lint
+
 .PHONY: docker-build
 docker-build: ## Build the server image
 	docker compose -f server/docker-compose.yml build
@@ -121,10 +144,10 @@ docker-logs: ## Follow API container logs
 # Cross-cutting
 # ---------------------------------------------------------------------------
 .PHONY: test
-test: fw-test server-test ## Run all host-side tests
+test: fw-test server-test dashboard-test ## Run all host-side tests
 
 .PHONY: lint
-lint: server-lint ## Run linters
+lint: server-lint dashboard-lint ## Run linters
 
 .PHONY: check
 check: test lint ## Test + lint
@@ -139,4 +162,5 @@ docs-build: ## Build the documentation site
 
 .PHONY: clean
 clean: fw-clean ## Remove generated artifacts
-	rm -rf site server/data/*.db server/data/firmware .pytest_cache .ruff_cache .mypy_cache
+	rm -rf site server/data/*.db server/data/firmware server/dashboard/dist \
+		.pytest_cache .ruff_cache .mypy_cache

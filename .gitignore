@@ -30,6 +30,12 @@ server/.env
 # Native build
 firmware/tests/native/build/
 
+# Frontend
+server/dashboard/node_modules/
+server/dashboard/dist/
+server/dashboard/coverage/
+server/dashboard/.vite/
+
 # Docs
 site/
 

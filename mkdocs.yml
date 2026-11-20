@@ -53,6 +53,7 @@ nav:
   - Build and test:
       - Firmware: build/firmware.md
       - Server: build/server.md
+      - Public dashboard: build/dashboard.md
       - Testing: build/testing.md
   - Operations:
       - Provisioning: operations/provisioning.md
@@ -68,6 +69,7 @@ nav:
       - RFM69 + Davis receive: specs/rf-davis-receive.md
       - 5-minute archive collation: specs/davis-archive-collation.md
       - Device configuration: specs/device-config.md
+      - Public dashboard: specs/public-dashboard.md
   - Reference:
       - Configuration: reference/configuration.md
   - Decisions:
@@ -79,3 +81,4 @@ nav:
       - SD JSON Lines: adr/0005-sd-jsonl.md
       - Two OTA paths: adr/0006-ota.md
       - SQLite to Postgres: adr/0007-database.md
+      - Public dashboard: adr/0008-public-dashboard.md

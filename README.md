@@ -33,6 +33,7 @@ transmitter simulator for bench testing the receiver before deployment.
 │   └── VERSION
 ├── protocol/                 JSON Schemas and example payloads (shared contract)
 ├── server/                   Python/FastAPI cloud endpoint, Dockerised
+│   └── dashboard/            React/TypeScript public weather dashboard
 ├── docs/                     architecture, hardware, protocol and runbooks
 ├── tools/                    developer scripts invoked by the Makefile
 └── .github/workflows/        CI
@@ -40,15 +41,17 @@ transmitter simulator for bench testing the receiver before deployment.
 
 ## Quick start
 
-Prerequisites: `arduino-cli` (1.0+), `python3.11+`, `git`, and optionally
-Docker. No hardware is required to build or run the test suites.
+Prerequisites: `arduino-cli` (1.0+), `python3.11+`, Node.js 24, `git`, and
+optionally Docker. No hardware is required to build or run the test suites.
 
 ```bash
-make setup                 # install ESP32 core, Arduino libs, Python venv
+make setup                 # ESP32 core, Python venv, dashboard npm packages
 make fw-build BOARD=receiver
 make fw-build BOARD=transmitter_sim
 make fw-test               # native C++ tests (CMake + GoogleTest)
 make server-test           # FastAPI tests
+make dashboard-test        # dashboard unit tests + TypeScript
+make dashboard-build       # build the dashboard served at /dashboard/<slug>/
 make server-dev            # http://localhost:8000/docs
 make docker-up             # Dockerised server on :8000
 ```
@@ -68,6 +71,7 @@ Start at [`docs/index.md`](docs/index.md), or build the docs site with
 - [Architecture](docs/architecture/overview.md)
 - [Hardware and pin map](docs/hardware/README.md)
 - [Protocol](docs/protocol/README.md)
+- [Public dashboard](docs/build/dashboard.md)
 - [Firmware build](docs/build/firmware.md)
 - [Server and Docker](docs/build/server.md)
 - [Testing](docs/build/testing.md)

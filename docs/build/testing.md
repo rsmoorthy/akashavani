@@ -8,6 +8,7 @@
 | Firmware compile | arduino-cli | no | `make fw-build-all` |
 | Hardware bring-up | Arduino sketch | yes | `make fw-test-hw`, then flash |
 | API and schema | pytest + TestClient | no | `make server-test` |
+| Dashboard logic and components | Vitest + Testing Library | no | `make dashboard-test` |
 | Container | Docker build/run | no | `make docker-build`, `make docker-up` |
 | End-to-end RF | receiver + simulator + server | yes | manual, see below |
 
@@ -38,6 +39,20 @@ in the wrong layer.
 2. Add the source to `firmware/tests/native/CMakeLists.txt`.
 3. Add a `test_*.cpp` with GoogleTest cases.
 4. Include captured Davis frames under `vectors/` with the RF settings recorded.
+
+## Dashboard tests
+
+```bash
+make dashboard-test     # Vitest + TypeScript
+make dashboard-lint     # ESLint
+make dashboard-build    # production build
+```
+
+The frontend suite covers range parsing and URL state, station-zone
+date/time formatting, timeline selection and cumulative rain, API URL
+construction, metric labels, Summary/History tables and widget rendering with
+missing values. Browser acceptance is manual/Playwright against a populated
+database; see [Public dashboard](dashboard.md).
 
 ## Firmware compile checks
 

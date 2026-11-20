@@ -149,9 +149,24 @@ All variables use the `AKASHAVANI_` prefix. Values can also be placed in
 | `AKASHAVANI_MAX_FUTURE_SKEW_SECONDS` | 300 | timestamp tolerance |
 | `AKASHAVANI_COMMAND_DEFAULT_TTL_SECONDS` | 3600 | default command expiry |
 | `AKASHAVANI_CORS_ORIGINS` | empty | comma-separated allowed origins |
+| `AKASHAVANI_PUBLIC_DASHBOARD_ENABLED` | `false` | expose `/api/v1/public` and `/dashboard`; explicit opt-in |
+| `AKASHAVANI_PUBLIC_DEFAULT_SLUG` | empty | slug `/dashboard` redirects to; empty shows a message |
+| `AKASHAVANI_PUBLIC_DEVICE_IDS` | empty | optional comma-separated device-ID allowlist; empty = all |
+| `AKASHAVANI_PUBLIC_MAX_RANGE_DAYS` | 31 | custom-range and CSV cap |
+| `AKASHAVANI_PUBLIC_CACHE_SECONDS` | 60 | public JSON cache header |
+| `AKASHAVANI_DASHBOARD_DIR` | `./dashboard/dist` | built React frontend directory |
 
 Production must override the admin token and device seeds; defaults are for
 local development only.
+
+The public dashboard is an explicit opt-in. When
+`AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`, `/dashboard/<slug>/` and the
+`/api/v1/public` read APIs are unauthenticated. They expose the station name,
+site coordinates, elevation and archive history. Set
+`AKASHAVANI_PUBLIC_DEVICE_IDS` if the server hosts more than one device, and put
+the service behind HTTPS and a reverse proxy with rate limiting. The dashboard
+frontend is a production build in `AKASHAVANI_DASHBOARD_DIR`; the API works
+without it.
 
 ### Docker Compose variables
 

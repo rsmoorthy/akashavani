@@ -37,16 +37,16 @@ from ..schemas import (
     DeviceConfigOut,
     DeviceCreate,
     DeviceOut,
+    DevicePatch,
     FirmwareRegister,
     FirmwareReleaseOut,
     ObservationOut,
 )
 from ..security import hash_token, require_admin
+from ..services.presence import is_online
+from ..slugs import automatic_slug, unique_slug
 from ..timezones import DEFAULT_DEVICE_TIMEZONE, format_in_zone, format_utc
 from .raw import raw_csv_path
-
-# A device counts as online when seen within three 30-second poll intervals.
-ONLINE_WINDOW_SECONDS = 90
 
 router = APIRouter(
     prefix="/api/v1/admin",
@@ -70,9 +70,19 @@ def create_or_rotate_device(
 
     device = db.get(Device, body.id)
     if device is None:
+        if body.slug is not None:
+            if db.scalar(select(Device).where(Device.slug == body.slug)) is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"slug already belongs to another device: {body.slug}",
+                )
+            slug = body.slug
+        else:
+            slug = unique_slug(db, automatic_slug(body.name, body.id))
         device = Device(
             id=body.id,
             name=body.name,
+            slug=slug,
             token_hash=token_hash,
             timezone=body.timezone or DEFAULT_DEVICE_TIMEZONE,
         )
@@ -82,6 +92,48 @@ def create_or_rotate_device(
         device.token_hash = token_hash
         if body.timezone is not None:
             device.timezone = body.timezone
+        if body.slug is not None and body.slug != device.slug:
+            owner = db.scalar(
+                select(Device).where(Device.slug == body.slug, Device.id != device.id)
+            )
+            if owner is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"slug already belongs to device {owner.id}",
+                )
+            device.slug = body.slug
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@router.patch("/devices/{device_id}", response_model=DeviceOut)
+def update_device(
+    device_id: str,
+    body: DevicePatch,
+    db: Session = Depends(get_db),
+) -> Device:
+    """Update display identity without rotating the device token.
+
+    Changing the display name leaves the public slug untouched, so existing
+    dashboard links keep working. A slug rename is explicit and must be unique.
+    """
+    device = db.get(Device, device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="device not found")
+
+    if body.name is not None:
+        device.name = body.name
+    if body.timezone is not None:
+        device.timezone = body.timezone
+    if body.slug is not None and body.slug != device.slug:
+        owner = db.scalar(select(Device).where(Device.slug == body.slug, Device.id != device.id))
+        if owner is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"slug already belongs to device {owner.id}",
+            )
+        device.slug = body.slug
     db.commit()
     db.refresh(device)
     return device
@@ -89,7 +141,6 @@ def create_or_rotate_device(
 
 @router.get("/devices", response_model=list[DeviceAdminOut])
 def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
-    now = datetime.now(UTC)
     devices = db.scalars(select(Device).order_by(Device.id)).all()
     result: list[DeviceAdminOut] = []
     for device in devices:
@@ -99,15 +150,12 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
             .order_by(ArchiveRecord.date_time.desc())
             .limit(1)
         )
-        seen_at = device.last_seen_at
-        if seen_at is not None and seen_at.tzinfo is None:
-            # SQLite returns naive datetimes; rows are stored in UTC.
-            seen_at = seen_at.replace(tzinfo=UTC)
-        online = seen_at is not None and (now - seen_at).total_seconds() <= ONLINE_WINDOW_SECONDS
+        online = is_online(device.last_seen_at)
         result.append(
             DeviceAdminOut(
                 id=device.id,
                 name=device.name,
+                slug=device.slug,
                 timezone=device.timezone,
                 latitude=device.latitude,
                 longitude=device.longitude,

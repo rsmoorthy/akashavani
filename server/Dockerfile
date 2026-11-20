@@ -1,3 +1,11 @@
+FROM node:24-bookworm-slim AS dashboard-builder
+
+WORKDIR /dashboard
+COPY dashboard/package.json dashboard/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY dashboard/ ./
+RUN npm run build
+
 FROM python:3.12-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -12,7 +20,8 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    AKASHAVANI_DASHBOARD_DIR=/app/dashboard/dist
 
 ARG UID=1000
 ARG GID=1000
@@ -28,6 +37,7 @@ RUN pip install /dist/*.whl "psycopg[binary]>=3.2,<4" && rm -rf /dist
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --from=dashboard-builder /dashboard/dist ./dashboard/dist
 RUN chmod 0755 /usr/local/bin/entrypoint.sh \
     && mkdir -p /data/firmware \
     && chown -R app:app /app /data

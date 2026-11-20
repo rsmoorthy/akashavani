@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .config import Settings
 from .db import get_db
 from .models import Device
+from .slugs import automatic_slug, unique_slug
 
 logger = logging.getLogger(__name__)
 DEVICE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,31}$")
@@ -205,6 +206,14 @@ def seed_devices(engine: Engine, settings: Settings) -> None:
                     "device seed %s skipped: token already belongs to %s", device_id, owner.id
                 )
                 continue
-            db.add(Device(id=device_id, name=name, token_hash=token_hash))
+            db.add(
+                Device(
+                    id=device_id,
+                    name=name,
+                    slug=unique_slug(db, automatic_slug(name, device_id)),
+                    token_hash=token_hash,
+                )
+            )
+            db.flush()
             logger.info("seeded device %s", device_id)
         db.commit()

@@ -7,6 +7,12 @@ from akashavani_server.main import create_app
 
 @pytest.fixture()
 def settings(tmp_path):
+    dashboard = tmp_path / "dashboard"
+    dashboard.mkdir()
+    (dashboard / "index.html").write_text(
+        "<!doctype html><title>test dashboard</title><div id=root></div>",
+        encoding="utf-8",
+    )
     return Settings(
         environment="test",
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
@@ -15,6 +21,9 @@ def settings(tmp_path):
         device_seeds="sim-001:dev-sim-token:Simulator",
         admin_token="test-admin-token",
         log_level="WARNING",
+        public_dashboard_enabled=True,
+        public_default_slug="simulator",
+        dashboard_dir=dashboard,
     )
 
 

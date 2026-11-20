@@ -6,10 +6,18 @@ code runs on PostgreSQL through `AKASHAVANI_DATABASE_URL`.
 
 ```bash
 make server-setup
+make dashboard-setup     # once; installs the React dashboard toolchain
+make dashboard-build     # build /dashboard static assets
 make server-dev          # http://127.0.0.1:8000/docs
 make server-test
+make dashboard-test
 make docker-up           # http://localhost:8000/docs
 ```
+
+The public dashboard is served at `/dashboard/<slug>/` when
+`AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`. During frontend development,
+`make dashboard-dev` runs Vite on port 5173 and proxies `/api` to port 8000.
+See [the dashboard build guide](../docs/build/dashboard.md).
 
 ## Docker
 
@@ -37,6 +45,7 @@ container paths under `/data`. See
 | GET | `/api/v1/firmware/{version}/download` | device token | OTA image |
 | POST | `/api/v1/admin/devices` | admin bearer | create/replace a device token |
 | GET | `/api/v1/admin/devices` | admin bearer | list devices |
+| PATCH | `/api/v1/admin/devices/{id}` | admin bearer | edit name, slug or time zone |
 | POST | `/api/v1/admin/devices/{id}/commands` | admin bearer | enqueue a command |
 | GET | `/api/v1/admin/observations` | admin bearer | inspect recent data |
 | POST | `/api/v1/admin/firmware` | admin bearer | register an image in `firmware_dir` |
@@ -44,6 +53,10 @@ container paths under `/data`. See
 | GET | `/api/v1/admin/firmware` | admin bearer | list releases |
 | GET | `/api/v1/admin/devices/{id}/commands` | admin bearer | command history |
 | GET | `/admin` | none (page shell) | admin UI; API calls still need the bearer token |
+| GET | `/api/v1/public/stations/{slug}` | none | public station metadata and latest reading |
+| GET | `/api/v1/public/stations/{slug}/history` | none | public chart points and summary |
+| GET | `/api/v1/public/stations/{slug}/export.csv` | none | public raw CSV export |
+| GET | `/dashboard/<slug>/` | none | public dashboard (when enabled and built) |
 
 Device auth uses `X-Device-Token`. Admin auth uses `Authorization: Bearer
 <AKASHAVANI_ADMIN_TOKEN>`. Tokens are stored as SHA-256 hashes; the plaintext is
@@ -51,7 +64,7 @@ only known to the device (or to the operator who provisioned it).
 
 ## Data model
 
-- `devices`: identity, token hash, station ID, MAC, last seen, reported firmware.
+- `devices`: identity, unique public slug, token hash, MAC, last seen, reported firmware.
 - `observations`: canonical envelope plus source metadata. Unique
   `(device_id, message_id)` makes retries idempotent.
 - `commands`: pending/delivered/acked/failed state with payload, result and

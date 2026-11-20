@@ -32,8 +32,43 @@ and the plan agreed with the project owner. Update it at each slice boundary.
 - SQLite development database, PostgreSQL option, Alembic initial migration.
 - Docker image and compose files for local development.
 - JSON Schemas, examples, architecture/operations docs and ADRs.
+- Public dashboard backend (2026-11-20): unique `devices.slug`, public
+  `/api/v1/public/stations/{slug}` metadata/history/CSV endpoints, dashboard
+  shell routes, and slug editing in `/admin`. The React frontend is not built
+  yet; `/dashboard/<slug>/` returns a "not built" message until it lands.
 
 ## Verified on this machine
+
+### Public dashboard backend (2026-11-20)
+
+- Migration `b1f4c2d7a9e0` applied to a copy of the live `akashvani.db` and
+  downgraded/upgraded again; backfilled slugs:
+  `sim-001 -> simulator`, `station-1 -> bench-station-1`,
+  `ak-2731e0 -> roof-receiver`.
+- `make server-test`: 94 passed.
+- `make server-lint`: Ruff format/lint and mypy pass.
+- Manual Uvicorn run on a copied DB with `AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`:
+  station, day history and CSV returned 200 without an Authorization header.
+- The public station response correctly returns `latitude/longitude/altitude`
+  as `null` for the live device, because its site config is still unset.
+- React dashboard implemented under `server/dashboard/` and served from
+  `/dashboard/<slug>/`: status header, seven gauges, current-day scrubber,
+  Day/Week/Month/Custom controls with dropdowns, Summary table, six Chart.js
+  graphs with crosshair/touch tooltips, graph/table toggle and CSV download.
+- `make test`: 51 native firmware tests, 94 server tests and 34 dashboard
+  tests pass.
+- `make dashboard-test`: 34 Vitest tests pass; TypeScript passes.
+- `make dashboard-lint`: ESLint passes.
+- `make dashboard-build`: production bundle built (about 150 kB gzipped JS
+  including Chart.js).
+- Browser checks with a populated demo database at 1280×1000 and 390×844:
+  no page-level horizontal overflow on mobile; Day/Week/Graph/Table/Custom and
+  timeline interactions exercised; no console or page errors.
+- Docker, CI and docs were updated for the Node build stage. The live
+  development server on port 8000 was not restarted, and the live database was
+  not modified.
+
+## Verified on this machine (scaffold)
 
 ### Scaffold (no hardware)
 

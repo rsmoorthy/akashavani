@@ -30,6 +30,9 @@ class Device(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    # Stable, URL-safe identity used by the public dashboard. Renaming the
+    # display name does not change it; operators change it explicitly.
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     # IANA zone used only for operator-facing rendering; storage is always UTC.
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
     # Device-reported site configuration. The JSON is the complete document;

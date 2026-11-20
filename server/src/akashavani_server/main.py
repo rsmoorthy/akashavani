@@ -8,11 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from .api import admin, archive, commands, config, firmware, health, observations, raw
+from .api import admin, archive, commands, config, firmware, health, observations, public, raw
 from .config import Settings, get_settings
 from .db import Base, create_engine_for, create_session_factory
 from .logging import configure_logging
 from .security import seed_devices
+from .web import DashboardStaticFiles
 from .web import router as web_router
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(raw.router)
     app.include_router(firmware.router)
     app.include_router(admin.router)
+    app.include_router(public.router)
     app.include_router(web_router)
+
+    dashboard_assets = settings.dashboard_dir / "assets"
+    if dashboard_assets.is_dir():
+        app.mount(
+            "/dashboard/assets",
+            DashboardStaticFiles(directory=dashboard_assets),
+            name="dashboard-assets",
+        )
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:

@@ -49,6 +49,15 @@ class Settings(BaseSettings):
     command_ack_timeout_seconds: int = Field(default=300, ge=30)
     cors_origins: str = ""
 
+    # Public, read-only dashboard. Exposure is explicit: the router returns 404
+    # unless this is enabled. The allowlist (device IDs, not slugs) is optional.
+    public_dashboard_enabled: bool = False
+    public_default_slug: str = ""
+    public_device_ids: str = ""
+    public_max_range_days: int = Field(default=31, ge=1, le=366)
+    public_cache_seconds: int = Field(default=60, ge=0, le=3600)
+    dashboard_dir: Path = Path("./dashboard/dist")
+
     @property
     def firmware_path(self) -> Path:
         return self.firmware_dir
@@ -56,6 +65,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+
+    @property
+    def public_device_id_list(self) -> list[str]:
+        return [item.strip() for item in self.public_device_ids.split(",") if item.strip()]
 
 
 @lru_cache

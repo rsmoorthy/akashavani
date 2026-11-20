@@ -13,3 +13,6 @@ data/*
 *.egg-info
 dist
 build
+dashboard/node_modules
+dashboard/dist
+dashboard/coverage

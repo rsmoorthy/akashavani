@@ -11,6 +11,8 @@ flowchart LR
   server -- commands + OTA --> rx
   admin[Operator] -- LAN/AP --> rx
   admin -- HTTP admin API --> server
+  viewer[Public viewer] -- HTTPS /dashboard/:slug/ --> server
+  server -- public JSON/CSV --> viewer
 ```
 
 The receiver is the only device that talks to the cloud. The simulator exists
@@ -58,6 +60,25 @@ sketch/app
 
 The archive is deliberately written **before** the upload. A failed upload is
 recoverable from the card; an observation that was never archived is not.
+
+## Public dashboard path
+
+The public dashboard is a separate read-only React frontend served by the same
+FastAPI process at `/dashboard/<slug>/`. It is unauthenticated by design and
+is disabled unless `AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`.
+
+```mermaid
+flowchart LR
+  browser[Public browser] -- GET /dashboard/slug --> spa[React/Vite bundle]
+  browser -- GET /api/v1/public/... --> api[Public read API]
+  api --> db[(devices + archive)]
+  spa -. same origin .-> api
+```
+
+The public API reads only the device row and `archive` table. It never returns
+tokens, MAC address, Wi-Fi config, commands, RSSI or firmware details. Slugs are
+editable in `/admin`; the dashboard path is stable across display-name changes.
+See [the public dashboard spec](../specs/public-dashboard.md).
 
 ## Command path
 
@@ -119,5 +140,9 @@ The epoch window accepted by both firmware and server is 2000-01-01 through
   (`AK_AP_PASSWORD` from `firmware/.env`), shared by boards built from the same
   configuration. The AP configuration page has no separate login in this phase.
 - The device token is a bearer credential. Lose the board, rotate the token.
+- The public dashboard has no authentication. Treat the station name, site
+  coordinates, elevation and weather history as public data when enabling it.
+  Use the optional device-ID allowlist and reverse-proxy rate limiting if the
+  server hosts more than one station.
 - TLS verification is currently disabled on the device for local development;
   production requires a pinned CA.

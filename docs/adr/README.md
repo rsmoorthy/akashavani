@@ -9,6 +9,7 @@
 | [0005](0005-sd-jsonl.md) | Daily JSON Lines archive on micro-SD | accepted |
 | [0006](0006-ota.md) | Both LAN ArduinoOTA and remote HTTP pull OTA | accepted |
 | [0007](0007-database.md) | SQLite for development, PostgreSQL for production, Alembic migrations | accepted |
+| [0008](0008-public-dashboard.md) | Public read-only React dashboard and unauthenticated `/api/v1/public` | accepted |
 
 ADRs are short: context, decision, consequences. Supersede rather than rewrite
 when a decision changes.

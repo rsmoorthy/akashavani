@@ -30,6 +30,7 @@ erDiagram
   DEVICES ||--o{ COMMANDS : receives
   DEVICES {
     string id PK
+    string slug UK
     string token_hash UK
     string firmware_version
     datetime last_seen_at
@@ -112,6 +113,7 @@ release blockers. See [OTA](../operations/ota.md).
 | --- | --- | --- |
 | Device | `X-Device-Token` bearer | SHA-256 hash in `devices.token_hash` |
 | Admin | `Authorization: Bearer ...` | `AKASHAVANI_ADMIN_TOKEN` environment variable |
+| Public dashboard reader | none | deliberately unauthenticated |
 
 Authenticated device requests also carry `X-Device-Mac`,
 `X-Firmware-Version`, `X-Last-Radio-At` and health headers (`X-Uptime-Seconds`,
@@ -124,6 +126,27 @@ Seed devices are created from `AKASHAVANI_DEVICE_SEEDS` on startup only if
 missing. Restarting never rotates a token. Use the admin API to rotate
 explicitly.
 
+## Public dashboard
+
+The read-only React dashboard lives at `/dashboard/<slug>/`; `/dashboard`
+redirects to `AKASHAVANI_PUBLIC_DEFAULT_SLUG`. It is disabled (404) unless
+`AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`; an optional
+`AKASHAVANI_PUBLIC_DEVICE_IDS` allowlist limits which devices are visible. The
+Docker image builds the frontend in a Node stage; local development uses
+`make dashboard-build` or the Vite dev server.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/public/stations/{slug}` | station metadata, online state, latest archive reading |
+| `GET /api/v1/public/stations/{slug}/history` | 5-minute/1-hour/1-day points and Summary values for a period |
+| `GET /api/v1/public/stations/{slug}/export.csv` | raw 5-minute CSV for the selected period |
+
+`devices.slug` is unique and editable from `/admin`; changing the display name
+does not change it. Slugs are lower-case letters, digits and hyphens. The public
+API never returns tokens, MAC, Wi-Fi config, commands, RSSI or firmware fields.
+All values are SI; range boundaries are resolved in the device's IANA time zone.
+See [the public dashboard spec](../specs/public-dashboard.md).
+
 ## Database
 
 - Development default: SQLite at `data/akashavani.db`, one worker.
@@ -135,6 +158,8 @@ explicitly.
 - Every stored and transported timestamp is UTC (epoch integers or `...Z`
   strings). A device's `timezone` column is an IANA name used only for
   operator-facing rendering and CSV export; it never changes stored values.
+- `devices.slug` is the public dashboard identity. The migration backfills it
+  from the display name and falls back to the device ID when necessary.
 - `devices.config` is the server mirror of the device-owned configuration
   document. Site coordinates are extracted into `latitude`, `longitude` and
   `altitude_m`; archive derivations use `altitude_m` and store `NULL` when it is

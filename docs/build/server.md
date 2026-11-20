@@ -4,8 +4,14 @@
 
 ```bash
 make server-setup       # creates .venv, installs package + dev tools + cmake
+make dashboard-setup    # installs the React dashboard dependencies
+make dashboard-build    # builds the public dashboard assets
 make server-dev         # http://127.0.0.1:8000/docs
 ```
+
+The public dashboard is built separately; see
+[Public dashboard](dashboard.md). It is disabled until
+`AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`.
 
 `make server-dev` runs Alembic, then Uvicorn with autoreload. The default
 database is SQLite at `server/data/akashavani.db`.
