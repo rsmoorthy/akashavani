@@ -153,6 +153,22 @@ All variables use the `AKASHAVANI_` prefix. Values can also be placed in
 Production must override the admin token and device seeds; defaults are for
 local development only.
 
+### Docker Compose variables
+
+`server/docker-compose.yml` interpolates two variables that are not
+`AKASHAVANI_*` settings and are not read by the application:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `UID` | `1000` | build arg for the image's non-root `app` user |
+| `GID` | `1000` | build arg for the `app` group |
+
+Set them in `server/.env` to match the owner of the host directory bind-mounted
+over `/data`, then rebuild with `make docker-build`. Build args are applied only
+at build time. Mismatched ownership makes Alembic fail with
+`unable to open database file` and prevents SQLite from creating
+`akashavani.db`. See [Running the server — Docker](../build/server.md#docker).
+
 ## HTTP endpoints
 
 See [Protocol](../protocol/README.md) and the generated OpenAPI page at `/docs`.

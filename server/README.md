@@ -11,6 +11,18 @@ make server-test
 make docker-up           # http://localhost:8000/docs
 ```
 
+## Docker
+
+The container runs as a non-root `app` user built with `UID`/`GID` (default
+1000:1000) from `server/.env`. The bind-mounted data directory must be writable
+by that UID or startup fails with `unable to open database file` and no
+`akashavani.db` is created. Set `UID`/`GID` in `server/.env`, match the host
+directory ownership, and rebuild with `make docker-build`; build args are not
+applied to an existing image. Do not put host paths in the `AKASHAVANI_DATA_DIR`,
+`AKASHAVANI_FIRMWARE_DIR` or `AKASHAVANI_DATABASE_URL` values — those are
+container paths under `/data`. See
+[Running the server](../docs/build/server.md#docker).
+
 ## Endpoints
 
 | Method | Path | Auth | Purpose |

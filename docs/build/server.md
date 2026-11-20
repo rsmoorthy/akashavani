@@ -57,13 +57,65 @@ make docker-down
 
 The compose file:
 
-- builds `server/` with non-root UID/GID defaults (1000:1000; override with
-  `UID`/`GID`);
+- builds `server/` with a non-root `app` user; the `UID`/`GID` build args
+  default to 1000:1000;
 - maps `server/data` to `/data` for SQLite and firmware images;
 - reads seeds/admin token from environment with development defaults;
 - exposes port 8000.
 
 API docs: <http://localhost:8000/docs>.
+
+### Data directory and UID/GID
+
+`/data` is created in the image, but a bind mount replaces it. The container
+runs as the `app` user (UID/GID 1000 by default), so the host directory must be
+writable by that UID. When it is not, the container restart-loops with:
+
+```text
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file
+```
+
+Nothing creates the SQLite file explicitly. `alembic upgrade head` in the
+entrypoint connects first, and SQLite creates `akashavani.db` (plus its journal
+file) only if the process may write to the directory. A bind source that Docker
+auto-creates is owned by `root`, which produces exactly this error.
+
+To host the data outside the repository, for example at `/mnt/akdata`, change
+the volume in `server/docker-compose.yml`:
+
+```yaml
+    volumes:
+      - /mnt/akdata:/data
+```
+
+Then give the directory to the container UID and set the same UID/GID in
+`server/.env`:
+
+```dotenv
+# server/.env — Compose interpolation, not AKASHAVANI_* settings
+UID=1001
+GID=1001
+```
+
+```bash
+sudo install -d -o 1001 -g 1001 -m 0755 /mnt/akdata
+docker compose -f server/docker-compose.yml config | grep -A3 'args:'
+# UID and GID must both read "1001" before building
+make docker-build          # build args apply only at build time
+make docker-up
+ls -l /mnt/akdata          # akashavani.db appears after the first successful start
+```
+
+Keep the `AKASHAVANI_DATA_DIR`, `AKASHAVANI_FIRMWARE_DIR` and
+`AKASHAVANI_DATABASE_URL` values under `/data`; they are container paths, not
+host paths. With the mount above, host `/mnt/akdata/akashavani.db` is container
+`/data/akashavani.db`, and `/mnt/akdata/firmware` is `/data/firmware`.
+
+`UID` is a readonly bash variable and is not exported, so `${UID:-1000}` in the
+compose file falls back to 1000 even when the operator's UID differs. Setting it
+in `server/.env` is the reliable way to pass it. Files created by the container
+are owned by the container UID, so matching the host directory owner avoids
+needing `sudo` to manage uploads and exports.
 
 ### PostgreSQL
 
