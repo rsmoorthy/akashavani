@@ -61,6 +61,10 @@ MessageId = Annotated[
         max_length=64,
     ),
 ]
+BootId = Annotated[
+    str,
+    StringConstraints(pattern=r"^[0-9a-f]{16}$", min_length=16, max_length=16),
+]
 FirmwareVersion = Annotated[
     str,
     StringConstraints(
@@ -201,6 +205,10 @@ class ArchiveEnvelope(BaseModel):
     message_id: MessageId
     bucket_end_epoch: int = Field(gt=0)
     interval_minutes: int = Field(default=5, ge=1, le=60)
+    # Optional in v1 so records written by older firmware remain valid.
+    # Current firmware always sends both.
+    boot_id: BootId | None = None
+    uptime_ms: int | None = Field(default=None, ge=0, le=0xFFFFFFFF)
     source: ObservationSource = Field(default_factory=ObservationSource)
     sums: ArchiveSums = Field(default_factory=ArchiveSums)
     counts: ArchiveCounts = Field(default_factory=ArchiveCounts)
@@ -209,6 +217,12 @@ class ArchiveEnvelope(BaseModel):
     rain: ArchiveRain = Field(default_factory=ArchiveRain)
     latest: ArchiveLatest = Field(default_factory=ArchiveLatest)
     quality: ArchiveQuality = Field(default_factory=ArchiveQuality)
+
+    @model_validator(mode="after")
+    def _boot_identity_together(self) -> ArchiveEnvelope:
+        if (self.boot_id is None) != (self.uptime_ms is None):
+            raise ValueError("boot_id and uptime_ms must be sent together")
+        return self
 
 
 class ArchiveAccepted(BaseModel):
@@ -242,6 +256,8 @@ class ArchiveOut(BaseModel):
     date_time: UtcDateTime
     received_at: UtcDateTime
     interval_minutes: int
+    boot_id: str | None
+    uptime_ms: int | None
     units: str
     source: dict[str, Any]
     out_temp_c: float | None

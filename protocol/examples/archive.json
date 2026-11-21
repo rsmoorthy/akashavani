@@ -5,6 +5,8 @@
   "message_id": "station-1-1793547000-archive",
   "bucket_end_epoch": 1793547000,
   "interval_minutes": 5,
+  "boot_id": "9f2c1a4b7d3e5061",
+  "uptime_ms": 172800000,
   "source": {
     "protocol": "davis",
     "transmitter_id": 1

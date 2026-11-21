@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include <cstdio>
+
 namespace akashavani {
 
 bool serializeArchiveJson(const char* deviceId, const ArchiveRecord& record,
@@ -18,6 +20,11 @@ bool serializeArchiveJson(const char* deviceId, const ArchiveRecord& record,
   doc["message_id"] = messageId;
   doc["bucket_end_epoch"] = static_cast<long long>(record.bucketEndEpoch);
   doc["interval_minutes"] = record.intervalMinutes;
+  char bootId[17];
+  std::snprintf(bootId, sizeof(bootId), "%016llx",
+                static_cast<unsigned long long>(record.bootId));
+  doc["boot_id"] = bootId;
+  doc["uptime_ms"] = record.uptimeMs;
 
   JsonObject source = doc["source"].to<JsonObject>();
   source["protocol"] = "davis";

@@ -349,6 +349,8 @@ def download_archive_csv(
             "frames_expected",
             "frames_crc_bad",
             "rssi_avg_dbm",
+            "boot_id",
+            "uptime_ms",
         ]
     )
     for row in rows:
@@ -367,6 +369,8 @@ def download_archive_csv(
                 row.frames_expected,
                 row.frames_crc_bad,
                 row.rssi_avg_dbm,
+                row.boot_id,
+                row.uptime_ms,
             ]
         )
     return PlainTextResponse(

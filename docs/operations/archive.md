@@ -9,9 +9,40 @@ The receiver now collates decoded Davis frames into one SI archive record per
 5-minute bucket and writes that record to the card. The raw per-frame upload path
 remains available for diagnosis, but the durable weather archive is the 5-minute
 record. Each line has `"type": "archive"` and the sums/counts described in
-`docs/specs/davis-archive-collation.md`. The server divides the sums, converts
-rain tips using the configured bucket size and stores the result in the SQLite
-`archive` table.
+`docs/specs/davis-archive-collation.md`. Rows written by current firmware also
+carry `boot_id` (16 hex characters, generated once per boot) and `uptime_ms`
+(device `millis()` at bucket close), so the server can group rows by boot and
+count restarts. The server divides the sums, converts rain tips using the
+configured bucket size and stores the result in the SQLite `archive` table; the
+complete uploaded envelope is kept in `raw_archive`.
+
+## Boot and restart tracking
+
+Rows written by current firmware carry the boot that produced them. To list
+boots observed in the archive:
+
+```sql
+SELECT boot_id, MIN(date_time) AS first_bucket, MAX(date_time) AS last_bucket,
+       MAX(uptime_ms) AS uptime_at_last_bucket
+FROM archive
+WHERE device_id = 'ak-3f2a1b'
+GROUP BY boot_id
+ORDER BY first_bucket;
+```
+
+To count observed boots in a period:
+
+```sql
+SELECT COUNT(DISTINCT boot_id)
+FROM archive
+WHERE device_id = 'ak-3f2a1b'
+  AND date_time BETWEEN '2026-11-01T00:00:00Z' AND '2026-12-01T00:00:00Z';
+```
+
+A change in `boot_id` between adjacent rows is a restart. `uptime_ms` restarts
+at zero on each boot and wraps after about 49.7 days, so use `boot_id` (not a
+drop in `uptime_ms`) to detect reboots. A boot shorter than one 5-minute bucket
+produces no row and is therefore not counted.
 
 ## Layout
 

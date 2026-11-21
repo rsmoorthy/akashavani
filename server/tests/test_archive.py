@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import math
 
+from sqlalchemy import inspect, select
+
+from akashavani_server.models import RawArchiveRecord
 from tests.factories import admin_headers, api_headers, archive_payload
 
 
@@ -17,6 +20,8 @@ def test_accepts_archive_and_computes_si_values(client):
     assert len(rows) == 1
     row = rows[0]
     assert row["units"] == "SI"
+    assert row["boot_id"] == payload["boot_id"]
+    assert row["uptime_ms"] == payload["uptime_ms"]
     assert row["out_temp_c"] == 22.0
     assert row["out_temp_count"] == 5
     assert row["out_humidity_pct"] == 55.0
@@ -55,6 +60,54 @@ def test_archive_is_idempotent(client):
 
     rows = client.get("/api/v1/admin/archive", headers=admin_headers()).json()
     assert len(rows) == 1
+
+
+def test_archive_keeps_raw_envelope_in_separate_table(client, app):
+    payload = archive_payload()
+    assert client.post("/api/v1/archive", json=payload, headers=api_headers()).status_code == 202
+
+    with app.state.session_factory() as session:
+        rows = list(session.scalars(select(RawArchiveRecord)))
+    assert len(rows) == 1
+    raw = rows[0]
+    assert raw.device_id == payload["device_id"]
+    assert raw.message_id == payload["message_id"]
+    assert raw.source == payload["source"]
+    assert raw.raw["boot_id"] == payload["boot_id"]
+    assert raw.raw["sums"]["out_temp_c"] == payload["sums"]["out_temp_c"]
+
+    columns = {column["name"] for column in inspect(app.state.engine).get_columns("archive")}
+    assert "raw" not in columns
+
+    # A retry is a duplicate and must not add a second raw envelope.
+    assert client.post("/api/v1/archive", json=payload, headers=api_headers()).status_code == 200
+    with app.state.session_factory() as session:
+        assert len(list(session.scalars(select(RawArchiveRecord)))) == 1
+
+
+def test_archive_accepts_envelopes_without_boot_fields(client):
+    payload = archive_payload()
+    del payload["boot_id"]
+    del payload["uptime_ms"]
+    response = client.post("/api/v1/archive", json=payload, headers=api_headers())
+    assert response.status_code == 202, response.text
+
+    row = client.get("/api/v1/admin/archive", headers=admin_headers()).json()[0]
+    assert row["boot_id"] is None
+    assert row["uptime_ms"] is None
+
+
+def test_archive_rejects_malformed_boot_identity(client):
+    payload = archive_payload(boot_id="not-hex", uptime_ms=-1)
+    response = client.post("/api/v1/archive", json=payload, headers=api_headers())
+    assert response.status_code == 422
+
+
+def test_archive_rejects_half_boot_identity(client):
+    payload = archive_payload()
+    del payload["uptime_ms"]
+    response = client.post("/api/v1/archive", json=payload, headers=api_headers())
+    assert response.status_code == 422
 
 
 def test_archive_requires_bearer_token(client):
@@ -197,6 +250,8 @@ def test_archive_csv_export(client):
     assert response.headers["content-type"].startswith("text/csv")
     assert "date_time_utc" in response.text
     assert "date_time_site" in response.text
+    assert "boot_id" in response.text
+    assert "uptime_ms" in response.text
     assert payload["device_id"] in response.headers["content-disposition"]
 
 

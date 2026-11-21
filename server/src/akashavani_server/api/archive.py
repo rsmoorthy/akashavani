@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import ArchiveRecord, Device
+from ..models import ArchiveRecord, Device, RawArchiveRecord
 from ..schemas import (
     ArchiveAccepted,
     ArchiveBatchAccepted,
@@ -153,13 +153,18 @@ def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAcc
     if site_altitude is None:
         quality_flags["missing_site_altitude"] = True
 
+    source = body.source.model_dump(exclude_none=True)
+
     record = ArchiveRecord(
         device_id=body.device_id,
         message_id=body.message_id,
         date_time=date_time,
+        received_at=now,
         interval_minutes=body.interval_minutes,
+        boot_id=body.boot_id,
+        uptime_ms=body.uptime_ms,
         units="SI",
-        source=body.source.model_dump(exclude_none=True),
+        source=source,
         out_temp_c=out_temp,
         out_temp_count=counts.out_temp,
         out_humidity_pct=out_humidity,
@@ -221,9 +226,17 @@ def _ingest_one(db: Session, settings: Any, body: ArchiveEnvelope) -> ArchiveAcc
         rssi_max_dbm=body.quality.rssi_max_dbm,
         quality_flags=quality_flags,
         derived_version="1",
+    )
+    raw_record = RawArchiveRecord(
+        device_id=body.device_id,
+        message_id=body.message_id,
+        date_time=date_time,
+        received_at=now,
+        source=source,
         raw=body.model_dump(mode="json"),
     )
     db.add(record)
+    db.add(raw_record)
     device.last_seen_at = now
     try:
         db.commit()

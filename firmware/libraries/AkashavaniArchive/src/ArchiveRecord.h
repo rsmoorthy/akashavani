@@ -9,6 +9,11 @@ namespace akashavani {
 struct ArchiveRecord {
   int64_t bucketEndEpoch = 0;
   uint32_t intervalMinutes = 5;
+  // Boot identity of the device that closed the bucket. bootId is generated
+  // once per boot; uptimeMs is millis() at bucket close, so a change in
+  // bootId between consecutive rows marks a restart.
+  uint64_t bootId = 0;
+  uint32_t uptimeMs = 0;
   uint32_t sequence = 0;
   uint8_t transmitterId = 0;
 

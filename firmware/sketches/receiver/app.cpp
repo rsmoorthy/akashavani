@@ -7,6 +7,7 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <Wire.h>
+#include <esp_random.h>
 
 #include <cmath>
 #include <cstdio>
@@ -98,6 +99,9 @@ WeatherReading lastRainRate;
 // API request. Zero means "never seen".
 int64_t lastRadioEpoch = 0;
 const char* bootResetReason = "unknown";
+// Random 64-bit identity for this boot, generated in setup(). Archive rows
+// carry it so the server can group buckets by boot and count restarts.
+uint64_t bootId = 0;
 
 // Newest archive bucket the server acknowledged; persisted on SD as last_sent.
 int64_t lastSentEpoch = 0;
@@ -749,13 +753,17 @@ void drainUploads() {
 }
 
 void finishArchiveRecord(const ArchiveRecord& record) {
+  ArchiveRecord completed = record;
+  completed.bootId = bootId;
+  completed.uptimeMs = static_cast<uint32_t>(millis());
+
   char messageId[65];
-  buildArchiveMessageId(messageId, sizeof(messageId), record.bucketEndEpoch);
+  buildArchiveMessageId(messageId, sizeof(messageId), completed.bucketEndEpoch);
 
   String payload;
-  if (!serializeArchiveJson(settings.deviceId, record, messageId, payload)) {
+  if (!serializeArchiveJson(settings.deviceId, completed, messageId, payload)) {
     AK_LOG_ERROR("archive", "could not serialize bucket %lld",
-                 static_cast<long long>(record.bucketEndEpoch));
+                 static_cast<long long>(completed.bucketEndEpoch));
     return;
   }
 
@@ -779,7 +787,7 @@ void finishArchiveRecord(const ArchiveRecord& record) {
                   : 0);
 
   if (settings.uploadEnabled && settings.cloudConfigured()) {
-    enqueueArchive(payload.c_str(), messageId, record.bucketEndEpoch);
+    enqueueArchive(payload.c_str(), messageId, completed.bucketEndEpoch);
   }
 }
 
@@ -1324,6 +1332,8 @@ void updateDisplay() {
 void logBanner() {
   AK_LOG_INFO("boot", "%s %s | protocol v%d", AKASHAVANI_PRODUCT_NAME, AKASHAVANI_FW_VERSION,
               AKASHAVANI_PROTOCOL_VERSION);
+  AK_LOG_INFO("boot", "boot_id=%016llx reset=%s",
+              static_cast<unsigned long long>(bootId), bootResetReason);
 }
 
 }  // namespace
@@ -1331,6 +1341,7 @@ void logBanner() {
 void setup() {
   Log::begin(config::kSerialBaud);
   bootResetReason = resetReasonName();
+  bootId = (static_cast<uint64_t>(esp_random()) << 32) | esp_random();
   // Hold the first line so an operator who powers the board in the field can
   // start minicom/`make fw-monitor` and still catch the boot banner. The ROM
   // bootloader text before this is not delayable.

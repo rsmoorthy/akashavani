@@ -65,6 +65,9 @@ All notable changes are recorded here. The firmware version lives in
 
 ### Changed
 
+- Archive envelopes now carry `boot_id` and `uptime_ms`; the server stores them
+  on the `archive` row. The original uploaded envelope moved from `archive.raw`
+  to the new `raw_archive` table (migration `a7d3e1f9c2b4`).
 - Renamed the project to `Akashavani` (corrected spelling): Python package,
   firmware libraries, classes, files, product strings, AP SSID prefix, default
   admin password and OTA artifact names now use the new spelling. JSON keys,

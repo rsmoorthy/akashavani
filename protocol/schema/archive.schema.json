@@ -32,6 +32,17 @@
     },
     "bucket_end_epoch": { "type": "integer", "minimum": 1 },
     "interval_minutes": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "boot_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "Random 64-bit identifier generated once per boot. Optional in v1 for records written by older firmware; current firmware always sends it."
+    },
+    "uptime_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Device millis() when the bucket was closed. Optional in v1 for records written by older firmware; current firmware always sends it."
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -129,5 +140,9 @@
         "crc_bad_rssi_max_dbm": { "type": ["number", "null"] }
       }
     }
+  },
+  "dependentRequired": {
+    "boot_id": ["uptime_ms"],
+    "uptime_ms": ["boot_id"]
   }
 }

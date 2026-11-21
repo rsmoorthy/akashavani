@@ -4,7 +4,7 @@
 > point for the next implementation session.
 
 **Date:** 2026-10-26
-**Latest slice:** 2026-11-13, interrupt-driven RFM69 receive + channel scan task, bench soak
+**Latest slice:** 2026-11-21, archive `boot_id`/`uptime_ms` + separate `raw_archive` table
 **Scaffold commit:** `ab8078c` (`Initial Akashavani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
 **Latest bench check:** 2026-11-18, BME280 forced-mode sampling fixed
@@ -38,6 +38,30 @@ and the plan agreed with the project owner. Update it at each slice boundary.
   yet; `/dashboard/<slug>/` returns a "not built" message until it lands.
 
 ## Verified on this machine
+
+### Archive boot identity and `raw_archive` (2026-11-21)
+
+- Archive envelopes carry `boot_id` (random 64-bit, 16 hex chars, generated
+  once per boot) and `uptime_ms` (`millis()` at bucket close). Both are optional
+  in protocol v1 so records from older firmware still validate; current
+  firmware always sends them.
+- `archive.raw` moved to the new `raw_archive` table (migration
+  `a7d3e1f9c2b4`). The migration copies existing envelopes, and the downgrade
+  restores them into `archive.raw`.
+- `make server-test`: 98 passed (new coverage: stored boot fields, malformed
+  and half boot identity rejected, raw envelope retention, duplicate does not
+  duplicate raw, old envelopes without boot fields, CSV columns).
+- Migration upgrade/downgrade/re-upgrade exercised on a temporary SQLite
+  database with one pre-migration archive row: the raw envelope was copied to
+  `raw_archive`, `archive.raw` dropped with the boot columns added, then the
+  downgrade restored `raw` and removed `raw_archive`. `alembic check` against
+  the migrated database reported no new upgrade operations.
+- `make fw-test`: 51 passed.
+- `make fw-build-all`: receiver 1,330,653 bytes (67% of the OTA slot),
+  transmitter simulator 938,209 bytes (47%).
+- Not hardware-verified: no board was flashed in this pass. The boot banner
+  should print `boot_id=...`; that line and uploaded rows still need a bench
+  check.
 
 ### Public dashboard backend (2026-11-20)
 

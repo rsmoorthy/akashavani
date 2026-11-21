@@ -137,6 +137,19 @@ site bucket size and calculates the derived values. The shared bearer token is
 configured on the hotspot page (default `secret`) and in the server's
 `AKASHAVANI_API_TOKEN`.
 
+Current firmware also sends two boot-identity fields with every record:
+
+| Field | Meaning |
+| --- | --- |
+| `boot_id` | Random 64-bit value generated once per boot, as 16 lower-case hex characters. A change between consecutive records means the receiver restarted. |
+| `uptime_ms` | `millis()` at bucket close (0–4294967295). It restarts at zero on every boot and wraps after about 49.7 days. |
+
+Both are optional in protocol v1 so rows written by older firmware remain
+valid; the server stores `NULL` when they are absent. If either field is
+present, the other is required. They are measured at bucket close, so a reboot
+inside a bucket is represented by the boot that closed it. The full uploaded
+envelope is retained in `raw_archive`.
+
 ## Device configuration
 
 The device owns its site configuration and reports the full document with

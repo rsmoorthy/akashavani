@@ -174,6 +174,9 @@ owner or from the receiver configuration.
   incomplete; do not stamp it with a guessed time.
 - `message_id` is the idempotency key for the 5-minute record, for example
   `<device-id>-<bucket-end-epoch>-<counter>`. Reuse it on every retry.
+- `boot_id` identifies the boot that closed the bucket; `uptime_ms` is the
+  device uptime at close. A change in `boot_id` between stored rows marks a
+  restart. A reboot inside a bucket is attributed to the boot that closed it.
 - Recommended uniqueness in the server: `UNIQUE(device_id, dateTime)` in
   addition to the existing `(device_id, message_id)`.
 
@@ -309,6 +312,8 @@ heat index in the new archive are **C**, while the Weewx source was F.
 | --- | --- | --- | --- |
 | `date_time` | bucket end | epoch UTC | end of 5-minute bucket |
 | `interval_minutes` | config | minutes | 5 |
+| `boot_id` | boot RNG | 16 hex chars | generated once per boot; repeated on every bucket |
+| `uptime_ms` | `millis()` | ms | device uptime when the bucket is closed |
 | `out_temp_c` | `0x8` | C | mean |
 | `out_humidity_pct` | `0xA` | % | mean |
 | `wind_speed_m_s` | every frame | m/s | mean |

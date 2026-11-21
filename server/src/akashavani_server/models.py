@@ -98,6 +98,7 @@ class ArchiveRecord(Base):
         UniqueConstraint("device_id", "message_id", name="uq_archive_device_message"),
         UniqueConstraint("device_id", "date_time", name="uq_archive_device_time"),
         Index("ix_archive_device_time", "device_id", "date_time"),
+        Index("ix_archive_device_boot", "device_id", "boot_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -110,6 +111,8 @@ class ArchiveRecord(Base):
         DateTime(timezone=True), default=utcnow, nullable=False
     )
     interval_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    boot_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    uptime_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     units: Mapped[str] = mapped_column(String(8), default="SI", nullable=False)
     source: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
@@ -182,9 +185,35 @@ class ArchiveRecord(Base):
 
     quality_flags: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     derived_version: Mapped[str] = mapped_column(String(16), default="1", nullable=False)
-    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     device: Mapped[Device] = relationship(back_populates="archive_records")
+
+
+class RawArchiveRecord(Base):
+    """Original archive envelope, kept separately from the derived row.
+
+    The derived ``archive`` row is queried constantly; the full uploaded
+    document is only needed for audit and re-derivation, so it lives here and
+    is joined by ``device_id``/``message_id`` when required.
+    """
+
+    __tablename__ = "raw_archive"
+    __table_args__ = (
+        UniqueConstraint("device_id", "message_id", name="uq_raw_archive_device_message"),
+        Index("ix_raw_archive_device_time", "device_id", "date_time"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    device_id: Mapped[str] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    message_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    date_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    source: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class Command(Base):

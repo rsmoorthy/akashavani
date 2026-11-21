@@ -166,6 +166,13 @@ See [the public dashboard spec](../specs/public-dashboard.md).
   unknown.
 - Archive rows also store the per-bucket invalid-frame RSSI summary in
   `crc_bad_rssi_min_dbm`, `crc_bad_rssi_avg_dbm` and `crc_bad_rssi_max_dbm`.
+- `archive.boot_id` / `archive.uptime_ms` are the boot identity reported at
+  bucket close. They are `NULL` for rows written by firmware that predates the
+  fields. A changed `boot_id` between consecutive rows marks a restart.
+- The original uploaded archive envelope is stored in `raw_archive`
+  (`device_id`, `message_id`, `date_time`, `received_at`, `source`, `raw`).
+  `archive.raw` was removed in migration `a7d3e1f9c2b4`, which copies existing
+  envelopes into the new table.
 
 ## Scaling notes
 

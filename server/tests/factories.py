@@ -78,6 +78,8 @@ def archive_payload(**overrides):
         "message_id": f"archive-{uuid4().hex}",
         "bucket_end_epoch": bucket_end,
         "interval_minutes": 5,
+        "boot_id": "0123456789abcdef",
+        "uptime_ms": 1234567,
         "source": {"protocol": "davis", "transmitter_id": 1},
         "sums": {
             "out_temp_c": 110.0,
