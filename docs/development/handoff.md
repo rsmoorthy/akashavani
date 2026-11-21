@@ -59,6 +59,8 @@ and the plan agreed with the project owner. Update it at each slice boundary.
 - The Devices table now has two-level headings: **Live** (Last seen, Last
   radio, Valid frames, RSSI) and **Latest bucket** (Timestamp, Valid frames,
   RSSI). Wide layout is used at 1400 px and above.
+- The station identity/public URL card moved out of Devices into its own
+  **Station Identity** tab.
 - Below 1400 px the table is transposed: fields are rows, devices are columns.
   With more than three devices, three drop-downs choose the visible columns.
   The choice is saved in browser `localStorage` under

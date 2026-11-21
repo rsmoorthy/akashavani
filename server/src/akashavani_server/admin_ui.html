@@ -99,6 +99,7 @@
 
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="devices" class="active">Devices</button>
+  <button type="button" data-tab="identity">Station Identity</button>
   <button type="button" data-tab="downloads">Download CSV</button>
   <button type="button" data-tab="firmware">Firmware</button>
   <button type="button" data-tab="commands">Commands</button>
@@ -106,23 +107,6 @@
 </nav>
 
 <section id="tab-devices" class="tab active">
-  <div class="panel">
-    <h2>Station identity and public URL</h2>
-    <div class="row">
-      <label>Device <select id="identityDevice"></select></label>
-      <button type="button" id="identityReload" class="secondary">Reload</button>
-    </div>
-    <form id="identityForm">
-      <div class="grid2">
-        <label>Display name <input id="identityName" maxlength="80" required></label>
-        <label>Public slug <input id="identitySlug" maxlength="64" required></label>
-        <label>Site time zone <select id="identityTimezone"></select></label>
-      </div>
-      <button type="submit">Save identity</button>
-      <p id="identityStatus" class="status"></p>
-      <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens.</p>
-    </form>
-  </div>
   <div class="table-wrap wide-only">
     <table>
       <thead>
@@ -142,6 +126,26 @@
   <div class="narrow-only">
     <div class="panel device-picker" id="narrowDevicePicker"></div>
     <div id="narrowDevices"></div>
+  </div>
+</section>
+
+<section id="tab-identity" class="tab">
+  <div class="panel">
+    <h2>Station identity and public URL</h2>
+    <div class="row">
+      <label>Device <select id="identityDevice"></select></label>
+      <button type="button" id="identityReload" class="secondary">Reload</button>
+    </div>
+    <form id="identityForm">
+      <div class="grid2">
+        <label>Display name <input id="identityName" maxlength="80" required></label>
+        <label>Public slug <input id="identitySlug" maxlength="64" required></label>
+        <label>Site time zone <select id="identityTimezone"></select></label>
+      </div>
+      <button type="submit">Save identity</button>
+      <p id="identityStatus" class="status"></p>
+      <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens.</p>
+    </form>
   </div>
 </section>
 
@@ -439,6 +443,9 @@ function showTab(name) {
     button.classList.toggle('active', button.dataset.tab === target);
   });
   localStorage.setItem(TAB_KEY, target);
+  if (target === 'identity') {
+    fillIdentityForm();
+  }
   if (target === 'site') {
     fillConfigDevices();
     if (!cfgLoadedFor && $('cfgDevice').value) loadDeviceConfig();
