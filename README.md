@@ -52,7 +52,8 @@ make fw-test               # native C++ tests (CMake + GoogleTest)
 make server-test           # FastAPI tests
 make dashboard-test        # dashboard unit tests + TypeScript
 make dashboard-build       # build the dashboard served at /dashboard/<slug>/
-make server-dev            # http://localhost:8000/docs
+make server-dev            # http://localhost:8000/docs (foreground; Ctrl-C)
+make server-stop           # stop a backgrounded server on AKASHAVANI_PORT
 make docker-up             # Dockerised server on :8000
 ```
 

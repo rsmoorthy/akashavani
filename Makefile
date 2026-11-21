@@ -86,8 +86,12 @@ fw-clean: ## Remove firmware build artifacts
 # Server
 # ---------------------------------------------------------------------------
 .PHONY: server-dev
-server-dev: ## Run the API locally with autoreload
+server-dev: ## Run the API locally with autoreload (foreground; Ctrl-C stops it)
 	./tools/server-dev.sh
+
+.PHONY: server-stop
+server-stop: ## Stop the local server on AKASHAVANI_PORT (default 8000)
+	./tools/server-stop.sh
 
 .PHONY: server-test
 server-test: ## Run API + protocol-schema tests

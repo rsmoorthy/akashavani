@@ -6,8 +6,16 @@
 make server-setup       # creates .venv, installs package + dev tools + cmake
 make dashboard-setup    # installs the React dashboard dependencies
 make dashboard-build    # builds the public dashboard assets
-make server-dev         # http://127.0.0.1:8000/docs
+make server-dev         # http://127.0.0.1:8000/docs, foreground
+make server-stop        # stop the process listening on AKASHAVANI_PORT
 ```
+
+`make server-dev` runs Uvicorn in the foreground with `--reload`; press
+`Ctrl-C` in that terminal to stop it. Do not kill only the reload worker: the
+supervisor will start it again. If the server was started in the background, use
+`make server-stop` (or `AKASHAVANI_PORT=8001 make server-stop` for a different
+port). The stop helper finds every PID holding the listening socket, including
+the reload supervisor, and waits for the port to be released.
 
 The public dashboard is built separately; see
 [Public dashboard](dashboard.md). It is disabled until
