@@ -4,7 +4,7 @@
 > point for the next implementation session.
 
 **Date:** 2026-10-26
-**Latest slice:** 2026-11-21, archive `boot_id`/`uptime_ms` + separate `raw_archive` table
+**Latest slice:** 2026-11-21, live radio metrics on the AP/admin pages + responsive Devices table
 **Scaffold commit:** `ab8078c` (`Initial Akashavani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
 **Latest bench check:** 2026-11-18, BME280 forced-mode sampling fixed
@@ -38,6 +38,74 @@ and the plan agreed with the project owner. Update it at each slice boundary.
   yet; `/dashboard/<slug>/` returns a "not built" message until it lands.
 
 ## Verified on this machine
+
+### Live radio metrics + responsive admin Devices table (2026-11-21)
+
+**Firmware 0.4.0**
+
+- Every authenticated device request now carries `X-Radio-Frames-Valid` (valid
+  frames in the five-minute bucket being filled) and `X-Radio-Rssi` (that
+  bucket's average RSSI, falling back to the last valid frame until the bucket
+  has samples). `0` means no valid frame has been decoded.
+- The AP status page shows `RSSI` immediately before `Last frame`; the value is
+  annotated `(bucket avg)` or `(last frame)`. The existing `Valid frames` row
+  remains the current bucket count.
+- The server stores the live values in `devices.radio_frames_valid` and
+  `devices.radio_rssi_dbm` (Alembic `e7b1c4d9a2f6`). `0` frames is stored as
+  `0`; RSSI `0`/out-of-range is stored as `NULL`.
+
+**Admin `/admin`**
+
+- The Devices table now has two-level headings: **Live** (Last seen, Last
+  radio, Valid frames, RSSI) and **Latest bucket** (Timestamp, Valid frames,
+  RSSI). Wide layout is used at 1400 px and above.
+- Below 1400 px the table is transposed: fields are rows, devices are columns.
+  With more than three devices, three drop-downs choose the visible columns.
+  The choice is saved in browser `localStorage` under
+  `akashavaniNarrowDeviceIds` and restored on reload.
+- At 420 px the transposed table fits the viewport without horizontal scrolling.
+
+**Verified**
+
+| Check | Result |
+| --- | --- |
+| `make server-test` | 100 passed (2 new live-radio header tests) |
+| `make fw-test` | 51 passed |
+| `make fw-build-all` | receiver artifact 1,337,824 B (68%), simulator 938,209 B |
+| `make lint` | Ruff, mypy and dashboard ESLint pass |
+| `make docs-build` | strict build passes |
+| `alembic check` | no new upgrade operations |
+| migration round-trip | `e7b1c4d9a2f6` downgrade + upgrade on a copied DB; columns restored |
+| Admin UI (Playwright) | 1500 px nested headers, 420 px transposed table, three-device picker, selection persisted after reload, no page errors or horizontal overflow |
+| AP page (Playwright mock) | `RSSI -84 dBm (bucket avg)` rendered before `Last frame`; `Valid frames 37/100` |
+| OTA | 0.3.2 baseline flashed over USB; 0.4.0 staged in `app1` (SHA-256 verified) and booted over the command flow |
+
+**Bench evidence**
+
+- Device: `ak-b83850`, MAC `08:b6:1f:b8:38:50`, `192.168.29.144`.
+- Baseline 0.3.2 was flashed on `/dev/ttyUSB0`, registered through
+  `POST /api/v1/admin/devices`, and pointed at its own token through the AP page.
+- `download_new_fw` staged 1,337,824 bytes in `app1`, SHA-256
+  `1980fd15...8165`; `boot_with_new_fw` restarted into 0.4.0.
+- Serial: `/tmp/opencode/ota-download-serial.log`,
+  `/tmp/opencode/ota-boot-serial.log`.
+- Screenshots: `/tmp/opencode/admin-wide.png`,
+  `/tmp/opencode/admin-narrow-selected.png`,
+  `/tmp/opencode/admin-real-narrow.png`,
+  `/tmp/opencode/ap-status-rssi.png`.
+
+**Not verified on hardware**
+
+Only one bench board is currently attached, so no transmitter was available to
+produce valid Davis frames. The receiver correctly reports
+`radio_frames_valid = 0` and `radio_rssi_dbm = null`, and the AP page shows
+`RSSI -`. The 0 (rather than null) frame count proves the new header reached the
+server; the RSSI rendering path was verified with a mocked `/api/status`
+response, and the server header parser is covered by the new tests. A real
+valid-frame RSSI still needs a two-board RF run.
+
+Obsolete device rows `ak-2731e0` and `station-1` remain in the development
+database; they were not deleted.
 
 ### Archive boot identity and `raw_archive` (2026-11-21)
 

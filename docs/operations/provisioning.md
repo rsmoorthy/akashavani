@@ -92,8 +92,8 @@ curl -sS http://127.0.0.1:8000/api/v1/admin/devices \
 Check `last_seen_at` and `firmware_version` after an upload. On the board, the
 local status page has Status and Configuration tabs. The Status tab shows
 date/time, firmware, STA connection/SSID/IP, AP state, radio/archive flags,
-queue depth and last-known weather readings with current-bucket frame counts.
-It refreshes every 5 seconds.
+queue depth and last-known weather readings with current-bucket frame counts and
+RSSI. It refreshes every 5 seconds.
 
 ## Credentials and storage
 

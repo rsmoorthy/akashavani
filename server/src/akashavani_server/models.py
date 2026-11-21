@@ -56,6 +56,10 @@ class Device(Base):
     free_heap: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reset_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     wifi_rssi: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Live radio view reported on every device request: valid frames in the
+    # five-minute bucket currently being filled and its average RSSI.
+    radio_frames_valid: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    radio_rssi_dbm: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     observations: Mapped[list[Observation]] = relationship(back_populates="device")
     archive_records: Mapped[list[ArchiveRecord]] = relationship(back_populates="device")

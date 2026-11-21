@@ -358,6 +358,8 @@ class DeviceOut(BaseModel):
     free_heap: int | None = None
     reset_reason: str | None = None
     wifi_rssi: int | None = None
+    radio_frames_valid: int | None = None
+    radio_rssi_dbm: int | None = None
 
 
 class DeviceAdminOut(DeviceOut):

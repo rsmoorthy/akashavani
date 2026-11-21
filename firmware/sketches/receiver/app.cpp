@@ -98,6 +98,9 @@ WeatherReading lastRainRate;
 // Epoch of the last CRC-valid Davis frame, reported as X-Last-Radio-At on every
 // API request. Zero means "never seen".
 int64_t lastRadioEpoch = 0;
+// Last CRC-valid frame's RSSI, used when the current bucket has no samples yet.
+int16_t lastValidRssiDbm = 0;
+bool haveValidRssi = false;
 const char* bootResetReason = "unknown";
 // Random 64-bit identity for this boot, generated in setup(). Archive rows
 // carry it so the server can group buckets by boot and count restarts.
@@ -560,12 +563,26 @@ const char* resetReasonName() {
   }
 }
 
+// Current radio RSSI: average of the valid frames in the bucket being filled,
+// or the last valid frame when that bucket has no samples yet. Zero means no
+// valid frame has been decoded since boot.
+int16_t currentRadioRssiDbm() {
+  const ArchiveRecord& bucket = archiveCollector.current();
+  if (bucket.rssiCount > 0) {
+    const double average = bucket.rssiSum / static_cast<double>(bucket.rssiCount);
+    return static_cast<int16_t>(std::lround(average));
+  }
+  return haveValidRssi ? lastValidRssiDbm : 0;
+}
+
 DeviceHealth currentHealth() {
   DeviceHealth health;
   health.uptimeSeconds = millis() / 1000UL;
   health.queueDepth = static_cast<uint16_t>(pendingCount);
   health.freeHeap = ESP.getFreeHeap();
   health.wifiRssi = wifi.staConnected() ? static_cast<int16_t>(WiFi.RSSI()) : 0;
+  health.radioFramesValid = archiveCollector.current().framesValid;
+  health.radioRssiDbm = currentRadioRssiDbm();
   health.resetReason = bootResetReason;
   return health;
 }
@@ -844,6 +861,8 @@ bool handleFrame(const RadioFrame& frame) {
   }
 
   const int64_t epoch = frame.receivedAtEpoch;
+  lastValidRssiDbm = frame.rssiDbm;
+  haveValidRssi = true;
   if (epoch < 946684800LL) {
     AK_LOG_WARN("rx", "decoded frame but receive time invalid; dropping");
     return true;
@@ -1324,6 +1343,9 @@ void updateDisplay() {
     weather.framesExpected = archiveCollector.expectedFrames();
     weather.framesValid = bucket.framesValid;
     weather.framesInvalid = bucket.framesCrcBad;
+    weather.rssiValid = bucket.rssiCount > 0 || haveValidRssi;
+    weather.rssiDbm = currentRadioRssiDbm();
+    weather.rssiFromBucket = bucket.rssiCount > 0;
     webServer->setWeather(weather);
   }
   digitalWrite(config::kStatusLedPin, wifi.staConnected() ? HIGH : LOW);

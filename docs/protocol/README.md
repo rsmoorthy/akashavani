@@ -39,13 +39,19 @@ X-Uptime-Seconds: 3600
 X-Queue-Depth: 0
 X-Free-Heap: 140000
 X-Wifi-Rssi: -51
+X-Radio-Frames-Valid: 37
+X-Radio-Rssi: -84
 X-Reset-Reason: poweron
 Content-Type: application/json
 ```
 
 `X-Last-Radio-At` is the epoch of the last CRC-valid Davis frame (0 when none
-has been seen). The other headers are device health (uptime, pending uploads,
-free heap, Wi-Fi RSSI and the reset reason) and are stored on the device row.
+has been seen). `X-Radio-Frames-Valid` is the number of valid frames in the
+current five-minute bucket, and `X-Radio-Rssi` is that bucket's average RSSI in
+dBm (falling back to the last valid frame while a new bucket has no samples).
+The other headers are device health (uptime, pending uploads, free heap, Wi-Fi
+RSSI and the reset reason). All are stored on the device row for the admin
+Devices view.
 Time zone and site settings are not sent as headers; they travel in the
 configuration document.
 

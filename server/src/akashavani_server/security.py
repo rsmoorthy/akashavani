@@ -36,6 +36,8 @@ def require_device(
     x_free_heap: Annotated[str | None, Header(alias="X-Free-Heap")] = None,
     x_reset_reason: Annotated[str | None, Header(alias="X-Reset-Reason")] = None,
     x_wifi_rssi: Annotated[str | None, Header(alias="X-Wifi-Rssi")] = None,
+    x_radio_frames_valid: Annotated[str | None, Header(alias="X-Radio-Frames-Valid")] = None,
+    x_radio_rssi: Annotated[str | None, Header(alias="X-Radio-Rssi")] = None,
     authorization: Annotated[str | None, Header()] = None,
     db: Session = Depends(get_db),
 ) -> Device:
@@ -96,6 +98,22 @@ def require_device(
     if wifi_rssi is not None and device.wifi_rssi != wifi_rssi:
         device.wifi_rssi = wifi_rssi
         changed = True
+    radio_frames_valid = _as_int(x_radio_frames_valid)
+    if (
+        radio_frames_valid is not None
+        and radio_frames_valid >= 0
+        and device.radio_frames_valid != radio_frames_valid
+    ):
+        device.radio_frames_valid = radio_frames_valid
+        changed = True
+    radio_rssi = _as_int(x_radio_rssi)
+    if radio_rssi is not None:
+        # 0 (and anything outside the RFM69 range) means "no valid frame yet";
+        # store NULL rather than a misleading 0 dBm.
+        normalized_rssi = radio_rssi if -150 <= radio_rssi < 0 else None
+        if device.radio_rssi_dbm != normalized_rssi:
+            device.radio_rssi_dbm = normalized_rssi
+            changed = True
     if x_reset_reason and device.reset_reason != x_reset_reason[:16]:
         device.reset_reason = x_reset_reason[:16]
         changed = True

@@ -88,6 +88,11 @@ void ApiClient::prepareHttp(HTTPClient& http, const String& url) {
   http.addHeader("X-Free-Heap", value);
   std::snprintf(value, sizeof(value), "%d", static_cast<int>(health_.wifiRssi));
   http.addHeader("X-Wifi-Rssi", value);
+  std::snprintf(value, sizeof(value), "%lu",
+                static_cast<unsigned long>(health_.radioFramesValid));
+  http.addHeader("X-Radio-Frames-Valid", value);
+  std::snprintf(value, sizeof(value), "%d", static_cast<int>(health_.radioRssiDbm));
+  http.addHeader("X-Radio-Rssi", value);
   http.addHeader("X-Reset-Reason", health_.resetReason == nullptr ? "unknown"
                                                                   : health_.resetReason);
 }

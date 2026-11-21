@@ -83,6 +83,7 @@ button:disabled{opacity:.6}
 <div class="row"><span>Rain</span><b id="w-rain">-</b></div>
 <div class="row"><span>Valid frames</span><b id="w-valid">-</b></div>
 <div class="row"><span>Invalid frames</span><b id="w-invalid">-</b></div>
+<div class="row"><span>RSSI</span><b id="w-rssi">-</b></div>
 <div class="row"><span>Last frame</span><b id="w-last">No weather frame decoded yet.</b></div>
 </section>
 
@@ -248,6 +249,9 @@ async function refresh(){
     $('w-valid').textContent = hasNumber(frames.valid) && hasNumber(frames.expected)
       ? frames.valid + '/' + frames.expected : '-';
     $('w-invalid').textContent = hasNumber(frames.invalid) ? String(frames.invalid) : '-';
+    $('w-rssi').textContent = hasNumber(weather.rssi_dbm)
+      ? weather.rssi_dbm + ' dBm' + (weather.rssi_source ? ' (' + weather.rssi_source + ')' : '')
+      : '-';
     const frameText = weather.available ? lastFrameText(weather) : '';
     setReading('w-last', frameText || 'No weather frame decoded yet.',
       frameText && hasNumber(weather.last_frame_age_s) ? weather.last_frame_age_s : null);
@@ -529,6 +533,10 @@ void WebConfigServer::handleStatus() {
   frames["valid"] = weather_.framesValid;
   frames["expected"] = weather_.framesExpected;
   frames["invalid"] = weather_.framesInvalid;
+  if (weather_.rssiValid) {
+    weather["rssi_dbm"] = weather_.rssiDbm;
+    weather["rssi_source"] = weather_.rssiFromBucket ? "bucket avg" : "last frame";
+  }
   if (weather_.available) {
     weather["observed_at_epoch"] = weather_.observedAtEpoch;
     weather["last_frame_age_s"] = (nowMs - weather_.observedAtMs) / 1000UL;

@@ -7,7 +7,7 @@
 <style>
   :root { color-scheme: light dark; --line: #8884; --accent: #0b7285; --muted: #667085; }
   * { box-sizing: border-box; }
-  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.25rem; max-width: 1200px; }
+  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 1.25rem; max-width: 1500px; }
   h1 { margin: 0 0 1rem; }
   h2 { margin: 0 0 .8rem; font-size: 1.1rem; }
   h3 { margin: 1rem 0 .5rem; font-size: .98rem; }
@@ -16,6 +16,27 @@
   th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   code { font-size: 12px; word-break: break-all; }
   .table-wrap { overflow-x: auto; }
+  th.group { text-align: center; border-left: 2px solid var(--line); background: #8881; }
+  th.group-live { border-left-color: var(--accent); }
+  thead tr.subhead th { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .narrow-only { display: none; }
+  .device-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .7rem; align-items: end; }
+  table.transposed { table-layout: fixed; width: 100%; }
+  table.transposed th[scope=row], table.transposed thead th:first-child { width: 8rem; color: var(--muted); font-weight: 600; background: #8881; }
+  table.transposed tr.group-row th { background: var(--accent); color: white; text-align: left; }
+  table.transposed td { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 700px) {
+    table.transposed { font-size: 12px; }
+    table.transposed th, table.transposed td { padding: .3rem .3rem; }
+    table.transposed th[scope=row], table.transposed thead th:first-child { width: 5.6rem; }
+  }
+  @media (max-width: 1399px) {
+    .wide-only { display: none; }
+    .narrow-only { display: block; }
+  }
+  @media (min-width: 1400px) {
+    .narrow-only { display: none; }
+  }
   form { display: grid; gap: .7rem; max-width: 760px; }
   label { display: grid; gap: .2rem; font-weight: 600; }
   label.inline { display: flex; align-items: center; gap: .45rem; font-weight: 500; }
@@ -102,11 +123,25 @@
       <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens.</p>
     </form>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap wide-only">
     <table>
-      <thead><tr><th>ID</th><th>Name</th><th>Slug</th><th>Site TZ</th><th>Status</th><th>MAC</th><th>Firmware</th><th>Uptime</th><th>Queue</th><th>Heap</th><th>Reset</th><th>WiFi</th><th>Last seen</th><th>Last radio</th><th>Latest bucket</th><th>Frames</th><th>RSSI</th></tr></thead>
-      <tbody id="devices"></tbody>
+      <thead>
+        <tr>
+          <th rowspan="2">ID</th><th rowspan="2">Name</th><th rowspan="2">Slug</th><th rowspan="2">Site TZ</th><th rowspan="2">Status</th><th rowspan="2">MAC</th><th rowspan="2">Firmware</th><th rowspan="2">Uptime</th><th rowspan="2">Queue</th><th rowspan="2">Heap</th><th rowspan="2">Reset</th><th rowspan="2">WiFi</th>
+          <th colspan="4" class="group group-live">Live</th>
+          <th colspan="3" class="group">Latest bucket</th>
+        </tr>
+        <tr class="subhead">
+          <th>Last seen</th><th>Last radio</th><th>Valid frames</th><th>RSSI</th>
+          <th>Timestamp</th><th>Valid frames</th><th>RSSI</th>
+        </tr>
+      </thead>
+      <tbody id="devicesWide"></tbody>
     </table>
+  </div>
+  <div class="narrow-only">
+    <div class="panel device-picker" id="narrowDevicePicker"></div>
+    <div id="narrowDevices"></div>
   </div>
 </section>
 
@@ -235,6 +270,8 @@ let devices = [];
 let cfgLoadedFor = '';
 const TZ_KEY = 'akashavaniTzMode';
 const TAB_KEY = 'akashavaniTab';
+const NARROW_DEVICE_KEY = 'akashavaniNarrowDeviceIds';
+const MAX_NARROW_DEVICES = 3;
 
 function token() { return localStorage.getItem('akashavaniAdminToken') || ''; }
 
@@ -408,19 +445,26 @@ function showTab(name) {
   }
 }
 
-async function loadDevices() {
-  devices = await api('/api/v1/admin/devices');
-  $('devices').innerHTML = devices.map((d) => {
-    const zone = zoneForDevice(d);
-    const seen = d.last_seen_at
-      ? `<span title="${escapeHtml(stamp(d.last_seen_at, zone))}">${escapeHtml(relative(d.last_seen_at))}</span>`
-      : '';
-    const radio = d.last_radio_at
-      ? `<span title="${escapeHtml(stamp(d.last_radio_at, zone))}">${escapeHtml(relative(d.last_radio_at))}</span>`
-      : '';
-    const bucket = d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : '';
-    const dashboardUrl = `/dashboard/${encodeURIComponent(d.slug)}/`;
-    return `<tr>
+function framesText(valid, expected) {
+  if (valid === null || valid === undefined) return '';
+  if (expected === null || expected === undefined) return String(valid);
+  return valid + '/' + expected;
+}
+
+function rssiText(value) {
+  return value === null || value === undefined ? '' : Number(value).toFixed(0) + ' dBm';
+}
+
+function relativeCell(iso, zone) {
+  return iso
+    ? `<span title="${escapeHtml(stamp(iso, zone))}">${escapeHtml(relative(iso))}</span>`
+    : '';
+}
+
+function wideDeviceRow(d) {
+  const zone = zoneForDevice(d);
+  const dashboardUrl = `/dashboard/${encodeURIComponent(d.slug)}/`;
+  return `<tr>
     <td><code>${escapeHtml(d.id)}</code></td><td>${escapeHtml(d.name)}</td>
     <td><a href="${dashboardUrl}" target="_blank" rel="noopener"><code>${escapeHtml(d.slug)}</code></a></td>
     <td><code>${escapeHtml(d.timezone || 'UTC')}</code></td>
@@ -431,13 +475,118 @@ async function loadDevices() {
     <td>${d.queue_depth ?? ''}</td>
     <td>${d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'}</td>
     <td>${escapeHtml(d.reset_reason ?? '')}</td>
-    <td>${d.wifi_rssi === null || d.wifi_rssi === undefined ? '' : d.wifi_rssi + ' dBm'}</td>
-    <td>${seen}</td>
-    <td>${radio}</td>
-    <td>${bucket}</td>
-    <td>${d.frames_valid === null || d.frames_valid === undefined ? '' : `${d.frames_valid}/${d.frames_expected}`}</td>
-    <td>${d.rssi_avg_dbm === null || d.rssi_avg_dbm === undefined ? '' : Number(d.rssi_avg_dbm).toFixed(0)}</td></tr>`;
-  }).join('');
+    <td>${rssiText(d.wifi_rssi)}</td>
+    <td>${relativeCell(d.last_seen_at, zone)}</td>
+    <td>${relativeCell(d.last_radio_at, zone)}</td>
+    <td>${escapeHtml(framesText(d.radio_frames_valid))}</td>
+    <td>${rssiText(d.radio_rssi_dbm)}</td>
+    <td>${d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : ''}</td>
+    <td>${escapeHtml(framesText(d.frames_valid, d.frames_expected))}</td>
+    <td>${rssiText(d.rssi_avg_dbm)}</td></tr>`;
+}
+
+function storedNarrowDeviceIds() {
+  const raw = localStorage.getItem(NARROW_DEVICE_KEY);
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function chosenNarrowDeviceIds() {
+  const available = devices.map((d) => d.id);
+  if (available.length <= MAX_NARROW_DEVICES) return available;
+  const stored = storedNarrowDeviceIds();
+  const ids = stored === null ? available.slice(0, MAX_NARROW_DEVICES) : stored;
+  return [...new Set(ids.filter((id) => available.includes(id)))].slice(0, MAX_NARROW_DEVICES);
+}
+
+function renderNarrowDevices(selectedIds) {
+  const host = $('narrowDevices');
+  if (devices.length === 0) {
+    host.innerHTML = '<p class="muted">No devices registered yet.</p>';
+    return;
+  }
+  const selected = (selectedIds || chosenNarrowDeviceIds())
+    .map((id) => deviceById(id))
+    .filter(Boolean);
+  if (selected.length === 0) {
+    host.innerHTML = '<p class="muted">Select at least one device above.</p>';
+    return;
+  }
+
+  const identityRows = [
+    ['ID', (d) => `<code>${escapeHtml(d.id)}</code>`],
+    ['Name', (d) => escapeHtml(d.name)],
+    ['Slug', (d) => `<a href="/dashboard/${encodeURIComponent(d.slug)}/" target="_blank" rel="noopener"><code>${escapeHtml(d.slug)}</code></a>`],
+    ['Site TZ', (d) => `<code>${escapeHtml(d.timezone || 'UTC')}</code>`],
+    ['Status', (d) => d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'],
+    ['MAC', (d) => `<code>${escapeHtml(d.mac_address ?? '')}</code>`],
+    ['Firmware', (d) => escapeHtml(d.firmware_version ?? '')],
+    ['Uptime', (d) => d.uptime_seconds === null || d.uptime_seconds === undefined ? '' : Math.round(d.uptime_seconds / 60) + ' min'],
+    ['Queue', (d) => d.queue_depth ?? ''],
+    ['Heap', (d) => d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'],
+    ['Reset', (d) => escapeHtml(d.reset_reason ?? '')],
+    ['WiFi', (d) => rssiText(d.wifi_rssi)],
+  ];
+  const liveRows = [
+    ['Last seen', (d) => relativeCell(d.last_seen_at, zoneForDevice(d))],
+    ['Last radio', (d) => relativeCell(d.last_radio_at, zoneForDevice(d))],
+    ['Valid frames', (d) => escapeHtml(framesText(d.radio_frames_valid))],
+    ['RSSI', (d) => rssiText(d.radio_rssi_dbm)],
+  ];
+  const bucketRows = [
+    ['Timestamp', (d) => d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zoneForDevice(d))) : ''],
+    ['Valid frames', (d) => escapeHtml(framesText(d.frames_valid, d.frames_expected))],
+    ['RSSI', (d) => rssiText(d.rssi_avg_dbm)],
+  ];
+  const columns = selected.length + 1;
+  const renderRows = (rows) => rows.map(([label, render]) =>
+    `<tr><th scope="row">${label}</th>${selected.map((d) => `<td>${render(d)}</td>`).join('')}</tr>`).join('');
+  const group = (label) => `<tr class="group-row"><th colspan="${columns}" scope="rowgroup">${label}</th></tr>`;
+
+  host.innerHTML = `<div class="table-wrap"><table class="transposed">
+    <thead><tr><th>Field</th>${selected.map((d) =>
+      `<th scope="col"><div>${escapeHtml(d.name || d.id)}</div><code>${escapeHtml(d.id)}</code></th>`).join('')}</tr></thead>
+    <tbody>${renderRows(identityRows)}${group('Live')}${renderRows(liveRows)}${group('Latest bucket')}${renderRows(bucketRows)}</tbody>
+  </table></div>`;
+}
+
+function renderNarrowPicker(selected) {
+  const box = $('narrowDevicePicker');
+  if (devices.length <= MAX_NARROW_DEVICES) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    renderNarrowDevices(selected);
+    return;
+  }
+  box.style.display = '';
+  const options = (chosen) => '<option value="">— none —</option>' + devices.map((d) =>
+    `<option value="${escapeHtml(d.id)}"${d.id === chosen ? ' selected' : ''}>${escapeHtml(d.id)}${d.name ? ' — ' + escapeHtml(d.name) : ''}</option>`).join('');
+  let html = `<div style="grid-column:1/-1"><b>Devices</b> <span class="muted">Choose up to ${MAX_NARROW_DEVICES} to display; ${devices.length} are registered.</span></div>`;
+  for (let i = 0; i < MAX_NARROW_DEVICES; i += 1) {
+    html += `<label>Device ${i + 1}<select data-narrow-slot="${i}">${options(selected[i] || '')}</select></label>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('select').forEach((select) => select.addEventListener('change', () => {
+    const ids = [];
+    box.querySelectorAll('select').forEach((other) => {
+      if (other.value && !ids.includes(other.value)) ids.push(other.value);
+    });
+    const limited = ids.slice(0, MAX_NARROW_DEVICES);
+    localStorage.setItem(NARROW_DEVICE_KEY, JSON.stringify(limited));
+    renderNarrowDevices(limited);
+  }));
+  renderNarrowDevices(selected);
+}
+
+async function loadDevices() {
+  devices = await api('/api/v1/admin/devices');
+  $('devicesWide').innerHTML = devices.map(wideDeviceRow).join('');
+  renderNarrowPicker(chosenNarrowDeviceIds());
   const ids = devices.map((d) => d.id).join(',');
   if (ids !== loadDevices.lastIds) {
     loadDevices.lastIds = ids;

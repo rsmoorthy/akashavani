@@ -233,6 +233,36 @@ def test_last_radio_zero_is_ignored(client):
     assert response.json()["last_radio_at"] is None
 
 
+def test_device_reports_current_live_radio_metrics(client):
+    headers = device_headers() | {
+        "X-Radio-Frames-Valid": "37",
+        "X-Radio-Rssi": "-84",
+    }
+    response = client.get("/api/v1/devices/me", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["radio_frames_valid"] == 37
+    assert body["radio_rssi_dbm"] == -84
+
+    listed = client.get("/api/v1/admin/devices", headers=admin_headers())
+    assert listed.status_code == 200
+    device = next(item for item in listed.json() if item["id"] == DEVICE_ID)
+    assert device["radio_frames_valid"] == 37
+    assert device["radio_rssi_dbm"] == -84
+
+
+def test_live_radio_metrics_allow_zero_frames_and_no_rssi(client):
+    headers = device_headers() | {
+        "X-Radio-Frames-Valid": "0",
+        "X-Radio-Rssi": "0",
+    }
+    response = client.get("/api/v1/devices/me", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["radio_frames_valid"] == 0
+    assert body["radio_rssi_dbm"] is None
+
+
 def test_only_one_command_in_flight(client):
     first = enqueue(client, "self_test").json()
     second = enqueue(client, "sync_time").json()

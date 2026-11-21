@@ -46,6 +46,11 @@ struct DeviceHealth {
   uint16_t queueDepth = 0;
   uint32_t freeHeap = 0;
   int16_t wifiRssi = 0;
+  // Live radio view: valid frames in the current five-minute bucket and the
+  // bucket-average RSSI (falling back to the last valid frame when the bucket
+  // has no samples yet). Zero RSSI means "no valid frame seen".
+  uint32_t radioFramesValid = 0;
+  int16_t radioRssiDbm = 0;
   const char* resetReason = "unknown";
 };
 
