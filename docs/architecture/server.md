@@ -120,9 +120,9 @@ Authenticated device requests also carry `X-Device-Mac`,
 `X-Queue-Depth`, `X-Free-Heap`, `X-Wifi-Rssi`, `X-Radio-Frames-Valid`,
 `X-Radio-Rssi`, `X-Reset-Reason`). The server records them (and `last_seen_at`)
 on the device row for admin display. The live radio values describe the current
-five-minute bucket. A device is shown as *online* when `last_seen_at` is within
-90 s (three 30 s poll intervals); `last_radio_at` is independent and stays old
-when RF is lost.
+five-minute bucket and reset together at bucket rollover. A device is shown as
+*online* when `last_seen_at` is within 90 s (three 30 s poll intervals);
+`last_radio_at` is independent and stays old when RF is lost.
 
 Seed devices are created from `AKASHAVANI_DEVICE_SEEDS` on startup only if
 missing. Restarting never rotates a token. Use the admin API to rotate

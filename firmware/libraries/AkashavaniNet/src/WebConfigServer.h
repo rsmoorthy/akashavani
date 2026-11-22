@@ -45,11 +45,10 @@ struct WeatherSnapshot {
   uint32_t framesExpected = 0;
   uint32_t framesValid = 0;
   uint32_t framesInvalid = 0;
-  // Current radio RSSI (bucket average, or the last valid frame when the
-  // current bucket has no samples yet).
+  // Current radio RSSI: average over the valid frames in the bucket being
+  // filled. Cleared when the bucket rolls over, together with framesValid.
   bool rssiValid = false;
   int16_t rssiDbm = 0;
-  bool rssiFromBucket = false;
 };
 
 // Local admin surface, reachable on the provisioning AP. The AP is the

@@ -263,6 +263,22 @@ def test_live_radio_metrics_allow_zero_frames_and_no_rssi(client):
     assert body["radio_rssi_dbm"] is None
 
 
+def test_live_radio_rssi_clears_at_bucket_rollover(client):
+    populated = device_headers() | {
+        "X-Radio-Frames-Valid": "37",
+        "X-Radio-Rssi": "-84",
+    }
+    assert client.get("/api/v1/devices/me", headers=populated).json()["radio_rssi_dbm"] == -84
+
+    cleared = device_headers() | {
+        "X-Radio-Frames-Valid": "0",
+        "X-Radio-Rssi": "0",
+    }
+    body = client.get("/api/v1/devices/me", headers=cleared).json()
+    assert body["radio_frames_valid"] == 0
+    assert body["radio_rssi_dbm"] is None
+
+
 def test_only_one_command_in_flight(client):
     first = enqueue(client, "self_test").json()
     second = enqueue(client, "sync_time").json()

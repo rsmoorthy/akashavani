@@ -4,10 +4,10 @@
 > point for the next implementation session.
 
 **Date:** 2026-10-26
-**Latest slice:** 2026-11-21, live radio metrics on the AP/admin pages + responsive Devices table
+**Latest slice:** 2026-11-22, live RSSI/valid-frame counters reset at bucket rollover
 **Scaffold commit:** `ab8078c` (`Initial Akashavani scaffold`)
 **Bench smoke test:** 2026-11-11 (`/dev/ttyUSB0`, `/dev/ttyUSB1`)
-**Latest bench check:** 2026-11-18, BME280 forced-mode sampling fixed
+**Latest bench check:** 2026-11-22, 0.4.1 OTA cleared the stale live RSSI
 
 This page records what was completed, what was verified, what is still a stub,
 and the plan agreed with the project owner. Update it at each slice boundary.
@@ -39,20 +39,24 @@ and the plan agreed with the project owner. Update it at each slice boundary.
 
 ## Verified on this machine
 
-### Live radio metrics + responsive admin Devices table (2026-11-21)
+### Live radio metrics + responsive admin Devices table (2026-11-21, updated 2026-11-22)
 
-**Firmware 0.4.0**
+**Firmware 0.4.1**
 
 - Every authenticated device request now carries `X-Radio-Frames-Valid` (valid
   frames in the five-minute bucket being filled) and `X-Radio-Rssi` (that
-  bucket's average RSSI, falling back to the last valid frame until the bucket
-  has samples). `0` means no valid frame has been decoded.
+  bucket's average RSSI). Both are **strictly bucket-scoped and reset together
+  at rollover**; `0` means the current bucket has no valid frames.
+- Firmware 0.4.0 briefly fell back to the last valid frame's RSSI after a
+  rollover, so the admin could show `0` valid frames with an old RSSI such as
+  `-105`. That fallback was removed in 0.4.1.
 - The AP status page shows `RSSI` immediately before `Last frame`; the value is
-  annotated `(bucket avg)` or `(last frame)`. The existing `Valid frames` row
-  remains the current bucket count.
+  annotated `(bucket avg)` when the current bucket has frames. The existing
+  `Valid frames` row remains the current bucket count.
 - The server stores the live values in `devices.radio_frames_valid` and
   `devices.radio_rssi_dbm` (Alembic `e7b1c4d9a2f6`). `0` frames is stored as
-  `0`; RSSI `0`/out-of-range is stored as `NULL`.
+  `0`; RSSI `0`/out-of-range is stored as `NULL`, so the stale value is cleared
+  on the next device request.
 
 **Admin `/admin`**
 
@@ -71,16 +75,16 @@ and the plan agreed with the project owner. Update it at each slice boundary.
 
 | Check | Result |
 | --- | --- |
-| `make server-test` | 100 passed (2 new live-radio header tests) |
+| `make server-test` | 101 passed (3 new live-radio header tests) |
 | `make fw-test` | 51 passed |
-| `make fw-build-all` | receiver artifact 1,337,824 B (68%), simulator 938,209 B |
+| receiver + simulator builds | receiver artifact 1,337,712 B (68%), simulator 938,209 B |
 | `make lint` | Ruff, mypy and dashboard ESLint pass |
 | `make docs-build` | strict build passes |
 | `alembic check` | no new upgrade operations |
 | migration round-trip | `e7b1c4d9a2f6` downgrade + upgrade on a copied DB; columns restored |
 | Admin UI (Playwright) | 1500 px nested headers, 420 px transposed table, three-device picker, selection persisted after reload, no page errors or horizontal overflow |
 | AP page (Playwright mock) | `RSSI -84 dBm (bucket avg)` rendered before `Last frame`; `Valid frames 37/100` |
-| OTA | 0.3.2 baseline flashed over USB; 0.4.0 staged in `app1` (SHA-256 verified) and booted over the command flow |
+| OTA | 0.3.2 over USB; 0.4.0 staged in `app1` and booted (2026-11-21); 0.4.1 staged in `app0` and booted (2026-11-22) |
 
 **Bench evidence**
 
@@ -89,8 +93,17 @@ and the plan agreed with the project owner. Update it at each slice boundary.
   `POST /api/v1/admin/devices`, and pointed at its own token through the AP page.
 - `download_new_fw` staged 1,337,824 bytes in `app1`, SHA-256
   `1980fd15...8165`; `boot_with_new_fw` restarted into 0.4.0.
+- 0.4.0 then showed the fallback problem: `radio_frames_valid = 0` with
+  `radio_rssi_dbm = -105`, because RSSI fell back to the last valid frame.
+- 0.4.1 was staged in `app0` (1,337,712 bytes, SHA-256
+  `4a26c0de...e81a`) and booted. The first poll afterwards reported
+  `radio_frames_valid = 0` and `radio_rssi_dbm = NULL`; the AP page showed
+  `RSSI -` with `Valid frames 0/100`.
 - Serial: `/tmp/opencode/ota-download-serial.log`,
-  `/tmp/opencode/ota-boot-serial.log`.
+  `/tmp/opencode/ota-boot-serial.log`,
+  `/tmp/opencode/ota-0.4.1-download.log`,
+  `/tmp/opencode/ota-0.4.1-boot.log`.
+- Before/after snapshot: `/tmp/opencode/live-before-0.4.1.txt`.
 - Screenshots: `/tmp/opencode/admin-wide.png`,
   `/tmp/opencode/admin-narrow-selected.png`,
   `/tmp/opencode/admin-real-narrow.png`,
@@ -99,12 +112,14 @@ and the plan agreed with the project owner. Update it at each slice boundary.
 **Not verified on hardware**
 
 Only one bench board is currently attached, so no transmitter was available to
-produce valid Davis frames. The receiver correctly reports
-`radio_frames_valid = 0` and `radio_rssi_dbm = null`, and the AP page shows
-`RSSI -`. The 0 (rather than null) frame count proves the new header reached the
-server; the RSSI rendering path was verified with a mocked `/api/status`
-response, and the server header parser is covered by the new tests. A real
-valid-frame RSSI still needs a two-board RF run.
+produce valid Davis frames. After the 0.4.1 OTA, with no valid frames in the
+current bucket, both live values are empty: `radio_frames_valid = 0`,
+`radio_rssi_dbm = NULL`, and the AP page shows `RSSI -` with
+`Valid frames 0/100`. This is the expected reset behaviour and confirms the
+0.4.0 last-frame fallback is gone. The RSSI rendering path was also verified
+with a mocked `/api/status` response, and the server header/clear path is
+covered by the tests. A real valid-frame bucket average still needs a two-board
+RF run.
 
 Obsolete device rows `ak-2731e0` and `station-1` remain in the development
 database; they were not deleted.

@@ -535,7 +535,7 @@ void WebConfigServer::handleStatus() {
   frames["invalid"] = weather_.framesInvalid;
   if (weather_.rssiValid) {
     weather["rssi_dbm"] = weather_.rssiDbm;
-    weather["rssi_source"] = weather_.rssiFromBucket ? "bucket avg" : "last frame";
+    weather["rssi_source"] = "bucket avg";
   }
   if (weather_.available) {
     weather["observed_at_epoch"] = weather_.observedAtEpoch;

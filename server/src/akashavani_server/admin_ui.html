@@ -485,11 +485,11 @@ function wideDeviceRow(d) {
     <td>${rssiText(d.wifi_rssi)}</td>
     <td>${relativeCell(d.last_seen_at, zone)}</td>
     <td>${relativeCell(d.last_radio_at, zone)}</td>
-    <td>${escapeHtml(framesText(d.radio_frames_valid))}</td>
-    <td>${rssiText(d.radio_rssi_dbm)}</td>
-    <td>${d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : ''}</td>
-    <td>${escapeHtml(framesText(d.frames_valid, d.frames_expected))}</td>
-    <td>${rssiText(d.rssi_avg_dbm)}</td></tr>`;
+    <td title="Valid frames in the current 5-minute bucket">${escapeHtml(framesText(d.radio_frames_valid))}</td>
+    <td title="Average RSSI of valid frames in the current 5-minute bucket">${rssiText(d.radio_rssi_dbm)}</td>
+    <td title="Latest completed 5-minute bucket">${d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zone)) : ''}</td>
+    <td title="Valid frames in the latest completed 5-minute bucket">${escapeHtml(framesText(d.frames_valid, d.frames_expected))}</td>
+    <td title="Average RSSI in the latest completed 5-minute bucket">${rssiText(d.rssi_avg_dbm)}</td></tr>`;
 }
 
 function storedNarrowDeviceIds() {
@@ -540,19 +540,19 @@ function renderNarrowDevices(selectedIds) {
     ['WiFi', (d) => rssiText(d.wifi_rssi)],
   ];
   const liveRows = [
-    ['Last seen', (d) => relativeCell(d.last_seen_at, zoneForDevice(d))],
-    ['Last radio', (d) => relativeCell(d.last_radio_at, zoneForDevice(d))],
-    ['Valid frames', (d) => escapeHtml(framesText(d.radio_frames_valid))],
-    ['RSSI', (d) => rssiText(d.radio_rssi_dbm)],
+    ['Last seen', (d) => relativeCell(d.last_seen_at, zoneForDevice(d)), 'Time of the last device request'],
+    ['Last radio', (d) => relativeCell(d.last_radio_at, zoneForDevice(d)), 'Last CRC-valid Davis frame'],
+    ['Valid frames', (d) => escapeHtml(framesText(d.radio_frames_valid)), 'Valid frames in the current 5-minute bucket'],
+    ['RSSI', (d) => rssiText(d.radio_rssi_dbm), 'Average RSSI of valid frames in the current 5-minute bucket'],
   ];
   const bucketRows = [
-    ['Timestamp', (d) => d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zoneForDevice(d))) : ''],
-    ['Valid frames', (d) => escapeHtml(framesText(d.frames_valid, d.frames_expected))],
-    ['RSSI', (d) => rssiText(d.rssi_avg_dbm)],
+    ['Timestamp', (d) => d.latest_archive_at ? escapeHtml(stamp(d.latest_archive_at, zoneForDevice(d))) : '', 'Latest completed 5-minute bucket'],
+    ['Valid frames', (d) => escapeHtml(framesText(d.frames_valid, d.frames_expected)), 'Valid frames in the latest completed bucket'],
+    ['RSSI', (d) => rssiText(d.rssi_avg_dbm), 'Average RSSI in the latest completed bucket'],
   ];
   const columns = selected.length + 1;
-  const renderRows = (rows) => rows.map(([label, render]) =>
-    `<tr><th scope="row">${label}</th>${selected.map((d) => `<td>${render(d)}</td>`).join('')}</tr>`).join('');
+  const renderRows = (rows) => rows.map(([label, render, hint]) =>
+    `<tr><th scope="row"${hint ? ` title="${hint}"` : ''}>${label}</th>${selected.map((d) => `<td>${render(d)}</td>`).join('')}</tr>`).join('');
   const group = (label) => `<tr class="group-row"><th colspan="${columns}" scope="rowgroup">${label}</th></tr>`;
 
   host.innerHTML = `<div class="table-wrap"><table class="transposed">

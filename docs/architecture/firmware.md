@@ -131,11 +131,12 @@ Up to six site Wi-Fi profiles are stored in order and tried sequentially by
 
 Devices report `X-Device-Mac`, `X-Firmware-Version`, `X-Last-Radio-At`,
 `X-Radio-Frames-Valid` and `X-Radio-Rssi` on every API request; the server
-stores them on the device row. The live frame count is the current five-minute
-bucket, and the live RSSI is that bucket's average (or the last valid frame
-until the bucket has samples). The 5-minute archive bucket is emitted even when
-no Davis frame was decoded, so radio health (`frames_valid = 0`, null
-environmental means) reaches the server every 5 minutes regardless of RF.
+stores them on the device row. The live frame count and RSSI are both scoped to
+the current five-minute bucket and reset together when it rolls over; RSSI is
+the bucket average and 0 means the bucket has no valid frames. The 5-minute
+archive bucket is emitted even when no Davis frame was decoded, so radio health
+(`frames_valid = 0`, null environmental means) reaches the server every 5
+minutes regardless of RF.
 
 The receiver uses an explicit 4 MB table with two 1.875 MiB OTA slots. The
 running firmware version is reported with every device request and on the AP
