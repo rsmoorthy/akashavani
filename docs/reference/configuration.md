@@ -162,7 +162,8 @@ local development only.
 The public dashboard is an explicit opt-in. When
 `AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true`, `/dashboard/<slug>/` and the
 `/api/v1/public` read APIs are unauthenticated. They expose the station name,
-site coordinates, elevation and archive history. Set
+site coordinates, elevation, archive history and the optional per-device
+monitoring URL; never put credentials in that URL. Set
 `AKASHAVANI_PUBLIC_DEVICE_IDS` if the server hosts more than one device, and put
 the service behind HTTPS and a reverse proxy with rate limiting. The dashboard
 frontend is a production build in `AKASHAVANI_DASHBOARD_DIR`; the API works

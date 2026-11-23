@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { degreesToCompass } from '../format'
+import { WIND_DISPLAY_UNIT, degreesToCompass, mpsToKmh } from '../format'
 import type { History } from '../types'
 import { COLORS, bandSizeForBucket } from './chartTheme'
 import { hasAnyData, makeChartConfig } from './chartOptions'
@@ -71,18 +71,23 @@ export function Charts({ history }: { history: History }) {
   }, [points, timezone, bucketSeconds])
 
   const wind = useMemo(() => {
-    const speed = points.map((point) => point.wind_speed_m_s)
-    const gust = points.map((point) => point.wind_gust_m_s)
+    const speed = points.map((point) => mpsToKmh(point.wind_speed_m_s))
+    const gust = points.map((point) => mpsToKmh(point.wind_gust_m_s))
     return {
       config: makeChartConfig({
         points,
         timeZone: timezone,
         bucketSeconds,
-        yTitle: 'm/s',
+        yTitle: WIND_DISPLAY_UNIT,
         yBeginAtZero: true,
         series: [
-          { label: 'Wind speed', data: speed, color: COLORS.wind, unit: 'm/s' },
-          { label: 'Gust', data: gust, color: COLORS.gust, unit: 'm/s' },
+          {
+            label: 'Wind speed',
+            data: speed,
+            color: COLORS.wind,
+            unit: WIND_DISPLAY_UNIT,
+          },
+          { label: 'Gust', data: gust, color: COLORS.gust, unit: WIND_DISPLAY_UNIT },
         ],
       }),
       hasData: hasAnyData(speed) || hasAnyData(gust),
@@ -218,7 +223,7 @@ export function Charts({ history }: { history: History }) {
       />
       <ChartSection
         title="Wind speed & gust"
-        subtitle="m/s"
+        subtitle={WIND_DISPLAY_UNIT}
         ariaLabel="Wind speed and gust over time"
         config={wind.config}
         hasData={wind.hasData}

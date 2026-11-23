@@ -14,7 +14,7 @@ of the Weather Underground PWS dashboard, backed by new public read APIs.
 | Exposure | No auth on the page or public read APIs. Keep an explicit `AKASHAVANI_PUBLIC_DASHBOARD_ENABLED` switch (default off) so exposure is a deployment choice. |
 | Location | Always use the device's reported site configuration. If latitude, longitude or altitude is missing, show **N/A**; no server-side override. |
 | Time-of-day panel | Wunderground-style current-day scrubber that updates the condition cards; "Now" returns to the latest observation. |
-| Units | **Metric only**: °C, m/s, mm, hPa, W/m², UV index. No unit switch, no imperial conversion in the UI or CSV. |
+| Units | **Metric only**: °C, km/h, mm, hPa, W/m², UV index. No unit switch, no imperial conversion in the UI or CSV. |
 | Map / header / footer | Omitted. |
 | Collapse All / Expand All | Omitted. |
 
@@ -46,8 +46,9 @@ No authentication is required for the page or its read APIs. Existing APIs and
   layout and interactions are replicated; the implementation is original.
 - Grafana replacement. Grafana remains available separately.
 - Per-user accounts, saved preferences on the server, or write access.
-- Changing the ingest/archive contract. The only schema change is the unique
-  `devices.slug`; observations and archive rows are untouched.
+- Changing the ingest/archive contract. The only device schema additions are the
+  unique `devices.slug` and the optional operator `devices.monitoring_url`;
+  observations and archive rows are untouched.
 
 ## 1. Key constraints from the existing data
 
@@ -57,9 +58,10 @@ No authentication is required for the page or its read APIs. Existing APIs and
 - Archive rows are 5-minute buckets. A summary "high" is the highest stored
   5-minute mean, not the true instantaneous peak. This must be stated in the UI
   help text and the docs.
-- All stored values are SI. The API returns SI and the UI displays metric
-  units only: °C, m/s, mm, hPa, W/m² and UV index. There is no unit switch and
-  no imperial conversion.
+- All stored values are SI. The API returns SI; the UI displays metric units
+  only: °C, km/h, mm, hPa, W/m² and UV index. Wind speed and gust are converted
+  from m/s to km/h for display. There is no unit switch and no imperial
+  conversion.
 - `barometer_hpa` is only derived when the device has a site altitude. Without
   it, the dashboard must label `pressure_hpa` as station pressure, not
   sea-level pressure.
@@ -122,7 +124,15 @@ Mobile behaviour:
   online window; grey/red dot otherwise. Label `Connected` / `Offline`.
 - **Last seen:** relative time plus absolute time in the station time zone.
   Also show a smaller "Data as of" time for the current reading.
-- **Units:** metric only, with unit suffixes in the labels.
+- **Monitor Device:** when the device has a `monitoring_url`, show it as a
+  **Monitor Device** link after Last seen / Data as of. The URL must be absolute
+  `http`/`https`; no other scheme is rendered.
+- **Station switcher:** the top-right `Station: <slug>` is a dropdown of public
+  station slugs when more than one station is available. Choosing a slug
+  navigates to `/dashboard/<slug>/`; a single station or a failed list request
+  falls back to plain text.
+- **Units:** metric only, with unit suffixes in the labels. Wind is shown in
+  km/h; the API and archive store m/s.
 - **Station time zone:** all displayed times use `Device.timezone`. The browser
   zone is never substituted. `Asia/Calcutta` (the live alias) works.
 
@@ -134,7 +144,7 @@ Ordered Temperature, Humidity, Wind, Precipitation, Pressure, UV, Radiation.
 | --- | --- | --- | --- |
 | Temperature | `out_temp_c` | "Feels like" `app_temp_c` (fallback windchill/heatindex/temp) | semicircular arc gauge |
 | Humidity | `out_humidity_pct` | dew point `dewpoint_c` | ring gauge |
-| Wind | `wind_speed_m_s` | gust and compass direction | compass needle |
+| Wind | `wind_speed_m_s` shown in km/h | gust in km/h and compass direction | compass needle |
 | Precipitation | today's rain total | current rate | rain bucket/droplet |
 | Pressure | sea-level pressure if `barometer_hpa` exists, else station pressure | "sea-level" or "station" label | dial with needle |
 | UV | `uv_index` | category (Low/Moderate/High/Very High/Extreme) | coloured scale |
@@ -142,6 +152,10 @@ Ordered Temperature, Humidity, Wind, Precipitation, Pressure, UV, Radiation.
 
 - The values come from the latest archive row, not from the selected history
   range.
+- If `last_seen_at` is more than 30 minutes old (or missing), the cards show
+  `NA` and their gauges are empty rather than presenting the stale archive
+  value. Dragging the timeline to a historical observation still shows that
+  observation.
 - Missing values render as `—` with a `No sensor data` tooltip; the card is not
   hidden.
 - A small "as of {time}" label appears when the timeline slider is scrubbed
@@ -193,7 +207,8 @@ the station-local today.
 
 Rows match Wunderground's nine rows: Temperature, Dew Point, Humidity,
 Precipitation Rate, Precipitation Accumulation, Wind Speed, Wind Gust, Wind
-Direction, Pressure. Columns: High, Low, Average, Total.
+Direction, Pressure. Wind Speed and Wind Gust are displayed in km/h. Columns:
+High, Low, Average, Total.
 
 - Summary is computed from all raw 5-minute archive rows in the range, not from
   the chart buckets.
@@ -218,7 +233,7 @@ to the Summary table in v1, matching Wunderground.
 Six chart sections, each with a title and legend:
 
 1. Temperature & Dew Point
-2. Wind Speed & Gust
+2. Wind Speed & Gust (km/h)
 3. Wind Direction
 4. Precipitation
 5. Pressure
@@ -260,8 +275,9 @@ graphs can be shown as Tables" requirement without duplicating six tables.
 - Current station/status refreshes every 60 seconds; today's slider data and
   the visible history refresh every 5 minutes.
 - Refresh pauses when the tab is hidden and resumes on visibility.
-- A failed request shows a non-blocking error banner with Retry. Stale data
-  remains visible.
+- A failed request shows a non-blocking error banner with Retry. Data already
+  loaded remains visible, but the current-condition cards still apply the
+  30-minute staleness rule.
 - A range with no data shows the Summary table with dashes, a "No data for this
   period" note, and an empty chart state. It never shows fabricated values.
 - This is an interactive dashboard; provide a `<noscript>` message instead of a
@@ -285,6 +301,7 @@ the `/dashboard/<slug>/` path.
     "slug": "roof-receiver",
     "name": "Roof receiver",
     "timezone": "Asia/Calcutta",
+    "monitoring_url": "https://status.example.net/roof-receiver",
     "latitude": 13.486,
     "longitude": 77.709,
     "altitude_m": 306.0,
@@ -322,10 +339,28 @@ the `/dashboard/<slug>/` path.
   it for the date-picker maximum and the timeline day, avoiding browser-zone
   drift.
 - `first_archive_at` bounds the date picker. It may be null.
+- `monitoring_url` is the optional admin-provided link; `null` when unset. The
+  dashboard renders it as **Monitor Device**.
 - No MAC address, token hash, config, Wi-Fi, commands, RSSI, firmware or admin
   fields are returned.
 
-### 4.2 `GET /api/v1/public/stations/{slug}/history`
+### 4.2 `GET /api/v1/public/stations`
+
+Compact public station list for the dashboard switcher. The allowlist applies
+exactly as it does to `/{slug}`.
+
+```json
+[
+  {"slug": "roof-receiver", "name": "Roof receiver"},
+  {"slug": "garden", "name": "Garden station"}
+]
+```
+
+- Sorted by slug.
+- No credentials, coordinates or health fields.
+- Same public cache header as `/{slug}`.
+
+### 4.3 `GET /api/v1/public/stations/{slug}/history`
 
 Query parameters:
 
@@ -418,7 +453,7 @@ Response:
 - Unknown device returns 404. A known device with no rows returns an empty grid,
   `sample_count: 0`, and null summary values.
 
-### 4.3 `GET /api/v1/public/stations/{slug}/export.csv`
+### 4.4 `GET /api/v1/public/stations/{slug}/export.csv`
 
 Same `period`/`date`/`start_date`/`end_date` parameters. Metric only.
 
@@ -434,7 +469,7 @@ rain_rate_15m_mm_h,rain_mm,solar_wm2,uv_index
 The CSV includes both timestamps and both pressure definitions. Timestamps are
 the stored archive bucket ends. It is a raw 5-minute export.
 
-### 4.4 Caching
+### 4.5 Caching
 
 - Public JSON: `Cache-Control: public, max-age=60`.
 - CSV: `Cache-Control: no-store`.
@@ -632,9 +667,10 @@ it covers the integration path.
 | `AKASHAVANI_PUBLIC_CACHE_SECONDS` | `60` | public JSON cache header |
 
 Security note: no auth is a deliberate product decision. The public API exposes
-the station name, coordinates, elevation and weather history. Deploy behind
-HTTPS and consider reverse-proxy rate limiting. The enable flag is off by
-default so exposure is explicit.
+the station name, coordinates, elevation, weather history and the optional
+monitoring URL. Never put credentials in the monitoring URL. Deploy behind HTTPS
+and consider reverse-proxy rate limiting. The enable flag is off by default so
+exposure is explicit.
 
 ## 8. Tests and acceptance
 
@@ -643,7 +679,11 @@ default so exposure is explicit.
 - slug generation from a name, uniqueness suffixes, reserved names and rename
   without breaking existing links;
 - station payload and 404 for unknown slug;
+- public station list and allowlist filtering;
+- optional `monitoring_url` saved from admin, validated as http(s), published on
+  the station payload, and cleared with an empty value;
 - `/dashboard` redirect to the default slug and the no-default message;
+- `/` redirects to `/dashboard`;
 - `online` boundary at 90 seconds;
 - missing site values render as `null` in the API (the UI shows N/A);
 - no sensitive fields in any public payload;
@@ -665,7 +705,8 @@ default so exposure is explicit.
 - range URL encode/decode and back/forward state;
 - SummaryTable and HistoryTable rendering with null values;
 - custom range validation (inverted, future, > 31 days);
-- empty and error states.
+- empty and error states;
+- Monitor Device link and station switcher rendering.
 
 ### Manual/browser acceptance
 
@@ -675,9 +716,9 @@ default so exposure is explicit.
   permits); no page-level horizontal scroll at 360 px.
 - Cursor and touch tooltip evidence for at least the temperature and wind
   charts.
-- `curl` evidence for `/api/v1/public/stations/roof-receiver`,
-  `/history?period=day`, `/history?period=custom`, and `export.csv` without any
-  Authorization header.
+- `curl` evidence for `/api/v1/public/stations`,
+  `/api/v1/public/stations/roof-receiver`, `/history?period=day`,
+  `/history?period=custom`, and `export.csv` without any Authorization header.
 - A CSV sample with both timestamps.
 - Empty-data evidence using a device with no archive rows.
 

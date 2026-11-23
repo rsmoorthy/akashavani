@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ApiError, fetchHistory, fetchStation } from './api'
+import { ApiError, fetchHistory, fetchStation, fetchStations } from './api'
 import { dateToISO, zonedParts } from './format'
 import {
   defaultSelection,
@@ -11,7 +11,7 @@ import {
   writeSelection,
 } from './range'
 import type { RangeSelection } from './range'
-import type { History, StationResponse } from './types'
+import type { History, StationListItem, StationResponse } from './types'
 
 export function slugFromPath(pathname = window.location.pathname): string | null {
   const parts = pathname.split('/').filter(Boolean)
@@ -40,6 +40,7 @@ function errorMessage(error: unknown): string {
 export interface DashboardHook {
   slug: string | null
   station: StationResponse | null
+  stations: StationListItem[]
   history: History | null
   todayHistory: History | null
   selection: RangeSelection | null
@@ -54,6 +55,7 @@ export interface DashboardHook {
 export function useDashboard(): DashboardHook {
   const slug = useMemo(() => slugFromPath(), [])
   const [station, setStation] = useState<StationResponse | null>(null)
+  const [stations, setStations] = useState<StationListItem[]>([])
   const [selection, setSelectionState] = useState<RangeSelection | null>(null)
   const [history, setHistory] = useState<History | null>(null)
   const [todayHistory, setTodayHistory] = useState<History | null>(null)
@@ -90,6 +92,18 @@ export function useDashboard(): DashboardHook {
       })
     return () => controller.abort()
   }, [slug, stationTick])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchStations(controller.signal)
+      .then(setStations)
+      .catch((caught: unknown) => {
+        if (caught instanceof DOMException && caught.name === 'AbortError') return
+        // The switcher is optional; keep the current station visible on failure.
+        setStations([])
+      })
+    return () => controller.abort()
+  }, [stationTick])
 
   useEffect(() => {
     if (!siteDate) return
@@ -193,6 +207,7 @@ export function useDashboard(): DashboardHook {
   return {
     slug,
     station,
+    stations,
     history: matchingHistory,
     todayHistory: sliderHistory,
     selection,

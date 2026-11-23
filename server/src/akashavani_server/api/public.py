@@ -14,6 +14,7 @@ from ..db import get_db
 from ..models import ArchiveRecord, Device
 from ..schemas import (
     PublicHistoryOut,
+    PublicStationListItemOut,
     PublicStationResponse,
     Slug,
 )
@@ -96,6 +97,23 @@ def _range_or_422(
         ) from exc
 
 
+@router.get("/stations", response_model=list[PublicStationListItemOut])
+def list_stations(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> list[PublicStationListItemOut]:
+    """Slugs and names for the dashboard's station switcher."""
+    settings = request.app.state.settings
+    statement = select(Device).order_by(Device.slug)
+    allowlist = settings.public_device_id_list
+    if allowlist:
+        statement = statement.where(Device.id.in_(allowlist))
+    devices = db.scalars(statement).all()
+    response.headers["Cache-Control"] = f"public, max-age={settings.public_cache_seconds}"
+    return [PublicStationListItemOut(slug=device.slug, name=device.name) for device in devices]
+
+
 @router.get("/stations/{slug}", response_model=PublicStationResponse)
 def get_station(
     slug: Slug,
@@ -137,6 +155,7 @@ def get_station(
             slug=device.slug,
             name=device.name,
             timezone_name=device.timezone,
+            monitoring_url=device.monitoring_url,
             latitude=device.latitude,
             longitude=device.longitude,
             altitude_m=device.altitude_m,

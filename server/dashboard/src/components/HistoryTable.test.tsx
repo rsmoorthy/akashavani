@@ -30,6 +30,8 @@ describe('HistoryTable', () => {
     expect(screen.getByRole('columnheader', { name: 'Temp' })).toBeInTheDocument()
     expect(screen.getByText('9:00 AM')).toBeInTheDocument()
     expect(screen.getByText('24.0 °C')).toBeInTheDocument()
+    expect(screen.getByText('7.2 km/h')).toBeInTheDocument()
+    expect(screen.getByText('14.4 km/h')).toBeInTheDocument()
     expect(screen.getByText('210° SSW')).toBeInTheDocument()
     expect(screen.getByText('1.25 mm/h')).toBeInTheDocument()
     expect(screen.getByText('500 W/m²')).toBeInTheDocument()

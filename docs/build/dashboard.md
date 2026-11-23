@@ -30,9 +30,11 @@ AKASHAVANI_PUBLIC_DASHBOARD_ENABLED=true
 AKASHAVANI_PUBLIC_DEFAULT_SLUG=simulator
 ```
 
-`/dashboard` redirects to the default slug. Direct links use
-`/dashboard/<slug>/`. Slugs are managed in `/admin` under **Station identity
-and public URL**.
+`/dashboard` redirects to the default slug, and the server root `/` redirects to
+`/dashboard`. Direct links use `/dashboard/<slug>/`. Slugs and the optional
+**Monitoring URL** (shown as a **Monitor Device** link) are managed in `/admin`
+under **Station identity and public URL**. When more than one station is
+available, the dashboard's top-right station label is a slug switcher.
 
 ## Build
 

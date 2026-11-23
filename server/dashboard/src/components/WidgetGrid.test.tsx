@@ -10,7 +10,8 @@ describe('WidgetGrid', () => {
     expect(screen.getByText('27.0 °C')).toBeInTheDocument()
     expect(screen.getByText('Feels like 26.8 °C')).toBeInTheDocument()
     expect(screen.getByText('39%')).toBeInTheDocument()
-    expect(screen.getByText('1.2 m/s')).toBeInTheDocument()
+    expect(screen.getByText('4.3 km/h')).toBeInTheDocument()
+    expect(screen.getByText('Gust 10.1 km/h')).toBeInTheDocument()
     expect(screen.getByText('SSW 210°')).toBeInTheDocument()
     expect(screen.getByText('1008.5 hPa')).toBeInTheDocument()
     expect(screen.getByText('Sea-level pressure')).toBeInTheDocument()
@@ -41,5 +42,13 @@ describe('WidgetGrid', () => {
     expect(screen.getByText('Temperature')).toBeInTheDocument()
     expect(screen.getByText('Radiation')).toBeInTheDocument()
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('shows NA instead of stale values when the station is offline', () => {
+    render(<WidgetGrid values={displayValuesFixture()} stale />)
+    expect(screen.getAllByText('NA').length).toBeGreaterThanOrEqual(8)
+    expect(screen.queryByText('27.0 °C')).not.toBeInTheDocument()
+    expect(screen.queryByText('4.3 km/h')).not.toBeInTheDocument()
+    expect(screen.queryByText('SSW 210°')).not.toBeInTheDocument()
   })
 })

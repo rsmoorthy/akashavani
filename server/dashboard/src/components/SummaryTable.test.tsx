@@ -8,7 +8,9 @@ describe('SummaryTable', () => {
   it('renders high, low, average and total values', () => {
     render(<SummaryTable history={historyFixture()} />)
     expect(screen.getByText('Temperature (°C)')).toBeInTheDocument()
+    expect(screen.getByText('Wind speed (km/h)')).toBeInTheDocument()
     expect(screen.getAllByText('24.0').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('10.8').length).toBeGreaterThan(0)
     expect(screen.getByText('210° SSW')).toBeInTheDocument()
     expect(screen.getByText('1.50')).toBeInTheDocument()
   })

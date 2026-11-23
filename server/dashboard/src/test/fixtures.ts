@@ -13,6 +13,7 @@ export function stationFixture(overrides: Partial<Station> = {}): Station {
     slug: 'roof-receiver',
     name: 'Roof receiver',
     timezone: 'Asia/Calcutta',
+    monitoring_url: null,
     latitude: 13.486,
     longitude: 77.709,
     altitude_m: 306,

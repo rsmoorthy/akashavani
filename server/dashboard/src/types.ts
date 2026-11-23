@@ -5,6 +5,7 @@ export interface Station {
   slug: string
   name: string
   timezone: string
+  monitoring_url: string | null
   latitude: number | null
   longitude: number | null
   altitude_m: number | null
@@ -13,6 +14,11 @@ export interface Station {
   first_archive_at: string | null
   latest_archive_at: string | null
   site_date: string
+}
+
+export interface StationListItem {
+  slug: string
+  name: string
 }
 
 export interface Current {

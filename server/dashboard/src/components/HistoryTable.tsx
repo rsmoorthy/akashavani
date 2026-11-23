@@ -1,4 +1,5 @@
 import {
+  WIND_DISPLAY_UNIT,
   degreesToCompass,
   formatNumber,
   formatPressure,
@@ -38,8 +39,8 @@ export function HistoryTable({ history }: { history: History }) {
               <th scope="col">Temp</th>
               <th scope="col">Dew</th>
               <th scope="col">Humidity</th>
-              <th scope="col">Wind</th>
-              <th scope="col">Gust</th>
+              <th scope="col">Wind ({WIND_DISPLAY_UNIT})</th>
+              <th scope="col">Gust ({WIND_DISPLAY_UNIT})</th>
               <th scope="col">Direction</th>
               <th scope="col">Rain rate</th>
               <th scope="col">Rain</th>

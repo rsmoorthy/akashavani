@@ -35,6 +35,9 @@ class Device(Base):
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     # IANA zone used only for operator-facing rendering; storage is always UTC.
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", nullable=False)
+    # Optional operator-supplied link to an external monitoring page. It is
+    # published on the public dashboard when set; never put credentials here.
+    monitoring_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Device-reported site configuration. The JSON is the complete document;
     # the scalar columns are extracted for archive derivations and admin views.
     config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

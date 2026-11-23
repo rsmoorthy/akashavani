@@ -139,12 +139,15 @@ Docker image builds the frontend in a Node stage; local development uses
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /api/v1/public/stations` | public station slugs and names for the dashboard switcher |
 | `GET /api/v1/public/stations/{slug}` | station metadata, online state, latest archive reading |
 | `GET /api/v1/public/stations/{slug}/history` | 5-minute/1-hour/1-day points and Summary values for a period |
 | `GET /api/v1/public/stations/{slug}/export.csv` | raw 5-minute CSV for the selected period |
 
 `devices.slug` is unique and editable from `/admin`; changing the display name
-does not change it. Slugs are lower-case letters, digits and hyphens. The public
+does not change it. Slugs are lower-case letters, digits and hyphens. The same
+admin tab stores an optional `devices.monitoring_url`, which the public station
+payload exposes so the dashboard can render a **Monitor Device** link. The public
 API never returns tokens, MAC, Wi-Fi config, commands, RSSI or firmware fields.
 All values are SI; range boundaries are resolved in the device's IANA time zone.
 See [the public dashboard spec](../specs/public-dashboard.md).

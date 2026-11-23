@@ -3,10 +3,11 @@ import {
   formatLocalTime,
   formatRelative,
 } from '../format'
-import type { Station as StationType } from '../types'
+import type { Station as StationType, StationListItem } from '../types'
 
 interface StationHeaderProps {
   station: StationType
+  stations: StationListItem[]
   asOf: string | null
   selected: boolean
   refreshing: boolean
@@ -28,6 +29,7 @@ function locationLabel(station: StationType): string {
 
 export function StationHeader({
   station,
+  stations,
   asOf,
   selected,
   refreshing,
@@ -38,6 +40,14 @@ export function StationHeader({
   const lastSeen = station.last_seen_at
     ? `${formatRelative(station.last_seen_at)} · ${formatLocalDateTime(station.last_seen_at, zone)}`
     : 'N/A'
+  const monitoringUrl =
+    station.monitoring_url && /^https?:\/\//i.test(station.monitoring_url)
+      ? station.monitoring_url
+      : null
+  const stationOptions = stations.some((item) => item.slug === station.slug)
+    ? stations
+    : [{ slug: station.slug, name: station.name }, ...stations]
+  const showStationSelect = stationOptions.length > 1
 
   return (
     <header className="station-header panel">
@@ -74,8 +84,39 @@ export function StationHeader({
           <strong>{selected ? 'Selected reading:' : 'Data as of:'}</strong>{' '}
           {asOf ? `${formatLocalTime(asOf, zone)} (${formatRelative(asOf)})` : 'No observations yet'}
         </span>
+        {monitoringUrl ? (
+          <a
+            className="monitor-link"
+            href={monitoringUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Monitor Device
+          </a>
+        ) : null}
         <span className="station-id">
-          <strong>Station:</strong> {station.slug}
+          <strong>Station:</strong>{' '}
+          {showStationSelect ? (
+            <select
+              className="station-select"
+              value={station.slug}
+              aria-label="Select station"
+              onChange={(event) => {
+                const next = event.target.value
+                if (next !== station.slug) {
+                  window.location.assign(`/dashboard/${encodeURIComponent(next)}/`)
+                }
+              }}
+            >
+              {stationOptions.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.slug}
+                </option>
+              ))}
+            </select>
+          ) : (
+            station.slug
+          )}
         </span>
       </div>
     </header>

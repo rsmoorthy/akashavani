@@ -45,7 +45,7 @@ container paths under `/data`. See
 | GET | `/api/v1/firmware/{version}/download` | device token | OTA image |
 | POST | `/api/v1/admin/devices` | admin bearer | create/replace a device token |
 | GET | `/api/v1/admin/devices` | admin bearer | list devices |
-| PATCH | `/api/v1/admin/devices/{id}` | admin bearer | edit name, slug or time zone |
+| PATCH | `/api/v1/admin/devices/{id}` | admin bearer | edit name, slug, time zone or monitoring URL |
 | POST | `/api/v1/admin/devices/{id}/commands` | admin bearer | enqueue a command |
 | GET | `/api/v1/admin/observations` | admin bearer | inspect recent data |
 | POST | `/api/v1/admin/firmware` | admin bearer | register an image in `firmware_dir` |
@@ -53,6 +53,7 @@ container paths under `/data`. See
 | GET | `/api/v1/admin/firmware` | admin bearer | list releases |
 | GET | `/api/v1/admin/devices/{id}/commands` | admin bearer | command history |
 | GET | `/admin` | none (page shell) | admin UI; API calls still need the bearer token |
+| GET | `/api/v1/public/stations` | none | public station slugs and names for the dashboard switcher |
 | GET | `/api/v1/public/stations/{slug}` | none | public station metadata and latest reading |
 | GET | `/api/v1/public/stations/{slug}/history` | none | public chart points and summary |
 | GET | `/api/v1/public/stations/{slug}/export.csv` | none | public raw CSV export |

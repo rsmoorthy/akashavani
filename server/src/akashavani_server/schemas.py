@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     AfterValidator,
@@ -35,6 +36,21 @@ def _valid_timezone(value: str) -> str:
 
 
 DeviceTimezone = Annotated[str, AfterValidator(_valid_timezone)]
+
+
+def _valid_monitoring_url(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("monitoring URL must be an absolute http(s) URL")
+    return value
+
+
+MonitoringUrl = Annotated[
+    str, StringConstraints(max_length=500), AfterValidator(_valid_monitoring_url)
+]
 
 
 def _serialize_utc(value: datetime) -> str:
@@ -330,12 +346,15 @@ class DeviceCreate(BaseModel):
     token: str = Field(min_length=8, max_length=256)
     # Optional so token rotation does not overwrite the device's own setting.
     timezone: DeviceTimezone | None = None
+    monitoring_url: MonitoringUrl | None = None
 
 
 class DevicePatch(BaseModel):
     name: str | None = Field(default=None, max_length=80)
     slug: Slug | None = None
     timezone: DeviceTimezone | None = None
+    # An empty string clears the link; None means "leave unchanged".
+    monitoring_url: MonitoringUrl | None = None
 
 
 class DeviceOut(BaseModel):
@@ -345,6 +364,7 @@ class DeviceOut(BaseModel):
     name: str
     slug: str
     timezone: str = DEFAULT_DEVICE_TIMEZONE
+    monitoring_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     altitude_m: float | None = None
@@ -518,6 +538,7 @@ class PublicStationOut(BaseModel):
     slug: str
     name: str
     timezone: str
+    monitoring_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     altitude_m: float | None = None
@@ -526,6 +547,11 @@ class PublicStationOut(BaseModel):
     first_archive_at: UtcDateTime | None = None
     latest_archive_at: UtcDateTime | None = None
     site_date: date
+
+
+class PublicStationListItemOut(BaseModel):
+    slug: str
+    name: str
 
 
 class PublicStationResponse(BaseModel):

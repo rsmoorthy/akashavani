@@ -113,6 +113,78 @@ def test_unknown_station_is_404(client):
     assert client.get("/api/v1/public/stations/assets").status_code == 422
 
 
+def test_public_station_list(client):
+    response = client.get("/api/v1/public/stations")
+    assert response.status_code == 200, response.text
+    assert response.json() == [{"slug": SLUG, "name": "Simulator"}]
+    assert response.headers["cache-control"] == "public, max-age=60"
+
+
+def test_public_station_list_is_sorted_and_minimal(client):
+    created = client.post(
+        "/api/v1/admin/devices",
+        json={"id": "sim-002", "name": "Garden", "token": "garden-device-token"},
+        headers=admin_headers(),
+    )
+    assert created.status_code == 200, created.text
+    data = client.get("/api/v1/public/stations").json()
+    assert [item["slug"] for item in data] == ["garden", "simulator"]
+    assert set(data[0]) == {"slug", "name"}
+
+
+def test_root_redirects_to_dashboard(client):
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "/dashboard"
+
+
+def test_monitoring_url_is_saved_cleared_and_published(client):
+    url = "https://status.example.net/simulator"
+    updated = client.patch(
+        f"/api/v1/admin/devices/{DEVICE_ID}",
+        json={"monitoring_url": url},
+        headers=admin_headers(),
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["monitoring_url"] == url
+    assert updated.json()["name"] == "Simulator"
+
+    listed = client.get("/api/v1/admin/devices", headers=admin_headers()).json()
+    seeded = next(device for device in listed if device["id"] == DEVICE_ID)
+    assert seeded["monitoring_url"] == url
+
+    name_only = client.patch(
+        f"/api/v1/admin/devices/{DEVICE_ID}",
+        json={"name": "Simulator renamed"},
+        headers=admin_headers(),
+    )
+    assert name_only.status_code == 200, name_only.text
+    assert name_only.json()["monitoring_url"] == url
+
+    station = client.get(f"/api/v1/public/stations/{SLUG}").json()["station"]
+    assert station["monitoring_url"] == url
+
+    cleared = client.patch(
+        f"/api/v1/admin/devices/{DEVICE_ID}",
+        json={"monitoring_url": ""},
+        headers=admin_headers(),
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["monitoring_url"] is None
+    station = client.get(f"/api/v1/public/stations/{SLUG}").json()["station"]
+    assert station["monitoring_url"] is None
+
+
+def test_monitoring_url_rejects_non_http_values(client):
+    for value in ("ftp://status.example.net", "not a url", "javascript:alert(1)"):
+        response = client.patch(
+            f"/api/v1/admin/devices/{DEVICE_ID}",
+            json={"monitoring_url": value},
+            headers=admin_headers(),
+        )
+        assert response.status_code == 422, value
+
+
 def test_day_history_and_summary(client, app):
     _set_device_config(client, timezone="Asia/Calcutta")
     today = today_in_zone("Asia/Calcutta")
@@ -319,6 +391,7 @@ def test_public_dashboard_can_be_disabled(settings, client):
     disabled = settings.model_copy(update={"public_dashboard_enabled": False})
     with TestClient(create_app(disabled)) as other:
         assert other.get(f"/api/v1/public/stations/{SLUG}").status_code == 404
+        assert other.get("/api/v1/public/stations").status_code == 404
         assert other.get("/dashboard").status_code == 404
         assert other.get("/dashboard/simulator/").status_code == 404
 
@@ -327,6 +400,7 @@ def test_public_device_allowlist(settings, client):
     restricted = settings.model_copy(update={"public_device_ids": "some-other-device"})
     with TestClient(create_app(restricted)) as other:
         assert other.get(f"/api/v1/public/stations/{SLUG}").status_code == 404
+        assert other.get("/api/v1/public/stations").json() == []
 
 
 def test_dashboard_html_routes(client):

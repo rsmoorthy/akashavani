@@ -1,4 +1,4 @@
-import type { History, Period, StationResponse } from './types'
+import type { History, Period, StationListItem, StationResponse } from './types'
 
 const API_ROOT = '/api/v1/public/stations'
 
@@ -36,6 +36,10 @@ function stationPath(slug: string): string {
 
 export function fetchStation(slug: string, signal?: AbortSignal): Promise<StationResponse> {
   return getJson<StationResponse>(stationPath(slug), signal)
+}
+
+export function fetchStations(signal?: AbortSignal): Promise<StationListItem[]> {
+  return getJson<StationListItem[]>(API_ROOT, signal)
 }
 
 export interface HistoryQuery {

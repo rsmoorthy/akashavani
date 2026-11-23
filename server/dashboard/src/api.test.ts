@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { exportUrl, fetchHistory, fetchStation } from './api'
+import { exportUrl, fetchHistory, fetchStation, fetchStations } from './api'
 
 const response = (body: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
@@ -20,6 +20,16 @@ describe('public API client', () => {
     await fetchStation('roof receiver')
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/public/stations/roof%20receiver',
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    )
+  })
+
+  it('fetches the station list', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response([]))
+    vi.stubGlobal('fetch', fetchMock)
+    await fetchStations()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/public/stations',
       expect.objectContaining({ headers: { Accept: 'application/json' } }),
     )
   })

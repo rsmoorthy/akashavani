@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { formatLocalDateTime } from './format'
+import { formatLocalDateTime, isStale } from './format'
 import { HistorySection } from './components/HistorySection'
 import { StationHeader } from './components/StationHeader'
 import { TimelineSlider } from './components/TimelineSlider'
@@ -85,6 +85,7 @@ export default function App() {
   }
 
   const asOf = selected?.point.t ?? station.current?.date_time ?? null
+  const stale = selected === null && isStale(station.station.last_seen_at)
   const timelineReason =
     todayPoints.length === 0
       ? 'No observations today. The timeline will enable when data arrives.'
@@ -94,6 +95,7 @@ export default function App() {
     <div className="page">
       <StationHeader
         station={station.station}
+        stations={dashboard.stations}
         asOf={asOf}
         selected={selected !== null}
         refreshing={refreshing}
@@ -109,7 +111,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <WidgetGrid values={values} />
+      <WidgetGrid values={values} stale={stale} />
 
       <TimelineSlider
         points={todayPoints}

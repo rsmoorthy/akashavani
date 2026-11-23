@@ -294,6 +294,24 @@ p {
   margin-left: auto;
 }
 
+.monitor-link {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.station-select {
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
 /* Widgets ----------------------------------------------------------------- */
 .widget-grid {
   display: grid;

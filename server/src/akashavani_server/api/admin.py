@@ -85,6 +85,7 @@ def create_or_rotate_device(
             slug=slug,
             token_hash=token_hash,
             timezone=body.timezone or DEFAULT_DEVICE_TIMEZONE,
+            monitoring_url=body.monitoring_url or None,
         )
         db.add(device)
     else:
@@ -92,6 +93,8 @@ def create_or_rotate_device(
         device.token_hash = token_hash
         if body.timezone is not None:
             device.timezone = body.timezone
+        if body.monitoring_url is not None:
+            device.monitoring_url = body.monitoring_url or None
         if body.slug is not None and body.slug != device.slug:
             owner = db.scalar(
                 select(Device).where(Device.slug == body.slug, Device.id != device.id)
@@ -126,6 +129,8 @@ def update_device(
         device.name = body.name
     if body.timezone is not None:
         device.timezone = body.timezone
+    if body.monitoring_url is not None:
+        device.monitoring_url = body.monitoring_url or None
     if body.slug is not None and body.slug != device.slug:
         owner = db.scalar(select(Device).where(Device.slug == body.slug, Device.id != device.id))
         if owner is not None:
@@ -157,6 +162,7 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceAdminOut]:
                 name=device.name,
                 slug=device.slug,
                 timezone=device.timezone,
+                monitoring_url=device.monitoring_url,
                 latitude=device.latitude,
                 longitude=device.longitude,
                 altitude_m=device.altitude_m,

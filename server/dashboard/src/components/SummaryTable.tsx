@@ -1,4 +1,4 @@
-import { degreesToCompass, formatNumber } from '../format'
+import { WIND_DISPLAY_UNIT, degreesToCompass, formatNumber, mpsToKmh } from '../format'
 import type { History, SummaryMetric } from '../types'
 
 interface Row {
@@ -7,6 +7,7 @@ interface Row {
   metric: SummaryMetric
   digits: number
   direction?: boolean
+  wind?: boolean
 }
 
 function metricRows(history: History): Row[] {
@@ -28,8 +29,20 @@ function metricRows(history: History): Row[] {
       metric: summary.precipitation_accumulation,
       digits: 2,
     },
-    { key: 'wind_speed', label: 'Wind speed (m/s)', metric: summary.wind_speed, digits: 1 },
-    { key: 'wind_gust', label: 'Wind gust (m/s)', metric: summary.wind_gust, digits: 1 },
+    {
+      key: 'wind_speed',
+      label: `Wind speed (${WIND_DISPLAY_UNIT})`,
+      metric: summary.wind_speed,
+      digits: 1,
+      wind: true,
+    },
+    {
+      key: 'wind_gust',
+      label: `Wind gust (${WIND_DISPLAY_UNIT})`,
+      metric: summary.wind_gust,
+      digits: 1,
+      wind: true,
+    },
     {
       key: 'wind_direction',
       label: 'Wind direction',
@@ -46,8 +59,9 @@ function metricRows(history: History): Row[] {
   ]
 }
 
-function valueOrDash(value: number | null, digits: number): string {
-  return value === null ? '—' : formatNumber(value, digits)
+function valueOrDash(value: number | null, digits: number, wind = false): string {
+  if (value === null) return '—'
+  return formatNumber(wind ? mpsToKmh(value) : value, digits)
 }
 
 function directionValue(value: number | null): string {
@@ -96,18 +110,18 @@ export function SummaryTable({ history }: { history: History }) {
               <tr key={row.key}>
                 <th scope="row">{row.label}</th>
                 <td data-label="High">
-                  {row.direction ? '—' : valueOrDash(row.metric.high, row.digits)}
+                  {row.direction ? '—' : valueOrDash(row.metric.high, row.digits, row.wind)}
                 </td>
                 <td data-label="Low">
-                  {row.direction ? '—' : valueOrDash(row.metric.low, row.digits)}
+                  {row.direction ? '—' : valueOrDash(row.metric.low, row.digits, row.wind)}
                 </td>
                 <td data-label="Average">
                   {row.direction
                     ? directionValue(row.metric.average)
-                    : valueOrDash(row.metric.average, row.digits)}
+                    : valueOrDash(row.metric.average, row.digits, row.wind)}
                 </td>
                 <td data-label="Total">
-                  {valueOrDash(row.metric.total, row.digits)}
+                  {valueOrDash(row.metric.total, row.digits, row.wind)}
                   {row.key === 'precipitation_accumulation' && partial && row.metric.total !== null ? (
                     <span className="partial-marker" title={note ?? undefined}>
                       *

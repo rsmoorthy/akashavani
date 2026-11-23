@@ -49,6 +49,8 @@
   .wifi-row { display: grid; grid-template-columns: 2rem 1fr 1fr; gap: .5rem; align-items: center; }
   .wifi-row .num { color: var(--muted); font-size: .82rem; }
   .status { min-height: 1.4em; font-size: 13px; }
+  .global-status:empty { display: none; }
+  .global-status { margin-bottom: 1rem; }
   #devices td:nth-child(3) a { white-space: nowrap; }
   .error { color: #c92a2a; }
   .ok { color: #2b8a3e; }
@@ -58,6 +60,16 @@
   .tab { display: none; }
   .tab.active { display: block; }
   .panel { border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .token-panel > summary { display: flex; align-items: center; gap: .65rem; cursor: pointer; list-style: none; }
+  .token-panel > summary::-webkit-details-marker { display: none; }
+  .token-panel > summary h2 { margin: 0; }
+  .token-state { font-size: .8rem; font-weight: 700; color: var(--muted); }
+  .token-state.is-loaded { color: #2b8a3e; }
+  .summary-chevron { margin-left: auto; color: var(--muted); transition: transform .15s ease; }
+  .token-panel[open] .summary-chevron { transform: rotate(180deg); }
+  .token-body { margin-top: .9rem; }
+  .time-display { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--line); }
+  .time-display h3 { margin-top: 0; }
   @media (max-width: 700px) {
     body { padding: .8rem; }
     .grid2 { grid-template-columns: 1fr; }
@@ -71,31 +83,37 @@
 <body>
 <h1>Akashavani admin</h1>
 
-<section class="panel">
-  <h2>Admin token</h2>
-  <div class="row">
-    <label>Bearer token
-      <input id="token" type="password" autocomplete="off" size="32">
-    </label>
-    <button onclick="saveToken()">Save</button>
-    <button class="secondary" onclick="refreshAll()">Refresh</button>
+<details class="panel token-panel" id="tokenPanel">
+  <summary>
+    <h2>Admin token</h2>
+    <span id="tokenState" class="token-state"></span>
+    <span class="summary-chevron" aria-hidden="true">▾</span>
+  </summary>
+  <div class="token-body">
+    <div class="row">
+      <label>Bearer token
+        <input id="token" type="password" autocomplete="off" size="32">
+      </label>
+      <button onclick="saveToken()">Save</button>
+      <button class="secondary" onclick="refreshAll()">Refresh</button>
+    </div>
+    <div class="time-display">
+      <h3>Time display</h3>
+      <div class="row">
+        <label>Time zone
+          <select id="tzMode">
+            <option value="site">Site TZ</option>
+            <option value="utc">UTC</option>
+            <option value="browser">Browser time</option>
+          </select>
+        </label>
+        <p id="tzHint" class="muted" style="margin:0;max-width:36rem"></p>
+      </div>
+    </div>
   </div>
-  <div id="status" class="status"></div>
-</section>
+</details>
 
-<section class="panel">
-  <h2>Time display</h2>
-  <div class="row">
-    <label>Time zone
-      <select id="tzMode">
-        <option value="site">Site TZ</option>
-        <option value="utc">UTC</option>
-        <option value="browser">Browser time</option>
-      </select>
-    </label>
-    <p id="tzHint" class="muted" style="margin:0;max-width:36rem"></p>
-  </div>
-</section>
+<div id="status" class="status global-status" role="status" aria-live="polite"></div>
 
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="devices" class="active">Devices</button>
@@ -141,10 +159,11 @@
         <label>Display name <input id="identityName" maxlength="80" required></label>
         <label>Public slug <input id="identitySlug" maxlength="64" required></label>
         <label>Site time zone <select id="identityTimezone"></select></label>
+        <label>Monitoring URL <input id="identityMonitoringUrl" type="url" maxlength="500" placeholder="https://status.example.net/station"></label>
       </div>
       <button type="submit">Save identity</button>
       <p id="identityStatus" class="status"></p>
-      <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens.</p>
+      <p class="muted">Dashboard URL: <a id="identityUrl" href="#" target="_blank" rel="noopener"><code></code></a>. Renaming the display name does not change the slug. Slugs must be unique, lower-case, and may contain letters, digits and hyphens. The monitoring URL is optional; when set, the public dashboard shows it as a <strong>Monitor Device</strong> link.</p>
     </form>
   </div>
 </section>
@@ -279,6 +298,13 @@ const MAX_NARROW_DEVICES = 3;
 
 function token() { return localStorage.getItem('akashavaniAdminToken') || ''; }
 
+function updateTokenState() {
+  const loaded = token() !== '';
+  const state = $('tokenState');
+  state.textContent = loaded ? 'Loaded' : 'Not loaded';
+  state.className = 'token-state' + (loaded ? ' is-loaded' : '');
+}
+
 function tzMode() {
   const mode = localStorage.getItem(TZ_KEY);
   return mode === 'utc' || mode === 'browser' ? mode : 'site';
@@ -368,6 +394,20 @@ function relative(iso) {
   return rest ? days + 'd ' + rest + 'h ago' : days + 'd ago';
 }
 
+function uptimeText(seconds) {
+  if (seconds === null || seconds === undefined) return '';
+  const minutes = Math.max(0, Math.floor(seconds / 60));
+  if (minutes < 60) return minutes + ' min';
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rest = minutes % 60;
+    return rest ? hours + 'h ' + rest + 'm' : hours + 'h';
+  }
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest ? days + 'd ' + rest + 'h' : days + 'd';
+}
+
 // Convert a datetime-local wall time in an IANA zone to a Unix epoch. A null
 // zone means the browser's own zone.
 function zonedEpoch(localValue, zone) {
@@ -430,7 +470,10 @@ async function api(path, options = {}) {
 }
 
 function saveToken() {
-  localStorage.setItem('akashavaniAdminToken', $('token').value.trim());
+  const value = $('token').value.trim();
+  localStorage.setItem('akashavaniAdminToken', value);
+  updateTokenState();
+  if (value) $('tokenPanel').open = false;
   refreshAll();
 }
 
@@ -478,7 +521,7 @@ function wideDeviceRow(d) {
     <td>${d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'}</td>
     <td><code>${escapeHtml(d.mac_address ?? '')}</code></td>
     <td>${escapeHtml(d.firmware_version ?? '')}</td>
-    <td>${d.uptime_seconds === null || d.uptime_seconds === undefined ? '' : Math.round(d.uptime_seconds / 60) + ' min'}</td>
+    <td>${escapeHtml(uptimeText(d.uptime_seconds))}</td>
     <td>${d.queue_depth ?? ''}</td>
     <td>${d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'}</td>
     <td>${escapeHtml(d.reset_reason ?? '')}</td>
@@ -533,7 +576,7 @@ function renderNarrowDevices(selectedIds) {
     ['Status', (d) => d.online ? '<b class="ok">online</b>' : '<b class="error">offline</b>'],
     ['MAC', (d) => `<code>${escapeHtml(d.mac_address ?? '')}</code>`],
     ['Firmware', (d) => escapeHtml(d.firmware_version ?? '')],
-    ['Uptime', (d) => d.uptime_seconds === null || d.uptime_seconds === undefined ? '' : Math.round(d.uptime_seconds / 60) + ' min'],
+    ['Uptime', (d) => escapeHtml(uptimeText(d.uptime_seconds))],
     ['Queue', (d) => d.queue_depth ?? ''],
     ['Heap', (d) => d.free_heap === null || d.free_heap === undefined ? '' : Math.round(d.free_heap / 1024) + ' KB'],
     ['Reset', (d) => escapeHtml(d.reset_reason ?? '')],
@@ -629,6 +672,7 @@ function fillIdentityForm() {
     $('identityName').value = '';
     $('identitySlug').value = '';
     fillTimezones($('identityTimezone'), 'UTC');
+    $('identityMonitoringUrl').value = '';
     $('identityUrl').querySelector('code').textContent = '';
     $('identityUrl').removeAttribute('href');
     setIdentityStatus('');
@@ -637,6 +681,7 @@ function fillIdentityForm() {
   $('identityName').value = device.name || '';
   $('identitySlug').value = device.slug || '';
   fillTimezones($('identityTimezone'), device.timezone || 'UTC');
+  $('identityMonitoringUrl').value = device.monitoring_url || '';
   const url = `/dashboard/${encodeURIComponent(device.slug || '')}/`;
   $('identityUrl').querySelector('code').textContent = url;
   $('identityUrl').href = url;
@@ -844,13 +889,15 @@ $('identityForm').addEventListener('submit', async (event) => {
       body: JSON.stringify({
         name,
         slug: $('identitySlug').value.trim(),
-        timezone: $('identityTimezone').value
+        timezone: $('identityTimezone').value,
+        monitoring_url: $('identityMonitoringUrl').value.trim()
       })
     });
     setIdentityStatus(`Saved. Public URL: /dashboard/${updated.slug}/`, 'ok');
     await loadDevices();
     $('identityDevice').value = updated.id;
     $('identitySlug').value = updated.slug;
+    $('identityMonitoringUrl').value = updated.monitoring_url || '';
     $('identityUrl').querySelector('code').textContent = `/dashboard/${updated.slug}/`;
     $('identityUrl').href = `/dashboard/${updated.slug}/`;
   } catch (error) {
@@ -995,6 +1042,8 @@ $('tzMode').addEventListener('change', () => {
 });
 
 $('token').value = token();
+$('tokenPanel').open = !token();
+updateTokenState();
 $('tzMode').value = tzMode();
 updateTzHint();
 updateCommandPayload();

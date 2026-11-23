@@ -8,6 +8,8 @@ import {
   formatNumber,
   formatRelative,
   formatTemperature,
+  formatWind,
+  isStale,
   tooltipTitle,
   uvCategory,
   zonedParts,
@@ -19,6 +21,19 @@ describe('format', () => {
     expect(formatNumber(null)).toBe('—')
     expect(formatTemperature(27)).toBe('27.0 °C')
     expect(formatTemperature(null)).toBe('—')
+  })
+
+  it('shows wind in km/h', () => {
+    expect(formatWind(1.2)).toBe('4.3 km/h')
+    expect(formatWind(null)).toBe('—')
+  })
+
+  it('marks data stale after 30 minutes without a device report', () => {
+    const now = Date.parse('2026-11-20T06:00:00Z')
+    expect(isStale('2026-11-20T05:31:00Z', now)).toBe(false)
+    expect(isStale('2026-11-20T05:30:00Z', now)).toBe(false)
+    expect(isStale('2026-11-20T05:29:59Z', now)).toBe(true)
+    expect(isStale(null, now)).toBe(true)
   })
 
   it('resolves station-local time parts', () => {

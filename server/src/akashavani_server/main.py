@@ -82,7 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
-        return RedirectResponse("/docs")
+        return RedirectResponse("/dashboard")
 
     return app
 

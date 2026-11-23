@@ -94,7 +94,17 @@ All notable changes are recorded here. The firmware version lives in
   editor.
 - `/admin` gained a Site TZ / UTC / Browser time selector (default Site TZ),
   relative Last Seen/Last Radio, second-resolution timestamps and CSV exports
-  with both UTC and Site TZ columns.
+  with both UTC and Site TZ columns. The token and time-display controls now
+  share one collapsible panel that starts collapsed when a token is saved, so
+  the device table sits at the top of the page.
+- The public dashboard shows wind speed and gust in km/h (the API and archive
+  remain m/s) and replaces the current-condition cards with `NA` when the
+  device has not reported for more than 30 minutes.
+- The server root `/` now redirects to `/dashboard`. `/admin` renders uptime as
+  minutes, hours + minutes or days + hours. Station Identity gained an optional
+  monitoring URL (`devices.monitoring_url`, migration `a3d8f2c6b1e4`), shown as a
+  **Monitor Device** link on the public dashboard; the dashboard station label is
+  a slug switcher backed by `GET /api/v1/public/stations`.
 - Removed `station_id` end-to-end: DB column (migration `7d1c93a5e2b4`),
   `X-Station-Id` header/fallback, `DeviceOut`, `/admin` column, AP-page field,
   NVS key, `self_test` field and boot log. Identity is the device token plus

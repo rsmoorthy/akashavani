@@ -181,8 +181,24 @@ export function formatHumidity(value: number | null | undefined): string {
   return number === '—' ? number : `${number}%`
 }
 
+export const WIND_DISPLAY_UNIT = 'km/h'
+export const STALE_AFTER_MS = 30 * 60 * 1000
+
+// Stored and transported values are m/s; the dashboard displays km/h.
+export function mpsToKmh(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || Number.isNaN(value)) return null
+  return value * 3.6
+}
+
 export function formatWind(value: number | null | undefined, digits = 1): string {
-  return withUnit(value, 'm/s', digits)
+  return withUnit(mpsToKmh(value), WIND_DISPLAY_UNIT, digits)
+}
+
+export function isStale(lastSeenAt: string | null, now = Date.now()): boolean {
+  if (!lastSeenAt) return true
+  const seen = new Date(lastSeenAt).getTime()
+  if (Number.isNaN(seen)) return true
+  return now - seen > STALE_AFTER_MS
 }
 
 export function formatRain(value: number | null | undefined, digits = 2): string {
