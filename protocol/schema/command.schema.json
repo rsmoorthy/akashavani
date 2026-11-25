@@ -25,7 +25,10 @@
         "boot_with_new_fw",
         "get_pending_commands",
         "get_data_again",
-        "download_raw_data"
+        "download_raw_data",
+        "storage_status",
+        "sd_list",
+        "sd_read"
       ]
     },
     "payload": {

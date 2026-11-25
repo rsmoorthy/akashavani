@@ -88,6 +88,13 @@ class ApiClient {
   // Uploads a batch of raw frames for the download_raw_data command.
   Status postRawBatch(const char* jsonBody);
 
+  // Uploads an SD directory listing or file chunk for the storage inspection
+  // commands. The command id ties the server-side artifact to the operator
+  // command that requested it.
+  Status postStorageList(const char* commandId, const char* path, const char* jsonBody);
+  Status postStorageChunk(const char* commandId, const char* path, uint32_t offset,
+                          bool eof, const uint8_t* data, size_t length);
+
   Status checkForUpdate(const char* currentVersion, const char* channel,
                         FirmwareInfo& info);
 

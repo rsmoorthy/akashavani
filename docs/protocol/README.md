@@ -171,8 +171,8 @@ of the document; they are local provisioning values.
 
 Command types are `reboot`, `sync_time`, `set_config`, `check_for_update`,
 `upload_logs`, `self_test`, `get_config`, `push_config`, `download_new_fw`,
-`boot_with_new_fw`, `get_pending_commands`, `get_data_again` and
-`download_raw_data`. Only one
+`boot_with_new_fw`, `get_pending_commands`, `get_data_again`,
+`download_raw_data`, `storage_status`, `sd_list` and `sd_read`. Only one
 command is in flight per device; the next is delivered after the previous one is
 acknowledged. Delivered commands that are not acknowledged within the server ACK
 timeout get a `get_pending_commands` probe, then up to three deliveries in total.
@@ -188,6 +188,13 @@ The OTA commands:
 | `get_pending_commands` | `{}` | `pending` (command ids the device still has in flight) |
 | `get_data_again` | `start_epoch`, `end_epoch` (max 7 days) | `records` replayed from SD; the server upserts by `message_id` |
 | `download_raw_data` | `start_epoch`, `end_epoch` (max 7 days) | `records` uploaded, `truncated`; raw frames land in a server CSV |
+| `storage_status` | `{}` | SD totals, archive write status, `last_sent`, raw/log counters |
+| `sd_list` | `path` (optional), `max_entries` (optional) | `entries`, `truncated`; listing is uploaded to `POST /api/v1/devices/me/storage/list` |
+| `sd_read` | `path`, `offset`, `max_bytes` | `bytes`, `next_offset`, `eof`; chunk is uploaded to `POST /api/v1/devices/me/storage/file` |
+
+Storage artifacts are downloaded from
+`GET /api/v1/admin/devices/{device_id}/storage/{command_id}/download`. A file
+read is chunked; repeat with `offset = next_offset` until `eof` is true.
 
 Acknowledgements may include a structured `result` object. `download_new_fw`
 does not reboot; `boot_with_new_fw` acknowledges before restarting.

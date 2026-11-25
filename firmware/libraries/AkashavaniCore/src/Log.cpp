@@ -3,6 +3,7 @@
 namespace akashavani {
 
 LogLevel Log::currentLevel_ = LogLevel::Info;
+ILogSink* Log::sink_ = nullptr;
 
 namespace {
 
@@ -31,6 +32,8 @@ void Log::setLevel(LogLevel level) { currentLevel_ = level; }
 
 LogLevel Log::level() { return currentLevel_; }
 
+void Log::setSink(ILogSink* sink) { sink_ = sink; }
+
 void Log::printf(LogLevel level, const char* tag, const char* format, ...) {
   if (level > currentLevel_) {
     return;
@@ -42,6 +45,9 @@ void Log::printf(LogLevel level, const char* tag, const char* format, ...) {
   va_end(args);
   Serial.printf("[%8lu] %s %-10s %s\r\n", static_cast<unsigned long>(millis()),
                 levelName(level), tag == nullptr ? "-" : tag, message);
+  if (sink_ != nullptr) {
+    sink_->write(level, tag, message);
+  }
 }
 
 void Log::hexDump(LogLevel level, const char* tag, const uint8_t* data, size_t length) {

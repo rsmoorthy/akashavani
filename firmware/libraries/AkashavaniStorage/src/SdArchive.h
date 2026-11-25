@@ -30,8 +30,13 @@ class SdArchive final : public IArchive {
   Status flush() override;
   bool isMounted() const override { return mounted_; }
   uint64_t recordsWritten() const override { return recordsWritten_; }
+  Status lastStatus() const { return lastStatus_; }
 
   const char* currentPath() const { return currentPath_; }
+
+  // Close the append handle so a replay can read a file from the same day.
+  // The next append reopens the daily file.
+  void closeCurrentFile();
 
   // Offline catch-up support. `last_sent` is the bucket-end epoch of the newest
   // record the server acknowledged; replay walks the daily files from that day
@@ -59,9 +64,11 @@ class SdArchive final : public IArchive {
   bool mounted_ = false;
   char currentPath_[kArchivePathMax] = {};
   uint64_t recordsWritten_ = 0;
+  Status lastStatus_ = Status::Ok;
 
   bool replay_ = false;
   int64_t replayAfter_ = 0;
+  int64_t replayEnd_ = 0;
   int64_t replayDay_ = 0;
   int64_t replayEndDay_ = 0;
   File replayFile_;

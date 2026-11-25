@@ -33,6 +33,12 @@ const char* toString(CommandType type) {
       return "download_raw_data";
     case CommandType::PushConfig:
       return "push_config";
+    case CommandType::StorageStatus:
+      return "storage_status";
+    case CommandType::SdList:
+      return "sd_list";
+    case CommandType::SdRead:
+      return "sd_read";
     case CommandType::Unknown:
       return "unknown";
   }
@@ -81,6 +87,15 @@ CommandType commandTypeFromString(const char* value) {
   }
   if (std::strcmp(value, "push_config") == 0) {
     return CommandType::PushConfig;
+  }
+  if (std::strcmp(value, "storage_status") == 0) {
+    return CommandType::StorageStatus;
+  }
+  if (std::strcmp(value, "sd_list") == 0) {
+    return CommandType::SdList;
+  }
+  if (std::strcmp(value, "sd_read") == 0) {
+    return CommandType::SdRead;
   }
   return CommandType::Unknown;
 }

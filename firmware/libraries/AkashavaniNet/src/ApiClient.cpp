@@ -197,6 +197,51 @@ ArchiveUpload ApiClient::postArchive(const char* payloadJson, const char* messag
 }
 
 
+Status ApiClient::postStorageList(const char* commandId, const char* path,
+                                  const char* jsonBody) {
+  if (commandId == nullptr || commandId[0] == '\0' || path == nullptr ||
+      path[0] == '\0' || jsonBody == nullptr) {
+    return Status::InvalidArgument;
+  }
+  HTTPClient http;
+  prepareHttp(http, endpoint("/api/v1/devices/me/storage/list"));
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Storage-Command", commandId);
+  http.addHeader("X-Storage-Path", path);
+  const int code = http.POST(String(jsonBody));
+  http.end();
+  if (code == 200 || code == 201 || code == 202) {
+    return Status::Ok;
+  }
+  AK_LOG_WARN("api", "storage list upload failed: http %d", code);
+  return code <= 0 ? Status::Timeout : Status::IoError;
+}
+
+Status ApiClient::postStorageChunk(const char* commandId, const char* path,
+                                   uint32_t offset, bool eof, const uint8_t* data,
+                                   size_t length) {
+  if (commandId == nullptr || commandId[0] == '\0' || path == nullptr ||
+      path[0] == '\0' || data == nullptr || length == 0) {
+    return Status::InvalidArgument;
+  }
+  HTTPClient http;
+  prepareHttp(http, endpoint("/api/v1/devices/me/storage/file"));
+  http.addHeader("Content-Type", "application/octet-stream");
+  http.addHeader("X-Storage-Command", commandId);
+  http.addHeader("X-Storage-Path", path);
+  char value[24];
+  std::snprintf(value, sizeof(value), "%lu", static_cast<unsigned long>(offset));
+  http.addHeader("X-Storage-Offset", value);
+  http.addHeader("X-Storage-EOF", eof ? "1" : "0");
+  const int code = http.POST(const_cast<uint8_t*>(data), length);
+  http.end();
+  if (code == 200 || code == 201 || code == 202) {
+    return Status::Ok;
+  }
+  AK_LOG_WARN("api", "storage chunk upload failed: http %d", code);
+  return code <= 0 ? Status::Timeout : Status::IoError;
+}
+
 Status ApiClient::postRawBatch(const char* jsonBody) {
   if (jsonBody == nullptr) {
     return Status::InvalidArgument;

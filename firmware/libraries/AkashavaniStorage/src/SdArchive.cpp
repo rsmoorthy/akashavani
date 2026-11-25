@@ -89,24 +89,29 @@ Status SdArchive::openForDay(const char* path) {
 
 Status SdArchive::append(const char* record, size_t length) {
   if (!mounted_) {
-    return Status::NotReady;
+    lastStatus_ = Status::NotReady;
+    return lastStatus_;
   }
   if (record == nullptr || length == 0) {
-    return Status::InvalidArgument;
+    lastStatus_ = Status::InvalidArgument;
+    return lastStatus_;
   }
   if (config_.deviceId == nullptr) {
-    return Status::NotReady;
+    lastStatus_ = Status::NotReady;
+    return lastStatus_;
   }
 
   // The caller stamps records; archive the UTC receipt time.
   const int64_t now = static_cast<int64_t>(time(nullptr));
   char path[kArchivePathMax];
   if (!buildArchivePath(config_.deviceId, now, path, sizeof(path))) {
-    return Status::InvalidArgument;
+    lastStatus_ = Status::InvalidArgument;
+    return lastStatus_;
   }
   if (std::strcmp(path, currentPath_) != 0) {
     const Status status = openForDay(path);
     if (!isOk(status)) {
+      lastStatus_ = status;
       return status;
     }
   }
@@ -114,13 +119,24 @@ Status SdArchive::append(const char* record, size_t length) {
   if (file_.write(reinterpret_cast<const uint8_t*>(record), length) != length ||
       file_.write(reinterpret_cast<const uint8_t*>("\n"), 1) != 1) {
     AK_LOG_ERROR("sd", "short write: %s", currentPath_);
-    return Status::IoError;
+    lastStatus_ = Status::IoError;
+    return lastStatus_;
   }
   ++recordsWritten_;
+  lastStatus_ = Status::Ok;
   if (config_.flushEachRecord) {
-    return flush();
+    lastStatus_ = flush();
+    return lastStatus_;
   }
   return Status::Ok;
+}
+
+void SdArchive::closeCurrentFile() {
+  if (file_) {
+    file_.flush();
+    file_.close();
+  }
+  currentPath_[0] = '\0';
 }
 
 Status SdArchive::flush() {
@@ -243,7 +259,11 @@ Status SdArchive::beginReplay(int64_t afterEpoch, int64_t nowEpoch) {
     return Status::InvalidArgument;
   }
   closeReplayFile();
+  // A replay may read today's file. Close the append handle first; on some SD
+  // implementations a second read handle on the open file returns no data.
+  closeCurrentFile();
   replayAfter_ = afterEpoch > 0 ? afterEpoch : 0;
+  replayEnd_ = nowEpoch;
   replayEndDay_ = nowEpoch / kSecondsPerDay;
   int64_t startDay =
       replayAfter_ > 0 ? replayAfter_ / kSecondsPerDay : replayEndDay_ - kReplayMaxDays;
@@ -263,7 +283,9 @@ Status SdArchive::beginReplayRange(int64_t startEpoch, int64_t endEpoch) {
     return Status::InvalidArgument;
   }
   closeReplayFile();
+  closeCurrentFile();
   replayAfter_ = startEpoch - 1;
+  replayEnd_ = endEpoch;
   replayDay_ = startEpoch / kSecondsPerDay;
   replayEndDay_ = endEpoch / kSecondsPerDay;
   replay_ = true;
@@ -323,7 +345,7 @@ bool SdArchive::nextReplayLine(char* output, size_t outputSize, int64_t& lineEpo
       continue;
     }
     const int64_t epoch = parseBucketEpoch(replayLine_);
-    if (epoch > replayAfter_) {
+    if (epoch > replayAfter_ && (replayEnd_ <= 0 || epoch <= replayEnd_)) {
       const size_t copy = length < outputSize - 1 ? length : outputSize - 1;
       std::memcpy(output, replayLine_, copy);
       output[copy] = '\0';

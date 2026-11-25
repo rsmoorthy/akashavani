@@ -84,8 +84,19 @@ never affects the path or the stored timestamp.
 
 ## Offload and recovery
 
-1. Power down and remove the card, or copy over the network in a future admin
-   feature.
+The admin UI **Storage** tab can inspect the card without removing it:
+
+- `storage_status` reports SD totals, archive write status, `last_sent`, raw/log
+  counters and the current archive path.
+- `sd_list` lists `/archive`, `/raw`, `/logs`, `/state` or `/`.
+- `sd_read` returns one chunk of a file; increase `offset` until `eof`.
+
+The device uploads the listing or chunk to the server, and the admin page offers
+a download link. Paths outside those roots and `..` components are rejected.
+
+For physical offload:
+
+1. Power down and remove the card, or use `sd_list`/`sd_read` over the network.
 2. Copy `/archive` to a workstation.
 3. Validate JSON lines:
 
@@ -98,6 +109,24 @@ never affects the path or the stored timestamp.
 5. Optionally re-post missing records with the same `message_id`.
 
 Do not reformat or delete the card until the offload is verified.
+
+## Automatic catch-up and `last_sent`
+
+`last_sent` is a durable watermark in `/archive/<device-id>/last_sent`. The
+receiver advances it only to the next contiguous 5-minute bucket acknowledged by
+the server. It does not send a live bucket while an older bucket is still
+unsent; SD replay runs first. If SD is missing a bucket, the watermark holds at
+the gap and the condition is logged. Server-side idempotency makes replaying
+duplicates safe.
+
+## Device logs
+
+When SD is mounted, Info/Warn/Error lines are also buffered in a fixed 4 KB RAM
+buffer and written to `/logs/<device-id>/<YYYY>/<MM>/<DD>.log`. The main loop
+flushes when the buffer is full or after 60 seconds. Per-frame `rx` lines are
+Debug and are not written to SD. The sink caps each daily file at 256 KB and
+counts dropped lines. Use `sd_read` or `sd_list` to retrieve logs remotely; the
+tail of the buffer can be lost on an unexpected power cut.
 
 ## Retention
 

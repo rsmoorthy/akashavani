@@ -30,9 +30,14 @@ TEST(MessageType, RoundTrips) {
 }
 
 TEST(CommandType, RoundTrips) {
-  const CommandType types[] = {CommandType::Reboot, CommandType::SyncTime,
-                               CommandType::SetConfig, CommandType::CheckForUpdate,
-                               CommandType::UploadLogs, CommandType::SelfTest};
+  const CommandType types[] = {
+      CommandType::Reboot,       CommandType::SyncTime,
+      CommandType::SetConfig,    CommandType::CheckForUpdate,
+      CommandType::UploadLogs,   CommandType::SelfTest,
+      CommandType::GetConfig,    CommandType::PushConfig,
+      CommandType::GetDataAgain, CommandType::DownloadRawData,
+      CommandType::StorageStatus, CommandType::SdList,
+      CommandType::SdRead};
   for (const CommandType type : types) {
     EXPECT_EQ(type, commandTypeFromString(toString(type)));
   }

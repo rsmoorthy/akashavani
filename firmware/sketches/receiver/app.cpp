@@ -62,6 +62,7 @@ ArchiveCollector archiveCollector(300, 3000);
 
 std::unique_ptr<SdArchive> archive;
 RawLog rawLog(RawLogConfig{});
+std::unique_ptr<SdLogSink> sdLog;
 bool rawLogReady = false;
 std::unique_ptr<WebConfigServer> webServer;
 std::unique_ptr<OtaService> ota;
@@ -585,29 +586,47 @@ DeviceHealth currentHealth() {
   return health;
 }
 
-void markSent(int64_t bucketEndEpoch) {
-  if (bucketEndEpoch <= lastSentEpoch) {
-    return;
+constexpr int64_t kArchiveIntervalSeconds = 300;
+
+// Advances the durable watermark only when the acknowledged bucket is the next
+// expected 5-minute bucket. A live upload can no longer jump over an older
+// unsent record; the gap must be replayed from SD first.
+bool markSent(int64_t bucketEndEpoch) {
+  if (bucketEndEpoch <= 0) {
+    return false;
+  }
+  if (lastSentEpoch > 0) {
+    if (bucketEndEpoch <= lastSentEpoch) {
+      return true;
+    }
+    if (bucketEndEpoch != lastSentEpoch + kArchiveIntervalSeconds) {
+      AK_LOG_WARN("archive", "last_sent gap expected=%lld got=%lld",
+                  static_cast<long long>(lastSentEpoch + kArchiveIntervalSeconds),
+                  static_cast<long long>(bucketEndEpoch));
+      return false;
+    }
   }
   lastSentEpoch = bucketEndEpoch;
   if (archive) {
-    archive->setLastSentEpoch(bucketEndEpoch);
+    const Status status = archive->setLastSentEpoch(bucketEndEpoch);
+    if (!isOk(status)) {
+      AK_LOG_WARN("archive", "could not persist last_sent: %s", statusToString(status));
+    }
   }
+  return true;
 }
 
 // Replays SD archive records newer than last_sent in batches, oldest first.
-// Live uploads are held while a replay is active so last_sent cannot jump over
-// older unsent records.
+// This runs before live uploads, even when a live bucket is already pending, so
+// last_sent cannot jump over an older unsent record.
 void serviceCatchUp() {
   if (!archiveReady || !archive || !settings.uploadEnabled ||
       !settings.cloudConfigured() || !wifi.staConnected() || !timeService.isValid()) {
     return;
   }
-  if (pendingCount > 0 && !replayActive) {
-    return;
-  }
   const int64_t nowEpoch = timeService.nowEpoch();
-  if (!replayActive && lastSentEpoch > 0 && nowEpoch - lastSentEpoch < 300) {
+  if (!replayActive && lastSentEpoch > 0 &&
+      nowEpoch - lastSentEpoch < kArchiveIntervalSeconds) {
     return;  // newest bucket is already acknowledged
   }
   const uint32_t now = millis();
@@ -644,7 +663,13 @@ void serviceCatchUp() {
   const ArchiveBatchResult result =
       api.postArchiveBatch(reinterpret_cast<const uint8_t*>(catchupBody), catchupBytes);
   if (isOk(result.status) && result.rejected == 0) {
-    markSent(replayBatchLastEpoch);
+    if (!markSent(replayBatchLastEpoch)) {
+      AK_LOG_ERROR("catchup", "stopping at gap before %lld",
+                   static_cast<long long>(replayBatchLastEpoch));
+      archive->endReplay();
+      replayActive = false;
+      return;
+    }
     AK_LOG_INFO("catchup", "batch=%u accepted=%d duplicate=%d last_sent=%lld",
                 static_cast<unsigned>(count), result.accepted, result.duplicates,
                 static_cast<long long>(lastSentEpoch));
@@ -666,11 +691,18 @@ size_t buildReplayBatch(int64_t& lastEpoch, size_t& byteLength) {
   JsonDocument batch;
   JsonArray array = batch.to<JsonArray>();
   size_t count = 0;
+  int64_t expected =
+      lastSentEpoch > 0 ? lastSentEpoch + kArchiveIntervalSeconds : 0;
   while (count < kCatchupBatchRecords) {
     char line[kCatchupLineBytes];
     int64_t epoch = 0;
     bool done = false;
     if (!archive->nextReplayLine(line, sizeof(line), epoch, done)) {
+      break;
+    }
+    if (expected > 0 && epoch != expected) {
+      AK_LOG_WARN("catchup", "replay gap expected=%lld got=%lld",
+                  static_cast<long long>(expected), static_cast<long long>(epoch));
       break;
     }
     JsonDocument record;
@@ -680,6 +712,7 @@ size_t buildReplayBatch(int64_t& lastEpoch, size_t& byteLength) {
     array.add(record.as<JsonObjectConst>());
     ++count;
     lastEpoch = epoch;
+    expected = epoch + kArchiveIntervalSeconds;
   }
   if (count == 0) {
     return 0;
@@ -742,6 +775,12 @@ void drainUploads() {
   if (static_cast<int32_t>(millis() - pending[0].nextAttemptMs) < 0) {
     return;
   }
+  // Do not let a live bucket jump over an unsent older bucket. Catch-up runs
+  // first and advances last_sent contiguously.
+  if (lastSentEpoch > 0 &&
+      pending[0].bucketEndEpoch > lastSentEpoch + kArchiveIntervalSeconds) {
+    return;
+  }
 
   ApiClient api(settings, lastRadioEpoch, currentHealth());
   const ArchiveUpload result =
@@ -750,7 +789,10 @@ void drainUploads() {
     AK_LOG_INFO("upload", "sent bucket=%lld duplicate=%u",
                 static_cast<long long>(pending[0].bucketEndEpoch),
                 result.duplicate ? 1u : 0u);
-    markSent(pending[0].bucketEndEpoch);
+    if (!markSent(pending[0].bucketEndEpoch)) {
+      AK_LOG_WARN("upload", "bucket %lld acknowledged but watermark not advanced",
+                  static_cast<long long>(pending[0].bucketEndEpoch));
+    }
     shiftPending();
     return;
   }
@@ -870,10 +912,10 @@ bool handleFrame(const RadioFrame& frame) {
     observation.sequence = ++receivedSequence;
   }
 
-  AK_LOG_INFO("rx", "seq=%lu temp=%.1fC hum=%.0f%% rssi=%ddBm ch=%u",
-              static_cast<unsigned long>(observation.sequence), observation.temperatureC,
-              observation.humidityPct, frame.rssiDbm,
-              static_cast<unsigned>(frame.channel));
+  AK_LOG_DEBUG("rx", "seq=%lu temp=%.1fC hum=%.0f%% rssi=%ddBm ch=%u",
+               static_cast<unsigned long>(observation.sequence), observation.temperatureC,
+               observation.humidityPct, frame.rssiDbm,
+               static_cast<unsigned>(frame.channel));
 
   lastObservation = observation;
   haveObservation = true;
@@ -1037,6 +1079,122 @@ void reportConfigWhenOnline() {
     configReportPending = false;
     AK_LOG_INFO("config", "reported v%u", static_cast<unsigned>(settings.configVersion));
   }
+}
+
+void fillStorageStatus(JsonDocument& result) {
+  uint64_t total = 0;
+  uint64_t used = 0;
+  const bool sdOk = isOk(SdStorage::status(total, used));
+  result["sd"] = sdOk;
+  result["total"] = total;
+  result["used"] = used;
+  result["free"] = total >= used ? total - used : 0;
+  result["arch"] = archiveReady;
+  result["arch_n"] = archive ? archive->recordsWritten() : 0;
+  result["last_sent"] = lastSentEpoch;
+  result["raw_n"] = rawLog.written();
+  if (archive) {
+    result["arch_ok"] = isOk(archive->lastStatus());
+    result["arch_err"] = statusToString(archive->lastStatus());
+    result["arch_path"] = archive->currentPath();
+  }
+  if (sdLog) {
+    result["log_n"] = sdLog->writtenBytes();
+    result["log_drop"] = sdLog->dropped();
+    result["log_ok"] = isOk(sdLog->lastStatus());
+    result["log_err"] = statusToString(sdLog->lastStatus());
+  }
+}
+
+bool runStorageList(const char* commandId, JsonDocument& payload, JsonDocument& result,
+                    char* error, size_t errorSize) {
+  char path[SdStorage::kMaxPath] = "/";
+  const char* requested = payload["path"] | "/";
+  if (requested != nullptr && requested[0] != '\0') {
+    std::snprintf(path, sizeof(path), "%s", requested);
+  }
+  if (!SdStorage::isAllowedPath(path, true)) {
+    std::snprintf(error, errorSize, "path is not allowed");
+    return false;
+  }
+  size_t limit = payload["max_entries"] | 50;
+  if (limit == 0 || limit > 64) {
+    limit = 64;
+  }
+  static SdStorageEntry entries[64];
+  size_t count = 0;
+  bool truncated = false;
+  const Status listed = SdStorage::list(path, entries, limit, count, truncated);
+  if (!isOk(listed)) {
+    std::snprintf(error, errorSize, "list failed: %s", statusToString(listed));
+    return false;
+  }
+  JsonDocument listing;
+  listing["path"] = path;
+  listing["truncated"] = truncated;
+  JsonArray array = listing["entries"].to<JsonArray>();
+  for (size_t i = 0; i < count; ++i) {
+    JsonObject entry = array.add<JsonObject>();
+    entry["name"] = entries[i].name;
+    entry["dir"] = entries[i].directory;
+    entry["size"] = entries[i].size;
+    entry["mtime"] = entries[i].modified;
+  }
+  String body;
+  serializeJson(listing, body);
+  ApiClient api(settings, lastRadioEpoch, currentHealth());
+  const Status uploaded = api.postStorageList(commandId, path, body.c_str());
+  if (!isOk(uploaded)) {
+    std::snprintf(error, errorSize, "listing upload failed: %s", statusToString(uploaded));
+    return false;
+  }
+  result["entries"] = count;
+  result["truncated"] = truncated;
+  result["uploaded"] = true;
+  return true;
+}
+
+bool runStorageRead(const char* commandId, JsonDocument& payload, JsonDocument& result,
+                    char* error, size_t errorSize) {
+  char path[SdStorage::kMaxPath] = {};
+  const char* requested = payload["path"] | "";
+  std::snprintf(path, sizeof(path), "%s", requested == nullptr ? "" : requested);
+  if (!SdStorage::isAllowedPath(path, false)) {
+    std::snprintf(error, errorSize, "path is not allowed");
+    return false;
+  }
+  const long long requestedOffset = payload["offset"] | 0LL;
+  if (requestedOffset < 0) {
+    std::snprintf(error, errorSize, "offset must be non-negative");
+    return false;
+  }
+  size_t maxBytes = payload["max_bytes"] | 4096;
+  if (maxBytes == 0 || maxBytes > 4096) {
+    maxBytes = 4096;
+  }
+  static uint8_t buffer[4096];
+  size_t read = 0;
+  bool eof = false;
+  const Status status = SdStorage::readChunk(
+      path, static_cast<uint32_t>(requestedOffset), buffer, maxBytes, read, eof);
+  if (!isOk(status)) {
+    std::snprintf(error, errorSize, "read failed: %s", statusToString(status));
+    return false;
+  }
+  if (read > 0) {
+    ApiClient api(settings, lastRadioEpoch, currentHealth());
+    const Status uploaded = api.postStorageChunk(
+        commandId, path, static_cast<uint32_t>(requestedOffset), eof, buffer, read);
+    if (!isOk(uploaded)) {
+      std::snprintf(error, errorSize, "file upload failed: %s", statusToString(uploaded));
+      return false;
+    }
+    result["uploaded"] = true;
+  }
+  result["bytes"] = read;
+  result["next_offset"] = requestedOffset + static_cast<long long>(read);
+  result["eof"] = eof;
+  return true;
 }
 
 void pollCommands() {
@@ -1235,6 +1393,23 @@ void pollCommands() {
           reboot = networkChanged;
           break;
         }
+        case protocol::CommandType::StorageStatus:
+          fillStorageStatus(result);
+          break;
+        case protocol::CommandType::SdList:
+          ok = runStorageList(commands[i].id, payload, result, errorBuffer,
+                              sizeof(errorBuffer));
+          if (!ok) {
+            error = errorBuffer;
+          }
+          break;
+        case protocol::CommandType::SdRead:
+          ok = runStorageRead(commands[i].id, payload, result, errorBuffer,
+                              sizeof(errorBuffer));
+          if (!ok) {
+            error = errorBuffer;
+          }
+          break;
         case protocol::CommandType::SetConfig:
         case protocol::CommandType::UploadLogs:
         case protocol::CommandType::Unknown:
@@ -1432,6 +1607,15 @@ void setup() {
         if (rawLogReady) {
           AK_LOG_INFO("raw", "rolling weekday log ready");
         }
+        SdLogConfig logConfig;
+        logConfig.deviceId = settings.deviceId;
+        sdLog = std::make_unique<SdLogSink>(logConfig);
+        if (isOk(sdLog->begin())) {
+          Log::setSink(sdLog.get());
+          AK_LOG_INFO("log", "SD log sink ready");
+        } else {
+          AK_LOG_WARN("log", "SD log sink unavailable");
+        }
       }
     }
   }
@@ -1527,6 +1711,9 @@ void loop() {
 
   if (rawLogReady) {
     rawLog.loop(millis());
+  }
+  if (sdLog) {
+    sdLog->loop(millis());
   }
   serviceCatchUp();
   drainUploads();

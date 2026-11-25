@@ -448,6 +448,9 @@ class CommandType(str, Enum):
     GET_PENDING_COMMANDS = "get_pending_commands"
     GET_DATA_AGAIN = "get_data_again"
     DOWNLOAD_RAW_DATA = "download_raw_data"
+    STORAGE_STATUS = "storage_status"
+    SD_LIST = "sd_list"
+    SD_READ = "sd_read"
 
 
 class CommandCreate(BaseModel):

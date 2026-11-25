@@ -122,6 +122,7 @@
   <button type="button" data-tab="firmware">Firmware</button>
   <button type="button" data-tab="commands">Commands</button>
   <button type="button" data-tab="site">Site Settings</button>
+  <button type="button" data-tab="storage">Storage</button>
 </nav>
 
 <section id="tab-devices" class="tab active">
@@ -284,6 +285,42 @@
     </form>
     <p class="muted">Save only updates the server copy. Push sends the saved copy to the device. Get overwrites the server copy with the device copy, so any unpushed admin changes are lost.</p>
   </div>
+</section>
+
+<section id="tab-storage" class="tab">
+  <div class="panel">
+    <h2>SD storage</h2>
+    <div class="row">
+      <label>Device <select id="storageDevice"></select></label>
+      <button type="button" id="storageStatus" class="secondary">Storage status</button>
+    </div>
+    <p id="storageStatusOut" class="muted"></p>
+  </div>
+  <div class="panel">
+    <h3>List folder</h3>
+    <form id="storageListForm">
+      <div class="row">
+        <label>Folder <input id="storagePath" value="/" maxlength="128"></label>
+        <button type="submit">List folder</button>
+      </div>
+    </form>
+    <p id="storageListStatus" class="status"></p>
+    <div id="storageListResult" class="table-wrap"></div>
+  </div>
+  <div class="panel">
+    <h3>Read file chunk</h3>
+    <form id="storageReadForm">
+      <div class="grid2">
+        <label>File <input id="storageFile" maxlength="128" placeholder="/archive/ak-xxxxxx/2026/11/25.jsonl"></label>
+        <label>Offset <input id="storageOffset" type="number" min="0" step="1" value="0"></label>
+        <label>Max bytes <input id="storageMax" type="number" min="1" max="4096" step="1" value="4096"></label>
+      </div>
+      <button type="submit">Read chunk</button>
+    </form>
+    <p id="storageReadStatus" class="status"></p>
+    <div id="storageReadResult"></div>
+  </div>
+  <p class="muted">Paths are limited to <code>/archive</code>, <code>/raw</code>, <code>/logs</code> and <code>/state</code>. A read returns one chunk; increase the offset to fetch the next chunk.</p>
 </section>
 
 <script>
@@ -493,6 +530,9 @@ function showTab(name) {
     fillConfigDevices();
     if (!cfgLoadedFor && $('cfgDevice').value) loadDeviceConfig();
   }
+  if (target === 'storage' && $('storageDevice').options.length === 0) {
+    fillDeviceSelects();
+  }
 }
 
 function framesText(valid, expected) {
@@ -651,7 +691,7 @@ async function loadDevices() {
 }
 
 function fillDeviceSelects() {
-  for (const selectId of ['csvDevice', 'rawDevice', 'commandDevice', 'identityDevice']) {
+  for (const selectId of ['csvDevice', 'rawDevice', 'commandDevice', 'identityDevice', 'storageDevice']) {
     const select = $(selectId);
     const current = select.value;
     select.innerHTML = devices.map((d) =>
@@ -864,6 +904,117 @@ async function saveDeviceConfig() {
   }
 }
 
+async function queueStorageCommand(deviceId, type, payload) {
+  return api(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/commands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, payload }),
+  });
+}
+
+async function waitForCommand(deviceId, commandId, timeoutMs = 90000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const commands = await api(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/commands?limit=50`);
+    const command = commands.find((item) => item.id === commandId);
+    if (command && (command.status === 'acked' || command.status === 'failed')) {
+      return command;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error('command did not finish in time');
+}
+
+async function runStorageCommand(deviceId, type, payload) {
+  const command = await queueStorageCommand(deviceId, type, payload);
+  return waitForCommand(deviceId, command.id);
+}
+
+function storageBytes(value) {
+  if (value === null || value === undefined) return '';
+  if (value < 1024) return value + ' B';
+  if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB';
+  return (value / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function storageStamp(epoch) {
+  if (!epoch) return '';
+  return new Date(epoch * 1000).toISOString().replace('.000Z', 'Z');
+}
+
+async function loadStorageStatus() {
+  const deviceId = $('storageDevice').value;
+  if (!deviceId) return;
+  $('storageStatusOut').textContent = 'Queuing storage_status…';
+  try {
+    const command = await runStorageCommand(deviceId, 'storage_status', {});
+    const result = command.result || {};
+    $('storageStatusOut').textContent = JSON.stringify(result, null, 2);
+  } catch (error) {
+    $('storageStatusOut').textContent = error.message;
+  }
+}
+
+async function downloadStorageExport(deviceId, commandId, filename) {
+  const response = await fetch(
+    `/api/v1/admin/devices/${encodeURIComponent(deviceId)}/storage/${encodeURIComponent(commandId)}/download`,
+    { headers: { Authorization: 'Bearer ' + token() } },
+  );
+  if (!response.ok) {
+    throw new Error(response.status + ' ' + response.statusText);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function loadStorageListing(deviceId, commandId, basePath) {
+  const meta = await api(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/storage/${encodeURIComponent(commandId)}`);
+  const listing = meta.listing || {};
+  const entries = listing.entries || [];
+  const rows = entries.map((entry) => {
+    const fullPath = (basePath === '/' ? '' : basePath) + '/' + entry.name;
+    const readButton = entry.dir ? '' :
+      `<button type="button" class="secondary" data-storage-read="${escapeHtml(fullPath)}">Read</button>`;
+    return `<tr><td>${entry.dir ? 'dir' : 'file'}</td><td><code>${escapeHtml(entry.name)}</code></td>
+      <td>${entry.dir ? '' : escapeHtml(storageBytes(entry.size))}</td>
+      <td>${entry.dir ? '' : escapeHtml(storageStamp(entry.mtime))}</td><td>${readButton}</td></tr>`;
+  }).join('');
+  $('storageListResult').innerHTML = `<table><thead><tr><th>Type</th><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5" class="muted">Empty folder</td></tr>'}</tbody></table>`;
+  $('storageListResult').querySelectorAll('[data-storage-read]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $('storageFile').value = button.dataset.storageRead;
+      $('storageOffset').value = '0';
+      $('storageReadForm').requestSubmit();
+    });
+  });
+  if (listing.truncated) {
+    $('storageListStatus').textContent = 'Listing truncated; narrow the folder or increase max_entries.';
+  }
+}
+
+async function loadStorageChunk(deviceId, commandId) {
+  const meta = await api(`/api/v1/admin/devices/${encodeURIComponent(deviceId)}/storage/${encodeURIComponent(commandId)}`);
+  const link = `/api/v1/admin/devices/${encodeURIComponent(deviceId)}/storage/${encodeURIComponent(commandId)}/download`;
+  $('storageReadResult').innerHTML =
+    `<p><code>${escapeHtml(meta.path || '')}</code> offset ${escapeHtml(meta.offset ?? 0)}, ` +
+    `${escapeHtml(storageBytes(meta.size))}, ${meta.eof ? 'EOF' : 'more data'} · ` +
+    `<button type="button" class="secondary" data-storage-download="${escapeHtml(commandId)}">Download chunk</button></p>` +
+    `<p class="muted"><code>${escapeHtml(link)}</code></p>`;
+  const button = $('storageReadResult').querySelector('[data-storage-download]');
+  button.addEventListener('click', () => downloadStorageExport(deviceId, commandId, 'chunk.bin'));
+  if (!meta.eof) {
+    $('storageOffset').value = String((meta.offset ?? 0) + (meta.size ?? 0));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Event wiring
 // ---------------------------------------------------------------------------
@@ -1028,6 +1179,52 @@ $('cfgGet').addEventListener('click', async () => {
     setCfgStatus(`Queued get_config (${command.id}). Reload in about a minute.`, 'ok');
   } catch (error) {
     setCfgStatus(error.message, 'error');
+  }
+});
+
+$('storageDevice').addEventListener('change', () => {
+  $('storageStatusOut').textContent = '';
+  $('storageListResult').innerHTML = '';
+  $('storageReadResult').innerHTML = '';
+  $('storageListStatus').textContent = '';
+  $('storageReadStatus').textContent = '';
+});
+$('storageStatus').addEventListener('click', loadStorageStatus);
+$('storageListForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const deviceId = $('storageDevice').value;
+  const path = $('storagePath').value.trim() || '/';
+  $('storageListStatus').textContent = 'Queuing sd_list…';
+  $('storageListResult').innerHTML = '';
+  try {
+    const command = await runStorageCommand(deviceId, 'sd_list', { path, max_entries: 64 });
+    if (command.status !== 'acked') throw new Error(command.error || 'sd_list failed');
+    $('storageListStatus').textContent = `${command.result?.entries ?? 0} entries` +
+      (command.result?.truncated ? ' (truncated)' : '');
+    await loadStorageListing(deviceId, command.id, path);
+  } catch (error) {
+    $('storageListStatus').textContent = error.message;
+  }
+});
+$('storageReadForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const deviceId = $('storageDevice').value;
+  const path = $('storageFile').value.trim();
+  if (!path) { $('storageReadStatus').textContent = 'Enter a file path.'; return; }
+  const offset = Number($('storageOffset').value || 0);
+  const maxBytes = Math.min(4096, Math.max(1, Number($('storageMax').value || 4096)));
+  $('storageReadStatus').textContent = 'Queuing sd_read…';
+  $('storageReadResult').innerHTML = '';
+  try {
+    const command = await runStorageCommand(deviceId, 'sd_read', {
+      path, offset, max_bytes: maxBytes,
+    });
+    if (command.status !== 'acked') throw new Error(command.error || 'sd_read failed');
+    $('storageReadStatus').textContent =
+      `${command.result?.bytes ?? 0} bytes, ${command.result?.eof ? 'EOF' : 'more data'}`;
+    await loadStorageChunk(deviceId, command.id);
+  } catch (error) {
+    $('storageReadStatus').textContent = error.message;
   }
 });
 

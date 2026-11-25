@@ -19,6 +19,9 @@ enum class CommandType : uint8_t {
   GetDataAgain = 10,
   DownloadRawData = 11,
   PushConfig = 12,
+  StorageStatus = 13,
+  SdList = 14,
+  SdRead = 15,
   Unknown = 255,
 };
 

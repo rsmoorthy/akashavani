@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import json
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
@@ -19,7 +21,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -430,6 +432,69 @@ def download_raw_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{device_id}-raw.csv"'},
     )
+
+
+def _storage_export_dir(request: Request, device_id: str, command_id: str) -> Path:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,31}", device_id) or not re.fullmatch(
+        r"[0-9a-f-]{36}", command_id
+    ):
+        raise HTTPException(status_code=404, detail="storage export not found")
+    root = (request.app.state.settings.data_dir / "storage" / device_id).resolve()
+    directory = (root / command_id).resolve()
+    if root not in directory.parents or not directory.is_dir():
+        raise HTTPException(status_code=404, detail="storage export not found")
+    return directory
+
+
+@router.get("/devices/{device_id}/storage/{command_id}")
+def get_storage_export(
+    device_id: str,
+    command_id: str,
+    request: Request,
+) -> dict[str, object]:
+    """Metadata (and listing contents) for an sd_list/sd_read command."""
+    directory = _storage_export_dir(request, device_id, command_id)
+    meta_path = directory / "meta.json"
+    if not meta_path.is_file():
+        raise HTTPException(status_code=404, detail="storage export not found")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if meta.get("device_id") != device_id:
+        raise HTTPException(status_code=404, detail="storage export not found")
+    if meta.get("kind") == "listing":
+        listing_path = directory / "listing.json"
+        if listing_path.is_file():
+            meta["listing"] = json.loads(listing_path.read_text(encoding="utf-8"))
+    meta["download_url"] = f"/api/v1/admin/devices/{device_id}/storage/{command_id}/download"
+    return meta
+
+
+@router.get("/devices/{device_id}/storage/{command_id}/download")
+def download_storage_export(
+    device_id: str,
+    command_id: str,
+    request: Request,
+) -> FileResponse:
+    directory = _storage_export_dir(request, device_id, command_id)
+    meta_path = directory / "meta.json"
+    if not meta_path.is_file():
+        raise HTTPException(status_code=404, detail="storage export not found")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if meta.get("device_id") != device_id:
+        raise HTTPException(status_code=404, detail="storage export not found")
+    kind = str(meta.get("kind", ""))
+    if kind == "listing":
+        path = directory / "listing.json"
+        media_type = "application/json"
+        filename = "listing.json"
+    elif kind == "chunk":
+        path = directory / "chunk.bin"
+        media_type = "application/octet-stream"
+        filename = "chunk.bin"
+    else:
+        raise HTTPException(status_code=404, detail="storage export not found")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="storage export not found")
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @router.get("/observations", response_model=list[ObservationOut])

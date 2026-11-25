@@ -10,6 +10,19 @@ All notable changes are recorded here. The firmware version lives in
 - Ignore Davis `0x7` legacy/Vue frames when aggregating solar radiation. Real
   VP2 Plus traffic interleaves `0x7` with `0x6`; treating `0x7` as W/m2 inflated
   `solar_wm2` (for example 440 W/m2 where the console reported 278 W/m2).
+- Advance `last_sent` only to the next contiguous acknowledged 5-minute bucket.
+  Catch-up runs before live uploads, so a live bucket can no longer jump over an
+  older unsent bucket.
+- Close the SD append handle before replay and apply both the start and end
+  timestamps to range replay. Same-day `get_data_again` now works reliably.
+
+### Added
+
+- `storage_status`, `sd_list` and `sd_read` commands with server-side listing
+  and chunk download endpoints, plus an admin **Storage** tab.
+- Buffered Info/Warn/Error logging to
+  `/logs/<device>/<YYYY>/<MM>/<DD>.log`, with a 4 KB RAM buffer, 60-second
+  flush, 256 KB daily cap and dropped-line counter.
 
 ### Added
 

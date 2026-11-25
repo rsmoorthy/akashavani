@@ -15,11 +15,18 @@ enum class LogLevel : uint8_t {
   Debug = 3,
 };
 
+class ILogSink {
+ public:
+  virtual ~ILogSink() = default;
+  virtual void write(LogLevel level, const char* tag, const char* message) = 0;
+};
+
 class Log {
  public:
   static void begin(unsigned long baud = 115200);
   static void setLevel(LogLevel level);
   static LogLevel level();
+  static void setSink(ILogSink* sink);
 
   static void printf(LogLevel level, const char* tag, const char* format, ...)
       __attribute__((format(printf, 3, 4)));
@@ -27,6 +34,7 @@ class Log {
 
  private:
   static LogLevel currentLevel_;
+  static ILogSink* sink_;
 };
 
 }  // namespace akashavani
