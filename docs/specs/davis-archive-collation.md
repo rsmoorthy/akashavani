@@ -64,8 +64,9 @@ into the implementation:
 
 The current decoder is the source of truth for the bit layout. The following is
 the complete set of fields that can be derived from the implemented message
-types. Message `0x3` is unknown and carries only the common wind fields; `0x7`
-is a legacy/alternate solar mapping and must be confirmed against the real ISS.
+types. Message `0x3` is unknown and carries only the common wind fields. `0x7`
+is a legacy/Vue panel-voltage message, not VP2 solar radiation; field comparison
+on 2026-11-25 confirmed it must be excluded from the solar aggregate.
 
 | Message | Field | Raw encoding | Decoded unit | Repeats per 5 min? |
 | --- | --- | --- | --- | --- |
@@ -77,8 +78,8 @@ is a legacy/alternate solar mapping and must be confirmed against the real ISS.
 | `0x3` | unknown | - | - | once per cycle |
 | `0x4` | UV index | bytes 3-4, 10-bit, /50 | UV index | once per cycle (optional sensor) |
 | `0x5` | rain rate | bytes 3-4, 10-bit click interval + high/low-rate flag | clicks/h; mm/h after bucket size | once per cycle |
-| `0x6` | solar radiation (VP2) | bytes 3-4, 10-bit, x1.757936 | W/m2 | once per cycle; assumed mapping |
-| `0x7` | legacy solar / Vue panel voltage | byte 3 + byte 4 bits 6-7 | W/m2 (unverified) | once per cycle (model dependent) |
+| `0x6` | solar radiation (VP2) | bytes 3-4, 10-bit, x1.757936 | W/m2 | once per cycle; confirmed against the console 2026-11-25 |
+| `0x7` | legacy / Vue panel voltage | byte 3 + byte 4 bits 6-7 | ignored for solar | once per cycle (model dependent) |
 | `0x8` | outside temperature | bytes 3-4, 16-bit, F x 160 | C | once per cycle |
 | `0x9` | wind gust | byte 3, integer mph | m/s | once per cycle |
 | `0xA` | outside humidity | bytes 3-4, 12-bit, % x 10 | % | once per cycle |
@@ -104,9 +105,9 @@ numbers are trusted:
   field as unsigned. If the ISS uses a signed value below 0 F, the decoder will
   reject it. The reference database never goes below 48.9 F, so this has not
   been exercised.
-- **Solar message:** `0x6` is assumed until the real ISS capture confirms it.
-  If the station turns out to use `0x7`, the formula must change; the two are
-  not interchangeable.
+- **Solar message:** `0x6` is the VP2 solar message and matched the console on
+  2026-11-25. `0x7` is a separate legacy/Vue message and is ignored for solar;
+  the two are not interchangeable.
 - **UV/solar sentinels:** `0x3FF` for UV and `0x3FE`/`0x3FF` for solar mean
   "sensor absent" in the current decoder. Keep them as `null`, never zero.
 - **Rain bucket size:** the ISS frame carries tip counts, not the collector
@@ -679,7 +680,7 @@ Still to confirm:
 | # | Item | Why |
 | --- | --- | --- |
 | 1 | Rain bucket size: 0.01 in (0.254 mm) or 0.2 mm | Reference data says 0.01 in, but the actual ISS collector must be confirmed. |
-| 2 | Solar message `0x6` vs `0x7` | The formulas differ; `0x6` is the working assumption. |
+| 2 | ~~Solar message `0x6` vs `0x7`~~ | Resolved 2026-11-25: `0x6` is solar; `0x7` is legacy/Vue and is ignored for solar. |
 | 3 | Wind direction mapping: full-circle vs 9-351 degree dead zone | Affects all archived directions. |
 | 4 | Negative-temperature encoding below 0 F | Current decoder treats the field as unsigned. |
 | 5 | Whether the BME280 enclosure is vented and calibrated for station pressure | Pressure and barometer depend on it. |

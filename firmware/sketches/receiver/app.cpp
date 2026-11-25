@@ -318,8 +318,9 @@ void rfHandleFrame(const RadioFrame& frame, uint32_t now) {
         }
         break;
       case DavisMessageType::SolarRadiation:
-        std::snprintf(detail, sizeof(detail), "solar=%.0fW/m2",
-                      static_cast<double>(observation.solarRadiationWm2));
+        // 0x7 is a legacy/Vue message; it is not VP2 solar radiation and is
+        // intentionally excluded from the solar aggregate.
+        std::snprintf(detail, sizeof(detail), "legacy-solar=ignored");
         break;
       case DavisMessageType::GustSpeed:
         std::snprintf(detail, sizeof(detail), "gust=%.2fm/s",

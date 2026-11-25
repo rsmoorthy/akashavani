@@ -80,6 +80,20 @@ TEST(DavisDecoder, DecodesCapturedSolarFrame) {
   EXPECT_NEAR(337.0 * 1.757936, result.observation.solarRadiationWm2, 0.01);
 }
 
+TEST(DavisDecoder, IgnoresLegacySolarMessage) {
+  // Captured from the production VP2 Plus on 2026-11-25. 0x7 is interleaved
+  // with the true 0x6 solar frames and must not contribute to solar_wm2.
+  const uint8_t frame[8] = {0x77, 0x03, 0x55, 0xC2, 0x03, 0x06, 0xD7, 0x73};
+  const DavisDecodeResult result = decodeDavisFrame(frame, sizeof(frame));
+  ASSERT_EQ(DavisDecodeStatus::Ok, result.status);
+  EXPECT_EQ(7u, static_cast<unsigned>(result.messageId));
+  EXPECT_EQ(DavisMessageType::SolarRadiation, result.messageType);
+  EXPECT_STREQ("legacy-solar", toString(result.messageType));
+  EXPECT_FALSE(result.observation.has(DavisField::SolarRadiation));
+  EXPECT_TRUE(result.observation.has(DavisField::WindSpeed));
+  EXPECT_TRUE(result.observation.has(DavisField::WindDirection));
+}
+
 TEST(DavisDecoder, UvAndSolarMissingSentinelsKeepTheFrame) {
   uint8_t uv[8] = {0x47, 0x05, 0x15, 0xFF, 0xFF, 0x00, 0x00, 0x00};
   uint16_t crc = davisCrc16(uv, 6);
@@ -114,7 +128,7 @@ TEST(DavisCodec, RoundTripsEveryMessageType) {
 
   const DavisMessageType types[] = {
       DavisMessageType::Temperature,     DavisMessageType::Humidity,
-      DavisMessageType::RainRate,        DavisMessageType::SolarRadiation,
+      DavisMessageType::RainRate,        DavisMessageType::SolarRadiationWm2,
       DavisMessageType::GustSpeed,       DavisMessageType::GoldcapVoltage,
       DavisMessageType::RainCounter,     DavisMessageType::Unknown3,
   };
@@ -145,7 +159,8 @@ TEST(DavisCodec, RoundTripsEveryMessageType) {
       case DavisMessageType::RainRate:
         EXPECT_NEAR(source.rainRateMmPerHour, decoded.observation.rainRateMmPerHour, 0.1);
         break;
-      case DavisMessageType::SolarRadiation:
+      case DavisMessageType::SolarRadiationWm2:
+        EXPECT_TRUE(decoded.observation.has(DavisField::SolarRadiation));
         EXPECT_NEAR(source.solarRadiationWm2, decoded.observation.solarRadiationWm2, 1.0);
         break;
       case DavisMessageType::GustSpeed:
@@ -197,6 +212,24 @@ TEST(DavisEncoder, GenericOverloadPrefersTemperature) {
   const DavisDecodeResult decoded = decodeDavisFrame(frame, written);
   ASSERT_EQ(DavisDecodeStatus::Ok, decoded.status);
   EXPECT_EQ(DavisMessageType::Temperature, decoded.messageType);
+}
+
+TEST(DavisEncoder, GenericSolarUsesVp2SolarMessage) {
+  DavisObservation observation;
+  observation.transmitterId = 1;
+  observation.set(DavisField::WindSpeed, 1.0f);
+  observation.set(DavisField::WindDirection, 180.0f);
+  observation.set(DavisField::SolarRadiation, 350.0f);
+
+  uint8_t frame[8];
+  size_t written = 0;
+  ASSERT_EQ(DavisEncodeStatus::Ok,
+            encodeDavisFrame(observation, frame, sizeof(frame), written));
+  const DavisDecodeResult decoded = decodeDavisFrame(frame, written);
+  ASSERT_EQ(DavisDecodeStatus::Ok, decoded.status);
+  EXPECT_EQ(DavisMessageType::SolarRadiationWm2, decoded.messageType);
+  ASSERT_TRUE(decoded.observation.has(DavisField::SolarRadiation));
+  EXPECT_NEAR(350.0f, decoded.observation.solarRadiationWm2, 2.0f);
 }
 
 TEST(DavisObservation, ValidityMaskTracksFields) {

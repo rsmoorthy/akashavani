@@ -219,7 +219,7 @@ DavisEncodeStatus encodeDavisFrame(const DavisObservation& observation, uint8_t*
                             written);
   }
   if (observation.has(DavisField::SolarRadiation)) {
-    return encodeDavisFrame(observation, DavisMessageType::SolarRadiation, output,
+    return encodeDavisFrame(observation, DavisMessageType::SolarRadiationWm2, output,
                             outputSize, written);
   }
   if (observation.has(DavisField::WindGust)) {

@@ -105,12 +105,15 @@ Source: the kobuki/VPTools reference (`Examples/ISSRx/ISSRx.ino` and
 the sentinel matches, the frame is still valid for its wind fields but the UV or
 solar field is left unset rather than reported as zero.
 
-These two formulas are reference-derived, not yet checked against a local
-console. The captured `msg 4` and `msg 6` frames in
+The captured `msg 4` and `msg 6` frames in
 `firmware/tests/native/vectors/davis_iss_frames.txt` decode to 2.90 UV and
-592.4 W/m2 with this code. The legacy prototype mapping of `0x7` to solar
-radiation is unchanged and unverified; the reference maps `0x7` to the Vue solar
-panel voltage instead.
+592.4 W/m2 with this code. Field comparison on 2026-11-25 confirmed that the
+real VP2 Plus sends `0x6` solar values that match the Davis console/Wunderground
+(about 270-278 W/m2) while also interleaving `0x7` frames. The old `0x7` mapping
+produced 776 W/m2 and inflated the 5-minute mean to 440 W/m2. `0x7` is therefore
+kept only as a legacy/Vue panel-voltage message: the frame remains valid for its
+wind fields, but the decoder deliberately leaves the solar field unset so it is
+never included in `solar_wm2`.
 
 ## Test firmware behaviour
 

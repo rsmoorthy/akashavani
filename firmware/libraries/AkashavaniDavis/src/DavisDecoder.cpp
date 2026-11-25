@@ -66,7 +66,7 @@ const char* toString(DavisMessageType type) {
     case DavisMessageType::SolarRadiationWm2:
       return "solar";
     case DavisMessageType::SolarRadiation:
-      return "solar";
+      return "legacy-solar";
     case DavisMessageType::Temperature:
       return "temperature";
     case DavisMessageType::GustSpeed:
@@ -210,9 +210,11 @@ DavisDecodeResult decodeDavisFrame(const uint8_t* frame, size_t length,
       break;
     }
     case DavisMessageType::SolarRadiation: {
-      const float watts = static_cast<float>(b3) * 4.0f +
-                          static_cast<float>((b4 & 0xC0u) >> 6);
-      observation.set(DavisField::SolarRadiation, watts);
+      // 0x7 is the legacy/Vue panel-voltage message, not VP2 solar radiation.
+      // A real VP2 Plus interleaves 0x7 with 0x6; averaging both inflated the
+      // solar mean (a 0x7 frame decoded as 776 W/m2 alongside ~270 W/m2 0x6
+      // frames). Keep the frame valid for its wind fields but leave the solar
+      // field unset so the archive only aggregates true 0x6 samples.
       break;
     }
     case DavisMessageType::Temperature: {

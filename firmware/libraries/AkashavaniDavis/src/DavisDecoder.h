@@ -30,9 +30,10 @@ enum class DavisMessageType : uint8_t {
   UvIndex = 0x4,
   RainRate = 0x5,
   SolarRadiationWm2 = 0x6,
-  // 0x7 is the legacy prototype mapping, retained unchanged until the field
-  // comparison. The reference maps 0x7 to the Vue solar panel voltage, not to
-  // VP2 solar radiation.
+  // 0x7 is the legacy/Vue panel-voltage message. The reference maps it to the
+  // Vue solar panel voltage, not to VP2 solar radiation. Real VP2 Plus traffic
+  // interleaves 0x7 with 0x6, so the decoder keeps the frame for its wind
+  // fields but deliberately leaves SolarRadiation unset.
   SolarRadiation = 0x7,
   Temperature = 0x8,
   GustSpeed = 0x9,

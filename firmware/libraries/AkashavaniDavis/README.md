@@ -21,9 +21,12 @@ out-of-range temperature, humidity or wind direction. Fields absent from a
 particular ISS message remain unset in `DavisObservation::validFields`.
 
 The encoder mirrors the decoder for all message types currently known:
-goldcap voltage, rain rate, solar radiation, temperature, gust speed, humidity
-and rain counter. The bench simulator writes a wrapping slot sequence into byte
-5, which is unused by the decoded fields, so the receiver can measure gaps.
+goldcap voltage, rain rate, solar radiation (`0x6`), temperature, gust speed,
+humidity and rain counter. The legacy `0x7` message is kept for protocol
+completeness but is not treated as solar radiation; a real VP2 Plus interleaves
+it with `0x6`, and including it inflated the solar archive mean. The bench
+simulator writes a wrapping slot sequence into byte 5, which is unused by the
+decoded fields, so the receiver can measure gaps.
 
 Captured vectors used by the native tests include
 `87 05 2D 32 5B 0F B9 91` (temperature, transmitter 7). See
